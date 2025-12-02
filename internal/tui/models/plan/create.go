@@ -1,0 +1,188 @@
+package plan
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
+	"github.com/XiaoLFeng/llm-memory/startup"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+// CreateModel 计划创建模型
+// 呀~ 创建新计划的表单！📝
+type CreateModel struct {
+	bs         *startup.Bootstrap
+	focusIndex int
+	titleInput textinput.Model
+	descArea   textarea.Model
+	width      int
+	height     int
+	err        error
+}
+
+// NewCreateModel 创建计划创建模型
+func NewCreateModel(bs *startup.Bootstrap) *CreateModel {
+	// 标题输入框
+	ti := textinput.New()
+	ti.Placeholder = "计划标题"
+	ti.Focus()
+	ti.CharLimit = 100
+	ti.Width = 50
+
+	// 描述输入框
+	ta := textarea.New()
+	ta.Placeholder = "计划描述（可选）..."
+	ta.SetWidth(50)
+	ta.SetHeight(6)
+
+	return &CreateModel{
+		bs:         bs,
+		titleInput: ti,
+		descArea:   ta,
+	}
+}
+
+// Title 返回页面标题
+func (m *CreateModel) Title() string {
+	return "创建计划"
+}
+
+// ShortHelp 返回快捷键帮助
+func (m *CreateModel) ShortHelp() []key.Binding {
+	return []key.Binding{common.KeyTab, common.KeyEnter, common.KeyBack}
+}
+
+// Init 初始化
+func (m *CreateModel) Init() tea.Cmd {
+	return textinput.Blink
+}
+
+// Update 处理输入
+func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc":
+			return m, common.Back()
+
+		case "tab", "shift+tab":
+			// 切换焦点
+			if msg.String() == "tab" {
+				m.focusIndex = (m.focusIndex + 1) % 2
+			} else {
+				m.focusIndex = (m.focusIndex - 1 + 2) % 2
+			}
+			m.updateFocus()
+
+		case "ctrl+s":
+			// 保存
+			return m, m.save()
+		}
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
+	case planCreatedMsg:
+		return m, tea.Batch(
+			common.ShowToast("计划创建成功！", common.ToastSuccess),
+			common.Back(),
+		)
+
+	case plansErrorMsg:
+		m.err = msg.err
+	}
+
+	// 更新当前聚焦的输入框
+	cmd := m.updateInputs(msg)
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
+}
+
+// updateFocus 更新焦点状态
+func (m *CreateModel) updateFocus() {
+	m.titleInput.Blur()
+	m.descArea.Blur()
+
+	switch m.focusIndex {
+	case 0:
+		m.titleInput.Focus()
+	case 1:
+		m.descArea.Focus()
+	}
+}
+
+// updateInputs 更新输入框
+func (m *CreateModel) updateInputs(msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+
+	switch m.focusIndex {
+	case 0:
+		m.titleInput, cmd = m.titleInput.Update(msg)
+	case 1:
+		m.descArea, cmd = m.descArea.Update(msg)
+	}
+
+	return cmd
+}
+
+type planCreatedMsg struct{}
+
+// save 保存计划
+func (m *CreateModel) save() tea.Cmd {
+	return func() tea.Msg {
+		title := strings.TrimSpace(m.titleInput.Value())
+		if title == "" {
+			return plansErrorMsg{err: fmt.Errorf("标题不能为空")}
+		}
+
+		description := strings.TrimSpace(m.descArea.Value())
+
+		_, err := m.bs.PlanService.CreatePlan(context.Background(), title, description)
+		if err != nil {
+			return plansErrorMsg{err: err}
+		}
+
+		return planCreatedMsg{}
+	}
+}
+
+// View 渲染界面
+func (m *CreateModel) View() string {
+	var b strings.Builder
+
+	b.WriteString(styles.TitleStyle.Render("📝 创建新计划"))
+	b.WriteString("\n\n")
+
+	// 标题
+	b.WriteString(styles.LabelStyle.Render("标题"))
+	b.WriteString("\n")
+	b.WriteString(m.titleInput.View())
+	b.WriteString("\n\n")
+
+	// 描述
+	b.WriteString(styles.LabelStyle.Render("描述"))
+	b.WriteString("\n")
+	b.WriteString(m.descArea.View())
+	b.WriteString("\n\n")
+
+	// 错误信息
+	if m.err != nil {
+		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
+		b.WriteString("\n\n")
+	}
+
+	// 帮助信息
+	b.WriteString(styles.HelpStyle.Render("tab 切换 | ctrl+s 保存 | esc 取消"))
+
+	return b.String()
+}

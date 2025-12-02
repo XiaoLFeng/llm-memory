@@ -16,14 +16,14 @@ type TodoListInput struct{}
 
 // TodoCreateInput todo_create 工具输入
 type TodoCreateInput struct {
-	Title       string `json:"title" jsonschema:"description=待办事项的标题，简洁描述需要完成的任务，例如：'回复用户邮件'、'修复登录Bug'"`
-	Description string `json:"description,omitempty" jsonschema:"description=待办事项的详细描述，包含任务的具体内容、背景信息等"`
-	Priority    int    `json:"priority,omitempty" jsonschema:"description=待办事项的优先级：1=低优先级（可延后处理）、2=中优先级（正常处理，默认值）、3=高优先级（优先处理）、4=紧急（立即处理）"`
+	Title       string `json:"title" jsonschema:"待办标题，简洁描述任务"`
+	Description string `json:"description,omitempty" jsonschema:"待办的详细描述"`
+	Priority    int    `json:"priority,omitempty" jsonschema:"优先级(1低/2中/3高/4紧急)，默认2"`
 }
 
 // TodoCompleteInput todo_complete 工具输入
 type TodoCompleteInput struct {
-	ID int `json:"id" jsonschema:"description=要标记为完成的待办事项ID，可通过 todo_list 或 todo_today 获取"`
+	ID int `json:"id" jsonschema:"要完成的待办事项ID"`
 }
 
 // TodoTodayInput todo_today 工具输入

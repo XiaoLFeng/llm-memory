@@ -14,20 +14,20 @@ type MemoryListInput struct{}
 
 // MemoryCreateInput memory_create 工具输入
 type MemoryCreateInput struct {
-	Title    string   `json:"title" jsonschema:"description=记忆的标题，简洁明了地概括记忆内容，例如：'用户偏好设置'、'项目架构说明'"`
-	Content  string   `json:"content" jsonschema:"description=记忆的详细内容，可以是任意文本信息，支持多行文本，例如：用户的具体偏好、技术方案细节等"`
-	Category string   `json:"category,omitempty" jsonschema:"description=记忆的分类，用于组织和筛选记忆，例如：'用户偏好'、'技术文档'、'会议记录'。如不指定则默认为'默认'"`
-	Tags     []string `json:"tags,omitempty" jsonschema:"description=记忆的标签列表，用于更细粒度的分类和搜索，例如：['重要', 'Go语言', '架构设计']"`
+	Title    string   `json:"title" jsonschema:"记忆标题，简洁概括内容"`
+	Content  string   `json:"content" jsonschema:"记忆的详细内容，支持多行文本"`
+	Category string   `json:"category,omitempty" jsonschema:"记忆分类，如：用户偏好、技术文档。默认为'默认'"`
+	Tags     []string `json:"tags,omitempty" jsonschema:"标签列表，用于细粒度分类和搜索"`
 }
 
 // MemoryDeleteInput memory_delete 工具输入
 type MemoryDeleteInput struct {
-	ID int `json:"id" jsonschema:"description=要删除的记忆ID，可通过 memory_list 或 memory_search 获取"`
+	ID int `json:"id" jsonschema:"要删除的记忆ID"`
 }
 
 // MemorySearchInput memory_search 工具输入
 type MemorySearchInput struct {
-	Keyword string `json:"keyword" jsonschema:"description=搜索关键词，将在记忆的标题和内容中进行模糊匹配，支持中英文"`
+	Keyword string `json:"keyword" jsonschema:"搜索关键词，在标题和内容中模糊匹配"`
 }
 
 // RegisterMemoryTools 注册记忆管理工具

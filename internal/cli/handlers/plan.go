@@ -1,0 +1,147 @@
+package handlers
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/XiaoLFeng/llm-memory/internal/cli"
+	"github.com/XiaoLFeng/llm-memory/internal/cli/output"
+	"github.com/XiaoLFeng/llm-memory/pkg/types"
+	"github.com/XiaoLFeng/llm-memory/startup"
+)
+
+// PlanHandler 计划命令处理器
+// 嘿嘿~ 处理所有计划相关的 CLI 命令！📋
+type PlanHandler struct {
+	bs *startup.Bootstrap
+}
+
+// NewPlanHandler 创建计划处理器
+func NewPlanHandler(bs *startup.Bootstrap) *PlanHandler {
+	return &PlanHandler{bs: bs}
+}
+
+// List 列出所有计划
+// 呀~ 展示所有计划！✨
+func (h *PlanHandler) List(ctx context.Context) error {
+	plans, err := h.bs.PlanService.ListPlans(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(plans) == 0 {
+		cli.PrintInfo("暂无计划~ 快创建一个吧！")
+		return nil
+	}
+
+	cli.PrintTitle("📋 计划列表")
+	table := output.NewTable("ID", "标题", "状态", "进度")
+	for _, p := range plans {
+		table.AddRow(
+			fmt.Sprintf("%d", p.ID),
+			p.Title,
+			getPlanStatusText(p.Status),
+			fmt.Sprintf("%d%%", p.Progress),
+		)
+	}
+	table.Print()
+
+	return nil
+}
+
+// Create 创建计划
+// 嘿嘿~ 创建新计划！💫
+func (h *PlanHandler) Create(ctx context.Context, title, description string) error {
+	plan, err := h.bs.PlanService.CreatePlan(ctx, title, description)
+	if err != nil {
+		return err
+	}
+
+	cli.PrintSuccess(fmt.Sprintf("计划创建成功！ID: %d, 标题: %s", plan.ID, plan.Title))
+	return nil
+}
+
+// UpdateProgress 更新计划进度
+// 呀~ 更新计划的完成进度！📊
+func (h *PlanHandler) UpdateProgress(ctx context.Context, id, progress int) error {
+	if err := h.bs.PlanService.UpdateProgress(ctx, id, progress); err != nil {
+		return err
+	}
+
+	cli.PrintSuccess(fmt.Sprintf("计划 %d 进度已更新为 %d%%", id, progress))
+	return nil
+}
+
+// Start 开始计划
+func (h *PlanHandler) Start(ctx context.Context, id int) error {
+	if err := h.bs.PlanService.StartPlan(ctx, id); err != nil {
+		return err
+	}
+
+	cli.PrintSuccess(fmt.Sprintf("计划 %d 已开始", id))
+	return nil
+}
+
+// Complete 完成计划
+func (h *PlanHandler) Complete(ctx context.Context, id int) error {
+	if err := h.bs.PlanService.CompletePlan(ctx, id); err != nil {
+		return err
+	}
+
+	cli.PrintSuccess(fmt.Sprintf("计划 %d 已完成", id))
+	return nil
+}
+
+// Delete 删除计划
+func (h *PlanHandler) Delete(ctx context.Context, id int) error {
+	if err := h.bs.PlanService.DeletePlan(ctx, id); err != nil {
+		return err
+	}
+
+	cli.PrintSuccess(fmt.Sprintf("计划 %d 已删除", id))
+	return nil
+}
+
+// Get 获取计划详情
+// 嗯嗯！查看计划的详细信息！📝
+func (h *PlanHandler) Get(ctx context.Context, id int) error {
+	plan, err := h.bs.PlanService.GetPlan(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	cli.PrintTitle("📋 计划详情")
+	fmt.Printf("ID:       %d\n", plan.ID)
+	fmt.Printf("标题:     %s\n", plan.Title)
+	fmt.Printf("状态:     %s\n", getPlanStatusText(plan.Status))
+	fmt.Printf("进度:     %d%%\n", plan.Progress)
+	if plan.StartDate != nil {
+		fmt.Printf("开始时间: %s\n", plan.StartDate.Format("2006-01-02 15:04:05"))
+	}
+	if plan.EndDate != nil {
+		fmt.Printf("结束时间: %s\n", plan.EndDate.Format("2006-01-02 15:04:05"))
+	}
+	fmt.Printf("创建时间: %s\n", plan.CreatedAt.Format("2006-01-02 15:04:05"))
+	if plan.Description != "" {
+		fmt.Println("\n描述:")
+		fmt.Println(plan.Description)
+	}
+
+	return nil
+}
+
+// getPlanStatusText 获取计划状态文本
+func getPlanStatusText(status types.PlanStatus) string {
+	switch status {
+	case types.PlanStatusPending:
+		return "待开始"
+	case types.PlanStatusInProgress:
+		return "进行中"
+	case types.PlanStatusCompleted:
+		return "已完成"
+	case types.PlanStatusCancelled:
+		return "已取消"
+	default:
+		return "未知"
+	}
+}

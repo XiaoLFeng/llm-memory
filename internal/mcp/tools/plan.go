@@ -15,14 +15,14 @@ type PlanListInput struct{}
 
 // PlanCreateInput plan_create 工具输入
 type PlanCreateInput struct {
-	Title       string `json:"title" jsonschema:"description=计划的标题，简洁描述计划目标，例如：'完成用户认证模块开发'、'学习Go语言基础'"`
-	Description string `json:"description,omitempty" jsonschema:"description=计划的详细描述，包含具体步骤、目标、注意事项等，例如：'实现JWT认证，包括登录、注册、token刷新等功能'"`
+	Title       string `json:"title" jsonschema:"计划标题，简洁描述计划目标"`
+	Description string `json:"description,omitempty" jsonschema:"计划的详细描述，包含具体步骤和目标"`
 }
 
 // PlanUpdateProgressInput plan_update_progress 工具输入
 type PlanUpdateProgressInput struct {
-	ID       int `json:"id" jsonschema:"description=要更新的计划ID，可通过 plan_list 获取"`
-	Progress int `json:"progress" jsonschema:"description=计划的完成进度，范围0-100的整数。0表示未开始，100表示已完成。系统会根据进度自动更新计划状态"`
+	ID       int `json:"id" jsonschema:"要更新的计划ID"`
+	Progress int `json:"progress" jsonschema:"完成进度(0-100)，系统会自动更新状态"`
 }
 
 // RegisterPlanTools 注册计划管理工具
