@@ -12,13 +12,16 @@ import (
 )
 
 // TodoListInput todo_list 工具输入
-type TodoListInput struct{}
+type TodoListInput struct {
+	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤(personal/group/global/all)，默认all显示全部"`
+}
 
 // TodoCreateInput todo_create 工具输入
 type TodoCreateInput struct {
 	Title       string `json:"title" jsonschema:"待办标题，简洁描述任务"`
 	Description string `json:"description,omitempty" jsonschema:"待办的详细描述"`
 	Priority    int    `json:"priority,omitempty" jsonschema:"优先级(1低/2中/3高/4紧急)，默认2"`
+	Scope       string `json:"scope,omitempty" jsonschema:"保存到哪个作用域(personal/group/global)，默认global"`
 }
 
 // TodoCompleteInput todo_complete 工具输入
@@ -27,7 +30,9 @@ type TodoCompleteInput struct {
 }
 
 // TodoTodayInput todo_today 工具输入
-type TodoTodayInput struct{}
+type TodoTodayInput struct {
+	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤(personal/group/global/all)，默认all显示全部"`
+}
 
 // RegisterTodoTools 注册 TODO 管理工具
 // 嗯嗯！待办事项相关的 MCP 工具都在这里！🎮
@@ -54,9 +59,18 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 - 低：可延后处理的任务
 - 中：正常优先级（默认）
 - 高：需要优先处理
-- 紧急：需要立即处理`,
+- 紧急：需要立即处理
+
+作用域说明：
+- personal: 只显示当前目录的待办
+- group: 只显示当前组的待办
+- global: 只显示全局待办
+- all: 显示所有可见待办（默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoListInput) (*mcp.CallToolResult, any, error) {
-		todos, err := bs.TodoService.ListTodos(ctx)
+		// 构建作用域上下文
+		scope := buildScopeContext(input.Scope, bs)
+
+		todos, err := bs.TodoService.ListTodosByScope(ctx, scope)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -67,7 +81,8 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		for _, t := range todos {
 			status := getTodoStatusText(t.Status)
 			priority := getPriorityText(t.Priority)
-			result += fmt.Sprintf("- [%d] %s (%s, %s)\n", t.ID, t.Title, status, priority)
+			scopeTag := getScopeTag(t.GroupID, t.Path)
+			result += fmt.Sprintf("- [%d] %s (%s, %s) %s\n", t.ID, t.Title, status, priority, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
 	})
@@ -94,17 +109,27 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 示例：
 - 标题："修复用户登录失败问题"，优先级：4（紧急）
-- 标题："更新项目文档"，优先级：2（中）`,
+- 标题："更新项目文档"，优先级：2（中）
+
+作用域说明：
+- personal: 保存到当前目录（只在此目录可见）
+- group: 保存到当前组（组内所有路径可见）
+- global: 保存为全局（任何地方可见，默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoCreateInput) (*mcp.CallToolResult, any, error) {
 		priority := types.Priority(input.Priority)
 		if priority == 0 {
 			priority = types.TodoPriorityMedium
 		}
-		todo, err := bs.TodoService.CreateTodo(ctx, input.Title, input.Description, priority, nil)
+
+		// 根据 scope 确定 groupID 和 path
+		groupID, path := resolveScopeForCreate(input.Scope, bs)
+
+		todo, err := bs.TodoService.CreateTodo(ctx, input.Title, input.Description, priority, nil, groupID, path)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		return NewTextResult(fmt.Sprintf("待办事项创建成功! ID: %d, 标题: %s", todo.ID, todo.Title)), nil, nil
+		scopeTag := getScopeTag(groupID, path)
+		return NewTextResult(fmt.Sprintf("待办事项创建成功! ID: %d, 标题: %s %s", todo.ID, todo.Title, scopeTag)), nil, nil
 	})
 
 	// todo_complete - 完成待办
@@ -147,9 +172,18 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 - 根据优先级安排处理顺序
 - 完成后及时使用 todo_complete 标记
 
-提示：如果需要查看所有待办（不仅是今天的），请使用 todo_list`,
+提示：如果需要查看所有待办（不仅是今天的），请使用 todo_list
+
+作用域说明：
+- personal: 只显示当前目录今天的待办
+- group: 只显示当前组今天的待办
+- global: 只显示全局今天的待办
+- all: 显示所有可见今天的待办（默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoTodayInput) (*mcp.CallToolResult, any, error) {
-		todos, err := bs.TodoService.ListToday(ctx)
+		// 构建作用域上下文
+		scope := buildScopeContext(input.Scope, bs)
+
+		todos, err := bs.TodoService.ListTodayByScope(ctx, scope)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -159,7 +193,8 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		result := fmt.Sprintf("今日待办事项 (%s):\n", time.Now().Format("2006-01-02"))
 		for _, t := range todos {
 			status := getTodoStatusText(t.Status)
-			result += fmt.Sprintf("- [%d] %s (%s)\n", t.ID, t.Title, status)
+			scopeTag := getScopeTag(t.GroupID, t.Path)
+			result += fmt.Sprintf("- [%d] %s (%s) %s\n", t.ID, t.Title, status, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
 	})

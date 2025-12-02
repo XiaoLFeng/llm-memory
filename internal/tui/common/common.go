@@ -23,6 +23,9 @@ const (
 	PageTodoToday
 	PageTodoCreate
 	PageTodoDetail
+	PageGroupList   // 组列表
+	PageGroupCreate // 创建组
+	PageGroupDetail // 组详情
 )
 
 // ToastType 提示消息类型

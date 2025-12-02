@@ -10,6 +10,7 @@ import (
 	"github.com/XiaoLFeng/llm-memory/internal/database"
 	"github.com/XiaoLFeng/llm-memory/internal/repository"
 	"github.com/XiaoLFeng/llm-memory/internal/service"
+	"github.com/XiaoLFeng/llm-memory/pkg/types"
 )
 
 // 错误定义
@@ -36,6 +37,11 @@ type Bootstrap struct {
 	MemoryService *service.MemoryService
 	PlanService   *service.PlanService
 	TodoService   *service.TodoService
+	GroupService  *service.GroupService // 新增：组服务
+
+	// 当前作用域上下文
+	// 嘿嘿~ 启动时自动解析当前目录的作用域！✨
+	CurrentScope *types.ScopeContext
 
 	// 信号处理
 	signalHandler *SignalHandler
@@ -86,13 +92,24 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 	memoryRepo := repository.NewMemoryRepo(db)
 	planRepo := repository.NewPlanRepo(db)
 	todoRepo := repository.NewTodoRepo(db)
+	groupRepo := repository.NewGroupRepo(db) // 新增：组仓储
 
 	// 5. 创建 Service 实例
 	b.MemoryService = service.NewMemoryService(memoryRepo)
 	b.PlanService = service.NewPlanService(planRepo)
 	b.TodoService = service.NewTodoService(todoRepo)
+	b.GroupService = service.NewGroupService(groupRepo) // 新增：组服务
 
-	// 6. 启动信号处理
+	// 6. 解析当前作用域
+	// 嘿嘿~ 启动时自动获取当前目录的作用域上下文！💖
+	scope, err := b.GroupService.GetCurrentScope(b.appCtx.Context())
+	if err != nil {
+		// 如果解析失败，使用仅包含 Global 的作用域
+		scope = types.NewGlobalOnlyScope()
+	}
+	b.CurrentScope = scope
+
+	// 7. 启动信号处理
 	if b.options.EnableSignalHandler {
 		b.signalHandler = NewSignalHandler()
 		b.signalHandler.Start(func(sig os.Signal) {

@@ -104,3 +104,75 @@ func (r *TodoRepo) FindToday(ctx context.Context) ([]types.Todo, error) {
 
 	return todayTodos, nil
 }
+
+// FindByScope 根据作用域查找待办事项
+// 嘿嘿~ 支持 Personal/Group/Global 三层作用域过滤！💖
+func (r *TodoRepo) FindByScope(ctx context.Context, scope *types.ScopeContext) ([]types.Todo, error) {
+	if scope == nil {
+		// 没有作用域限制，返回所有
+		return r.FindAll(ctx)
+	}
+
+	var allTodos []types.Todo
+	err := r.db.All(&allTodos)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []types.Todo
+	for _, todo := range allTodos {
+		if r.matchScope(todo, scope) {
+			result = append(result, todo)
+		}
+	}
+
+	return result, nil
+}
+
+// FindTodayByScope 根据作用域查找今天的待办事项
+// 在指定作用域内查找今天截止的任务~ ⏰
+func (r *TodoRepo) FindTodayByScope(ctx context.Context, scope *types.ScopeContext) ([]types.Todo, error) {
+	// 先按作用域过滤
+	todos, err := r.FindByScope(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取今天的开始和结束时间
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	endOfDay := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, now.Location())
+
+	// 筛选今天截止的待办事项
+	var todayTodos []types.Todo
+	for _, todo := range todos {
+		if todo.DueDate != nil {
+			if !todo.DueDate.Before(startOfDay) && !todo.DueDate.After(endOfDay) {
+				todayTodos = append(todayTodos, todo)
+			}
+		}
+	}
+
+	return todayTodos, nil
+}
+
+// matchScope 检查待办是否匹配作用域
+// 核心过滤逻辑~ ✨
+func (r *TodoRepo) matchScope(todo types.Todo, scope *types.ScopeContext) bool {
+	// 检查 Global
+	if scope.IncludeGlobal && todo.IsGlobal() {
+		return true
+	}
+
+	// 检查 Personal（精确路径匹配）
+	if scope.IncludePersonal && todo.Path != "" && todo.Path == scope.CurrentPath {
+		return true
+	}
+
+	// 检查 Group
+	if scope.IncludeGroup && scope.GroupID != types.GlobalGroupID && todo.GroupID == scope.GroupID {
+		return true
+	}
+
+	return false
+}

@@ -3,14 +3,18 @@ package tools
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 )
 
 // MemoryListInput memory_list 工具输入
-type MemoryListInput struct{}
+type MemoryListInput struct {
+	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤(personal/group/global/all)，默认all显示全部"`
+}
 
 // MemoryCreateInput memory_create 工具输入
 type MemoryCreateInput struct {
@@ -18,6 +22,7 @@ type MemoryCreateInput struct {
 	Content  string   `json:"content" jsonschema:"记忆的详细内容，支持多行文本"`
 	Category string   `json:"category,omitempty" jsonschema:"记忆分类，如：用户偏好、技术文档。默认为'默认'"`
 	Tags     []string `json:"tags,omitempty" jsonschema:"标签列表，用于细粒度分类和搜索"`
+	Scope    string   `json:"scope,omitempty" jsonschema:"保存到哪个作用域(personal/group/global)，默认global"`
 }
 
 // MemoryDeleteInput memory_delete 工具输入
@@ -28,6 +33,7 @@ type MemoryDeleteInput struct {
 // MemorySearchInput memory_search 工具输入
 type MemorySearchInput struct {
 	Keyword string `json:"keyword" jsonschema:"搜索关键词，在标题和内容中模糊匹配"`
+	Scope   string `json:"scope,omitempty" jsonschema:"作用域过滤(personal/group/global/all)，默认all显示全部"`
 }
 
 // RegisterMemoryTools 注册记忆管理工具
@@ -45,9 +51,18 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 返回信息：记忆ID、标题、分类
 
-注意：如果记忆数量较多，建议使用 memory_search 进行精确查找`,
+注意：如果记忆数量较多，建议使用 memory_search 进行精确查找
+
+作用域说明：
+- personal: 只显示当前目录的记忆
+- group: 只显示当前组的记忆
+- global: 只显示全局记忆
+- all: 显示所有可见记忆（默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryListInput) (*mcp.CallToolResult, any, error) {
-		memories, err := bs.MemoryService.ListMemories(ctx)
+		// 构建作用域上下文
+		scope := buildScopeContext(input.Scope, bs)
+
+		memories, err := bs.MemoryService.ListMemoriesByScope(ctx, scope)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -56,7 +71,8 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := "记忆列表:\n"
 		for _, m := range memories {
-			result += fmt.Sprintf("- [%d] %s (分类: %s)\n", m.ID, m.Title, m.Category)
+			scopeTag := getScopeTag(m.GroupID, m.Path)
+			result += fmt.Sprintf("- [%d] %s (分类: %s) %s\n", m.ID, m.Title, m.Category, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
 	})
@@ -78,17 +94,27 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 示例：
 - 标题："用户编程偏好"，分类："用户偏好"，标签：["编程", "偏好"]
-- 标题："项目数据库设计"，分类："技术文档"，标签：["数据库", "MySQL"]`,
+- 标题："项目数据库设计"，分类："技术文档"，标签：["数据库", "MySQL"]
+
+作用域说明：
+- personal: 保存到当前目录（只在此目录可见）
+- group: 保存到当前组（组内所有路径可见）
+- global: 保存为全局（任何地方可见，默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryCreateInput) (*mcp.CallToolResult, any, error) {
 		category := input.Category
 		if category == "" {
 			category = "默认"
 		}
-		memory, err := bs.MemoryService.CreateMemory(ctx, input.Title, input.Content, category, input.Tags, 1)
+
+		// 根据 scope 确定 groupID 和 path
+		groupID, path := resolveScopeForCreate(input.Scope, bs)
+
+		memory, err := bs.MemoryService.CreateMemory(ctx, input.Title, input.Content, category, input.Tags, 1, groupID, path)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		return NewTextResult(fmt.Sprintf("记忆创建成功! ID: %d, 标题: %s", memory.ID, memory.Title)), nil, nil
+		scopeTag := getScopeTag(groupID, path)
+		return NewTextResult(fmt.Sprintf("记忆创建成功! ID: %d, 标题: %s %s", memory.ID, memory.Title, scopeTag)), nil, nil
 	})
 
 	// memory_delete - 删除记忆
@@ -127,9 +153,18 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 - 可以搜索标题或内容中的任意文本
 - 支持中英文关键词
 
-建议：在执行任务前，先搜索是否有相关的记忆可以参考，这样可以提供更个性化的服务`,
+建议：在执行任务前，先搜索是否有相关的记忆可以参考，这样可以提供更个性化的服务
+
+作用域说明：
+- personal: 只搜索当前目录的记忆
+- group: 只搜索当前组的记忆
+- global: 只搜索全局记忆
+- all: 搜索所有可见记忆（默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemorySearchInput) (*mcp.CallToolResult, any, error) {
-		memories, err := bs.MemoryService.SearchMemories(ctx, input.Keyword)
+		// 构建作用域上下文
+		scope := buildScopeContext(input.Scope, bs)
+
+		memories, err := bs.MemoryService.SearchMemoriesByScope(ctx, scope, input.Keyword)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -138,8 +173,83 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := fmt.Sprintf("搜索结果 (%d 条):\n", len(memories))
 		for _, m := range memories {
-			result += fmt.Sprintf("- [%d] %s\n", m.ID, m.Title)
+			scopeTag := getScopeTag(m.GroupID, m.Path)
+			result += fmt.Sprintf("- [%d] %s %s\n", m.ID, m.Title, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
 	})
+}
+
+// buildScopeContext 根据 scope 字符串构建 ScopeContext
+// 嘿嘿~ 这是通用的作用域构建辅助函数！✨
+func buildScopeContext(scope string, bs *startup.Bootstrap) *types.ScopeContext {
+	// 获取当前工作目录和作用域上下文
+	currentScope := bs.CurrentScope
+	if currentScope == nil {
+		currentScope = types.NewGlobalOnlyScope()
+	}
+
+	switch scope {
+	case "personal":
+		return &types.ScopeContext{
+			CurrentPath:     currentScope.CurrentPath,
+			GroupID:         types.GlobalGroupID,
+			IncludePersonal: true,
+			IncludeGroup:    false,
+			IncludeGlobal:   false,
+		}
+	case "group":
+		return &types.ScopeContext{
+			CurrentPath:     currentScope.CurrentPath,
+			GroupID:         currentScope.GroupID,
+			GroupName:       currentScope.GroupName,
+			IncludePersonal: false,
+			IncludeGroup:    true,
+			IncludeGlobal:   false,
+		}
+	case "global":
+		return &types.ScopeContext{
+			CurrentPath:     currentScope.CurrentPath,
+			GroupID:         types.GlobalGroupID,
+			IncludePersonal: false,
+			IncludeGroup:    false,
+			IncludeGlobal:   true,
+		}
+	default: // "all" 或空字符串
+		return currentScope
+	}
+}
+
+// resolveScopeForCreate 解析创建时的作用域
+// 返回 groupID 和 path
+func resolveScopeForCreate(scope string, bs *startup.Bootstrap) (int, string) {
+	currentScope := bs.CurrentScope
+	if currentScope == nil {
+		return types.GlobalGroupID, ""
+	}
+
+	switch scope {
+	case "personal":
+		pwd, _ := os.Getwd()
+		return types.GlobalGroupID, pwd
+	case "group":
+		if currentScope.GroupID != types.GlobalGroupID {
+			return currentScope.GroupID, ""
+		}
+		// 如果不属于任何组，回退到 global
+		return types.GlobalGroupID, ""
+	default: // "global" 或空字符串
+		return types.GlobalGroupID, ""
+	}
+}
+
+// getScopeTag 获取作用域标签
+func getScopeTag(groupID int, path string) string {
+	if path != "" {
+		return "[Personal]"
+	}
+	if groupID != types.GlobalGroupID {
+		return "[Group]"
+	}
+	return "[Global]"
 }

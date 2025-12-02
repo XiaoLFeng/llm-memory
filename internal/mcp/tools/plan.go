@@ -11,12 +11,15 @@ import (
 )
 
 // PlanListInput plan_list 工具输入
-type PlanListInput struct{}
+type PlanListInput struct {
+	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤(personal/group/global/all)，默认all显示全部"`
+}
 
 // PlanCreateInput plan_create 工具输入
 type PlanCreateInput struct {
 	Title       string `json:"title" jsonschema:"计划标题，简洁描述计划目标"`
 	Description string `json:"description,omitempty" jsonschema:"计划的详细描述，包含具体步骤和目标"`
+	Scope       string `json:"scope,omitempty" jsonschema:"保存到哪个作用域(personal/group/global)，默认global"`
 }
 
 // PlanUpdateProgressInput plan_update_progress 工具输入
@@ -44,9 +47,18 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 - 待开始：进度为0，尚未启动
 - 进行中：进度在1-99之间
 - 已完成：进度达到100
-- 已取消：计划被取消`,
+- 已取消：计划被取消
+
+作用域说明：
+- personal: 只显示当前目录的计划
+- group: 只显示当前组的计划
+- global: 只显示全局计划
+- all: 显示所有可见计划（默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanListInput) (*mcp.CallToolResult, any, error) {
-		plans, err := bs.PlanService.ListPlans(ctx)
+		// 构建作用域上下文
+		scope := buildScopeContext(input.Scope, bs)
+
+		plans, err := bs.PlanService.ListPlansByScope(ctx, scope)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -56,7 +68,8 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		result := "计划列表:\n"
 		for _, p := range plans {
 			status := getStatusText(p.Status)
-			result += fmt.Sprintf("- [%d] %s (%s, 进度: %d%%)\n", p.ID, p.Title, status, p.Progress)
+			scopeTag := getScopeTag(p.GroupID, p.Path)
+			result += fmt.Sprintf("- [%d] %s (%s, 进度: %d%%) %s\n", p.ID, p.Title, status, p.Progress, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
 	})
@@ -81,13 +94,22 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 - 创建后可通过 plan_update_progress 更新进度
 
 示例：
-- 标题："重构用户模块"，描述："1. 分析现有代码 2. 设计新架构 3. 实现核心功能 4. 编写测试 5. 代码审查"`,
+- 标题："重构用户模块"，描述："1. 分析现有代码 2. 设计新架构 3. 实现核心功能 4. 编写测试 5. 代码审查"
+
+作用域说明：
+- personal: 保存到当前目录（只在此目录可见）
+- group: 保存到当前组（组内所有路径可见）
+- global: 保存为全局（任何地方可见，默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanCreateInput) (*mcp.CallToolResult, any, error) {
-		plan, err := bs.PlanService.CreatePlan(ctx, input.Title, input.Description)
+		// 根据 scope 确定 groupID 和 path
+		groupID, path := resolveScopeForCreate(input.Scope, bs)
+
+		plan, err := bs.PlanService.CreatePlan(ctx, input.Title, input.Description, groupID, path)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		return NewTextResult(fmt.Sprintf("计划创建成功! ID: %d, 标题: %s", plan.ID, plan.Title)), nil, nil
+		scopeTag := getScopeTag(groupID, path)
+		return NewTextResult(fmt.Sprintf("计划创建成功! ID: %d, 标题: %s %s", plan.ID, plan.Title, scopeTag)), nil, nil
 	})
 
 	// plan_update_progress - 更新计划进度

@@ -7,6 +7,7 @@ import (
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
+	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -147,7 +148,7 @@ func (m *CreateModel) save() tea.Cmd {
 
 		description := strings.TrimSpace(m.descArea.Value())
 
-		_, err := m.bs.PlanService.CreatePlan(context.Background(), title, description)
+		_, err := m.bs.PlanService.CreatePlan(context.Background(), title, description, types.GlobalGroupID, "")
 		if err != nil {
 			return plansErrorMsg{err: err}
 		}

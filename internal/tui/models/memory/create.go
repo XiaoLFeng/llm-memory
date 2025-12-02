@@ -7,6 +7,7 @@ import (
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
+	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -192,7 +193,7 @@ func (m *CreateModel) save() tea.Cmd {
 			}
 		}
 
-		_, err := m.bs.MemoryService.CreateMemory(context.Background(), title, content, category, tags, 2)
+		_, err := m.bs.MemoryService.CreateMemory(context.Background(), title, content, category, tags, 2, types.GlobalGroupID, "")
 		if err != nil {
 			return memoriesErrorMsg{err: err}
 		}

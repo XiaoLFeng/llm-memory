@@ -1,14 +1,12 @@
-package todo
+package group
 
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -16,52 +14,43 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// CreateModel 待办创建模型
-// 呀~ 创建新待办的表单！📝
+// CreateModel 组创建模型
+// 呀~ 创建新组的表单！📝
 type CreateModel struct {
-	bs            *startup.Bootstrap
-	focusIndex    int
-	titleInput    textinput.Model
-	descArea      textarea.Model
-	priorityInput textinput.Model
-	width         int
-	height        int
-	err           error
+	bs         *startup.Bootstrap
+	focusIndex int
+	nameInput  textinput.Model
+	descArea   textarea.Model
+	width      int
+	height     int
+	err        error
 }
 
-// NewCreateModel 创建待办创建模型
+// NewCreateModel 创建组创建模型
 func NewCreateModel(bs *startup.Bootstrap) *CreateModel {
-	// 标题输入框
-	ti := textinput.New()
-	ti.Placeholder = "待办标题"
-	ti.Focus()
-	ti.CharLimit = 100
-	ti.Width = 50
+	// 名称输入框
+	ni := textinput.New()
+	ni.Placeholder = "组名称"
+	ni.Focus()
+	ni.CharLimit = 50
+	ni.Width = 50
 
 	// 描述输入框
 	ta := textarea.New()
-	ta.Placeholder = "待办描述（可选）..."
+	ta.Placeholder = "组描述（可选）..."
 	ta.SetWidth(50)
 	ta.SetHeight(4)
 
-	// 优先级输入框
-	pi := textinput.New()
-	pi.Placeholder = "1-4"
-	pi.CharLimit = 1
-	pi.Width = 10
-	pi.SetValue("2")
-
 	return &CreateModel{
-		bs:            bs,
-		titleInput:    ti,
-		descArea:      ta,
-		priorityInput: pi,
+		bs:        bs,
+		nameInput: ni,
+		descArea:  ta,
 	}
 }
 
 // Title 返回页面标题
 func (m *CreateModel) Title() string {
-	return "创建待办"
+	return "创建组"
 }
 
 // ShortHelp 返回快捷键帮助
@@ -87,9 +76,9 @@ func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab", "shift+tab":
 			// 切换焦点
 			if msg.String() == "tab" {
-				m.focusIndex = (m.focusIndex + 1) % 3
+				m.focusIndex = (m.focusIndex + 1) % 2
 			} else {
-				m.focusIndex = (m.focusIndex - 1 + 3) % 3
+				m.focusIndex = (m.focusIndex - 1 + 2) % 2
 			}
 			m.updateFocus()
 
@@ -102,13 +91,13 @@ func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case todoCreatedMsg:
+	case groupCreatedMsg:
 		return m, tea.Batch(
-			common.ShowToast("待办创建成功！", common.ToastSuccess),
+			common.ShowToast("组创建成功！", common.ToastSuccess),
 			common.Back(),
 		)
 
-	case todosErrorMsg:
+	case groupsErrorMsg:
 		m.err = msg.err
 	}
 
@@ -121,17 +110,14 @@ func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // updateFocus 更新焦点状态
 func (m *CreateModel) updateFocus() {
-	m.titleInput.Blur()
+	m.nameInput.Blur()
 	m.descArea.Blur()
-	m.priorityInput.Blur()
 
 	switch m.focusIndex {
 	case 0:
-		m.titleInput.Focus()
+		m.nameInput.Focus()
 	case 1:
 		m.descArea.Focus()
-	case 2:
-		m.priorityInput.Focus()
 	}
 }
 
@@ -141,44 +127,32 @@ func (m *CreateModel) updateInputs(msg tea.Msg) tea.Cmd {
 
 	switch m.focusIndex {
 	case 0:
-		m.titleInput, cmd = m.titleInput.Update(msg)
+		m.nameInput, cmd = m.nameInput.Update(msg)
 	case 1:
 		m.descArea, cmd = m.descArea.Update(msg)
-	case 2:
-		m.priorityInput, cmd = m.priorityInput.Update(msg)
 	}
 
 	return cmd
 }
 
-type todoCreatedMsg struct{}
+type groupCreatedMsg struct{}
 
-// save 保存待办
+// save 保存组
 func (m *CreateModel) save() tea.Cmd {
 	return func() tea.Msg {
-		title := strings.TrimSpace(m.titleInput.Value())
-		if title == "" {
-			return todosErrorMsg{err: fmt.Errorf("标题不能为空")}
+		name := strings.TrimSpace(m.nameInput.Value())
+		if name == "" {
+			return groupsErrorMsg{err: fmt.Errorf("组名称不能为空")}
 		}
 
 		description := strings.TrimSpace(m.descArea.Value())
 
-		priorityStr := strings.TrimSpace(m.priorityInput.Value())
-		priority := 2
-		if priorityStr != "" {
-			p, err := strconv.Atoi(priorityStr)
-			if err != nil || p < 1 || p > 4 {
-				return todosErrorMsg{err: fmt.Errorf("优先级必须是 1-4 之间的数字")}
-			}
-			priority = p
-		}
-
-		_, err := m.bs.TodoService.CreateTodo(context.Background(), title, description, types.Priority(priority), nil, types.GlobalGroupID, "")
+		_, err := m.bs.GroupService.CreateGroup(context.Background(), name, description)
 		if err != nil {
-			return todosErrorMsg{err: err}
+			return groupsErrorMsg{err: err}
 		}
 
-		return todoCreatedMsg{}
+		return groupCreatedMsg{}
 	}
 }
 
@@ -186,13 +160,13 @@ func (m *CreateModel) save() tea.Cmd {
 func (m *CreateModel) View() string {
 	var b strings.Builder
 
-	b.WriteString(styles.TitleStyle.Render("📝 创建新待办"))
+	b.WriteString(styles.TitleStyle.Render("👥 创建新组"))
 	b.WriteString("\n\n")
 
-	// 标题
-	b.WriteString(styles.LabelStyle.Render("标题"))
+	// 名称
+	b.WriteString(styles.LabelStyle.Render("名称"))
 	b.WriteString("\n")
-	b.WriteString(m.titleInput.View())
+	b.WriteString(m.nameInput.View())
 	b.WriteString("\n\n")
 
 	// 描述
@@ -201,20 +175,14 @@ func (m *CreateModel) View() string {
 	b.WriteString(m.descArea.View())
 	b.WriteString("\n\n")
 
-	// 优先级
-	b.WriteString(styles.LabelStyle.Render("优先级 (1低/2中/3高/4紧急)"))
-	b.WriteString("\n")
-	b.WriteString(m.priorityInput.View())
-	b.WriteString("\n\n")
-
 	// 错误信息
 	if m.err != nil {
 		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
 		b.WriteString("\n\n")
 	}
 
-	// 帮助信息
-	b.WriteString(styles.HelpStyle.Render("tab 切换 | ctrl+s 保存 | esc 取消"))
+	// 帮助
+	b.WriteString(styles.HelpStyle.Render("Tab 切换 | Ctrl+S 保存 | Esc 返回"))
 
 	return b.String()
 }

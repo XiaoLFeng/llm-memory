@@ -7,6 +7,8 @@ import (
 // Memory 记忆实体结构体
 type Memory struct {
 	ID         int       `json:"id" storm:"id,increment"`   // 主键，自增
+	GroupID    int       `json:"group_id" storm:"index"`    // 所属组ID（0=Global）
+	Path       string    `json:"path" storm:"index"`        // 精确路径（Personal作用域）
 	Title      string    `json:"title" storm:"index"`       // 标题，带索引
 	Content    string    `json:"content"`                   // 内容
 	Category   string    `json:"category" storm:"index"`    // 分类，带索引
@@ -52,9 +54,12 @@ func (m *Memory) GetPriorityName() string {
 }
 
 // NewMemory 创建新的记忆实例
-func NewMemory(title, content, category string, tags []string, priority int) *Memory {
+// 嘿嘿~ 现在支持设置作用域啦！💖
+func NewMemory(title, content, category string, tags []string, priority int, groupID int, path string) *Memory {
 	now := time.Now()
 	return &Memory{
+		GroupID:    groupID,
+		Path:       path,
 		Title:      title,
 		Content:    content,
 		Category:   category,
@@ -64,6 +69,47 @@ func NewMemory(title, content, category string, tags []string, priority int) *Me
 		UpdatedAt:  now,
 		IsArchived: false,
 	}
+}
+
+// NewGlobalMemory 创建全局记忆实例
+func NewGlobalMemory(title, content, category string, tags []string, priority int) *Memory {
+	return NewMemory(title, content, category, tags, priority, GlobalGroupID, "")
+}
+
+// NewPersonalMemory 创建 Personal 作用域的记忆实例
+func NewPersonalMemory(title, content, category string, tags []string, priority int, path string) *Memory {
+	return NewMemory(title, content, category, tags, priority, GlobalGroupID, path)
+}
+
+// NewGroupMemory 创建 Group 作用域的记忆实例
+func NewGroupMemory(title, content, category string, tags []string, priority int, groupID int) *Memory {
+	return NewMemory(title, content, category, tags, priority, groupID, "")
+}
+
+// IsGlobal 检查记忆是否为全局记忆
+func (m *Memory) IsGlobal() bool {
+	return m.GroupID == GlobalGroupID && m.Path == ""
+}
+
+// IsPersonal 检查记忆是否为 Personal 作用域
+func (m *Memory) IsPersonal() bool {
+	return m.Path != ""
+}
+
+// IsGroup 检查记忆是否为 Group 作用域
+func (m *Memory) IsGroup() bool {
+	return m.GroupID != GlobalGroupID && m.Path == ""
+}
+
+// GetScope 获取记忆的作用域类型
+func (m *Memory) GetScope() Scope {
+	if m.Path != "" {
+		return ScopePersonal
+	}
+	if m.GroupID != GlobalGroupID {
+		return ScopeGroup
+	}
+	return ScopeGlobal
 }
 
 // NewMemoryCategory 创建新的记忆分类实例

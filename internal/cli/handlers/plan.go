@@ -52,7 +52,7 @@ func (h *PlanHandler) List(ctx context.Context) error {
 // Create 创建计划
 // 嘿嘿~ 创建新计划！💫
 func (h *PlanHandler) Create(ctx context.Context, title, description string) error {
-	plan, err := h.bs.PlanService.CreatePlan(ctx, title, description)
+	plan, err := h.bs.PlanService.CreatePlan(ctx, title, description, types.GlobalGroupID, "")
 	if err != nil {
 		return err
 	}

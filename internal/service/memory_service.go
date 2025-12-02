@@ -27,7 +27,7 @@ func NewMemoryService(repo database.MemoryRepository) *MemoryService {
 // CreateMemory 创建新的记忆
 // 嘿嘿~ 创建记忆前会先验证数据的完整性呢！💫
 // 参数验证通过后才会调用仓储层创建~ 🎯
-func (s *MemoryService) CreateMemory(ctx context.Context, title, content, category string, tags []string, priority int) (*types.Memory, error) {
+func (s *MemoryService) CreateMemory(ctx context.Context, title, content, category string, tags []string, priority int, groupID int, path string) (*types.Memory, error) {
 	// 验证标题不能为空
 	if strings.TrimSpace(title) == "" {
 		return nil, errors.New("标题不能为空哦~ 📝")
@@ -51,7 +51,7 @@ func (s *MemoryService) CreateMemory(ctx context.Context, title, content, catego
 
 	// 创建记忆实例
 	// 嗯嗯！使用 types 包的构造函数，优雅地初始化~ 💖
-	memory := types.NewMemory(title, content, category, tags, priority)
+	memory := types.NewMemory(title, content, category, tags, priority, groupID, path)
 
 	// 保存到数据库
 	err := s.repo.Create(ctx, memory)
@@ -60,6 +60,24 @@ func (s *MemoryService) CreateMemory(ctx context.Context, title, content, catego
 	}
 
 	return memory, nil
+}
+
+// CreateGlobalMemory 创建全局记忆
+// 便捷方法，创建 Global 作用域的记忆~ 🌐
+func (s *MemoryService) CreateGlobalMemory(ctx context.Context, title, content, category string, tags []string, priority int) (*types.Memory, error) {
+	return s.CreateMemory(ctx, title, content, category, tags, priority, types.GlobalGroupID, "")
+}
+
+// CreatePersonalMemory 创建 Personal 作用域的记忆
+// 便捷方法，创建属于特定路径的记忆~ 📍
+func (s *MemoryService) CreatePersonalMemory(ctx context.Context, title, content, category string, tags []string, priority int, path string) (*types.Memory, error) {
+	return s.CreateMemory(ctx, title, content, category, tags, priority, types.GlobalGroupID, path)
+}
+
+// CreateGroupMemory 创建 Group 作用域的记忆
+// 便捷方法，创建属于特定组的记忆~ 👥
+func (s *MemoryService) CreateGroupMemory(ctx context.Context, title, content, category string, tags []string, priority int, groupID int) (*types.Memory, error) {
+	return s.CreateMemory(ctx, title, content, category, tags, priority, groupID, "")
 }
 
 // UpdateMemory 更新记忆
@@ -204,4 +222,21 @@ func (s *MemoryService) ArchiveMemory(ctx context.Context, id int) error {
 	// 更新到数据库
 	// 嗯嗯！使用 BeforeUpdate 自动更新时间戳~ 💖
 	return s.repo.Update(ctx, memory)
+}
+
+// ListMemoriesByScope 根据作用域列出记忆
+// 嘿嘿~ 支持 Personal/Group/Global 三层作用域过滤！💖
+func (s *MemoryService) ListMemoriesByScope(ctx context.Context, scope *types.ScopeContext) ([]types.Memory, error) {
+	return s.repo.FindByScope(ctx, scope)
+}
+
+// SearchMemoriesByScope 根据作用域搜索记忆
+// 在指定作用域内搜索关键词~ 🔍
+func (s *MemoryService) SearchMemoriesByScope(ctx context.Context, scope *types.ScopeContext, keyword string) ([]types.Memory, error) {
+	// 验证关键词不能为空
+	if strings.TrimSpace(keyword) == "" {
+		return nil, errors.New("搜索关键词不能为空哦~ 🎯")
+	}
+
+	return s.repo.SearchByScope(ctx, scope, keyword)
 }

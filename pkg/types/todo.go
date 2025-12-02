@@ -61,6 +61,8 @@ func (s TodoStatus) String() string {
 // Todo 表示一个待办事项实体
 type Todo struct {
 	ID          int        `storm:"id,increment"` // 主键，自增
+	GroupID     int        `storm:"index"`        // 所属组ID（0=Global）
+	Path        string     `storm:"index"`        // 精确路径（Personal作用域）
 	Title       string     `storm:"index"`        // 标题，带索引
 	Description string     `storm:""`             // 描述
 	Priority    Priority   `storm:"index"`        // 优先级，带索引
@@ -73,9 +75,12 @@ type Todo struct {
 }
 
 // NewTodo 创建一个新的 Todo 实例
-func NewTodo(title, description string, priority Priority) *Todo {
+// 嘿嘿~ 现在支持设置作用域啦！💖
+func NewTodo(title, description string, priority Priority, groupID int, path string) *Todo {
 	now := time.Now()
 	return &Todo{
+		GroupID:     groupID,
+		Path:        path,
 		Title:       title,
 		Description: description,
 		Priority:    priority,
@@ -83,6 +88,47 @@ func NewTodo(title, description string, priority Priority) *Todo {
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
+}
+
+// NewGlobalTodo 创建全局待办实例
+func NewGlobalTodo(title, description string, priority Priority) *Todo {
+	return NewTodo(title, description, priority, GlobalGroupID, "")
+}
+
+// NewPersonalTodo 创建 Personal 作用域的待办实例
+func NewPersonalTodo(title, description string, priority Priority, path string) *Todo {
+	return NewTodo(title, description, priority, GlobalGroupID, path)
+}
+
+// NewGroupTodo 创建 Group 作用域的待办实例
+func NewGroupTodo(title, description string, priority Priority, groupID int) *Todo {
+	return NewTodo(title, description, priority, groupID, "")
+}
+
+// IsGlobal 检查待办是否为全局待办
+func (t *Todo) IsGlobal() bool {
+	return t.GroupID == GlobalGroupID && t.Path == ""
+}
+
+// IsPersonal 检查待办是否为 Personal 作用域
+func (t *Todo) IsPersonal() bool {
+	return t.Path != ""
+}
+
+// IsGroup 检查待办是否为 Group 作用域
+func (t *Todo) IsGroup() bool {
+	return t.GroupID != GlobalGroupID && t.Path == ""
+}
+
+// GetScope 获取待办的作用域类型
+func (t *Todo) GetScope() Scope {
+	if t.Path != "" {
+		return ScopePersonal
+	}
+	if t.GroupID != GlobalGroupID {
+		return ScopeGroup
+	}
+	return ScopeGlobal
 }
 
 // MarkAsCompleted 标记 Todo 为已完成

@@ -3,6 +3,7 @@ package models
 import (
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/models/group"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/models/memory"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/models/plan"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/models/todo"
@@ -232,6 +233,13 @@ func (m *AppModel) createPage(pageType common.PageType, params map[string]any) c
 	case common.PageTodoDetail:
 		id := getIntParam(params, "id")
 		return todo.NewDetailModel(m.bs, id)
+	case common.PageGroupList:
+		return group.NewListModel(m.bs)
+	case common.PageGroupCreate:
+		return group.NewCreateModel(m.bs)
+	case common.PageGroupDetail:
+		id := getIntParam(params, "id")
+		return group.NewDetailModel(m.bs, id)
 	default:
 		return NewMenuModel(m.bs)
 	}

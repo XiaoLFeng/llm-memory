@@ -24,15 +24,26 @@ func NewPlanService(repo database.PlanRepository) *PlanService {
 }
 
 // CreatePlan 创建新计划
-// 业务逻辑：验证参数并创建计划~ (´∀｀)
-func (s *PlanService) CreatePlan(ctx context.Context, title, description string) (*types.Plan, error) {
+// 嘿嘿~ 创建计划前会先验证数据的完整性呢！💫
+// 参数：
+//   - ctx: 上下文
+//   - title: 标题
+//   - description: 描述
+//   - groupID: 组ID（0=Global）
+//   - path: 路径（Personal 作用域）
+//
+// 返回：
+//   - 创建的计划
+//   - 错误信息（如果有的话）
+func (s *PlanService) CreatePlan(ctx context.Context, title, description string, groupID int, path string) (*types.Plan, error) {
 	// 参数验证 - 标题不能为空哦！
 	if title == "" {
-		return nil, errors.New("计划标题不能为空")
+		return nil, errors.New("计划标题不能为空哦~ 📝")
 	}
 
 	// 使用 types 包的构造函数创建计划
-	plan := types.NewPlan(title, description)
+	// 嗯嗯！优雅地初始化~ 💖
+	plan := types.NewPlan(title, description, groupID, path)
 
 	// 保存到数据库~ ✨
 	if err := s.repo.Create(ctx, plan); err != nil {
@@ -40,6 +51,24 @@ func (s *PlanService) CreatePlan(ctx context.Context, title, description string)
 	}
 
 	return plan, nil
+}
+
+// CreateGlobalPlan 创建全局计划
+// 便捷方法，创建 Global 作用域的计划~ 🌐
+func (s *PlanService) CreateGlobalPlan(ctx context.Context, title, description string) (*types.Plan, error) {
+	return s.CreatePlan(ctx, title, description, types.GlobalGroupID, "")
+}
+
+// CreatePersonalPlan 创建 Personal 作用域的计划
+// 便捷方法，创建属于特定路径的计划~ 📍
+func (s *PlanService) CreatePersonalPlan(ctx context.Context, title, description string, path string) (*types.Plan, error) {
+	return s.CreatePlan(ctx, title, description, types.GlobalGroupID, path)
+}
+
+// CreateGroupPlan 创建 Group 作用域的计划
+// 便捷方法，创建属于特定组的计划~ 👥
+func (s *PlanService) CreateGroupPlan(ctx context.Context, title, description string, groupID int) (*types.Plan, error) {
+	return s.CreatePlan(ctx, title, description, groupID, "")
 }
 
 // UpdatePlan 更新计划
@@ -279,4 +308,20 @@ func isValidStatus(status types.PlanStatus) bool {
 	}
 
 	return false
+}
+
+// ListPlansByScope 根据作用域列出计划
+// 嘿嘿~ 支持 Personal/Group/Global 三层作用域过滤！💖
+func (s *PlanService) ListPlansByScope(ctx context.Context, scope *types.ScopeContext) ([]types.Plan, error) {
+	plans, err := s.repo.FindByScope(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果没有计划，返回空切片而不是nil
+	if plans == nil {
+		return make([]types.Plan, 0), nil
+	}
+
+	return plans, nil
 }

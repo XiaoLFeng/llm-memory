@@ -8,6 +8,8 @@ import (
 // 嘿嘿~ 这是一个完整的计划管理结构呢！📋
 type Plan struct {
 	ID          int        `storm:"id,increment"` // 主键，自增
+	GroupID     int        `storm:"index"`        // 所属组ID（0=Global）
+	Path        string     `storm:"index"`        // 精确路径（Personal作用域）
 	Title       string     `storm:"index"`        // 标题，带索引以便快速查询
 	Description string     `storm:""`             // 描述，详细内容
 	Status      PlanStatus `storm:"index"`        // 状态，带索引用于状态筛选
@@ -45,10 +47,12 @@ type SubTask struct {
 }
 
 // NewPlan 创建新的计划实例
-// 💖 构造函数模式，让创建计划更优雅~
-func NewPlan(title, description string) *Plan {
+// 💖 构造函数模式，现在支持设置作用域啦~
+func NewPlan(title, description string, groupID int, path string) *Plan {
 	now := time.Now()
 	return &Plan{
+		GroupID:     groupID,
+		Path:        path,
 		Title:       title,
 		Description: description,
 		Status:      PlanStatusPending,
@@ -57,6 +61,47 @@ func NewPlan(title, description string) *Plan {
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
+}
+
+// NewGlobalPlan 创建全局计划实例
+func NewGlobalPlan(title, description string) *Plan {
+	return NewPlan(title, description, GlobalGroupID, "")
+}
+
+// NewPersonalPlan 创建 Personal 作用域的计划实例
+func NewPersonalPlan(title, description string, path string) *Plan {
+	return NewPlan(title, description, GlobalGroupID, path)
+}
+
+// NewGroupPlan 创建 Group 作用域的计划实例
+func NewGroupPlan(title, description string, groupID int) *Plan {
+	return NewPlan(title, description, groupID, "")
+}
+
+// IsGlobal 检查计划是否为全局计划
+func (p *Plan) IsGlobal() bool {
+	return p.GroupID == GlobalGroupID && p.Path == ""
+}
+
+// IsPersonal 检查计划是否为 Personal 作用域
+func (p *Plan) IsPersonal() bool {
+	return p.Path != ""
+}
+
+// IsGroup 检查计划是否为 Group 作用域
+func (p *Plan) IsGroup() bool {
+	return p.GroupID != GlobalGroupID && p.Path == ""
+}
+
+// GetScope 获取计划的作用域类型
+func (p *Plan) GetScope() Scope {
+	if p.Path != "" {
+		return ScopePersonal
+	}
+	if p.GroupID != GlobalGroupID {
+		return ScopeGroup
+	}
+	return ScopeGlobal
 }
 
 // NewSubTask 创建新的子任务实例

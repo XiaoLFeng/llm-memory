@@ -51,4 +51,6 @@ func (s *Server) registerTools() {
 	tools.RegisterPlanTools(s.server, s.bs)
 	// TODO 管理工具
 	tools.RegisterTodoTools(s.server, s.bs)
+	// 组管理工具
+	tools.RegisterGroupTools(s.server, s.bs)
 }

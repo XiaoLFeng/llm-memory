@@ -162,3 +162,72 @@ func contains(text, keyword string) bool {
 
 	return false
 }
+
+// FindByScope 根据作用域查找记忆
+// 嘿嘿~ 支持 Personal/Group/Global 三层作用域过滤！💖
+func (r *MemoryRepo) FindByScope(ctx context.Context, scope *types.ScopeContext) ([]types.Memory, error) {
+	if scope == nil {
+		// 没有作用域限制，返回所有
+		return r.FindAll(ctx)
+	}
+
+	var allMemories []types.Memory
+	err := r.db.All(&allMemories)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []types.Memory
+	for _, memory := range allMemories {
+		if r.matchScope(memory, scope) {
+			result = append(result, memory)
+		}
+	}
+
+	return result, nil
+}
+
+// SearchByScope 根据作用域搜索记忆
+// 在指定作用域内搜索关键词~ 🔍
+func (r *MemoryRepo) SearchByScope(ctx context.Context, scope *types.ScopeContext, keyword string) ([]types.Memory, error) {
+	if keyword == "" {
+		return nil, errors.New("搜索关键词不能为空哦~ 🎯")
+	}
+
+	// 先按作用域过滤
+	memories, err := r.FindByScope(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+
+	// 再按关键词过滤
+	var result []types.Memory
+	for _, memory := range memories {
+		if contains(memory.Title, keyword) || contains(memory.Content, keyword) {
+			result = append(result, memory)
+		}
+	}
+
+	return result, nil
+}
+
+// matchScope 检查记忆是否匹配作用域
+// 核心过滤逻辑~ ✨
+func (r *MemoryRepo) matchScope(memory types.Memory, scope *types.ScopeContext) bool {
+	// 检查 Global
+	if scope.IncludeGlobal && memory.IsGlobal() {
+		return true
+	}
+
+	// 检查 Personal（精确路径匹配）
+	if scope.IncludePersonal && memory.Path != "" && memory.Path == scope.CurrentPath {
+		return true
+	}
+
+	// 检查 Group
+	if scope.IncludeGroup && scope.GroupID != types.GlobalGroupID && memory.GroupID == scope.GroupID {
+		return true
+	}
+
+	return false
+}

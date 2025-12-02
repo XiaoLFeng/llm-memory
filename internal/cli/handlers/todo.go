@@ -86,7 +86,7 @@ func (h *TodoHandler) Create(ctx context.Context, title, description string, pri
 		p = types.TodoPriorityMedium
 	}
 
-	todo, err := h.bs.TodoService.CreateTodo(ctx, title, description, p, nil)
+	todo, err := h.bs.TodoService.CreateTodo(ctx, title, description, p, nil, types.GlobalGroupID, "")
 	if err != nil {
 		return err
 	}

@@ -24,29 +24,33 @@ func NewTodoService(repo database.TodoRepository) *TodoService {
 }
 
 // CreateTodo 创建新的待办事项
+// 嘿嘿~ 创建待办前会先验证数据的完整性呢！💫
 // 参数：
 //   - ctx: 上下文
 //   - title: 标题
 //   - description: 描述
 //   - priority: 优先级
 //   - dueDate: 截止日期（可选）
+//   - groupID: 组ID（0=Global）
+//   - path: 路径（Personal 作用域）
 //
 // 返回：
 //   - 创建的待办事项
 //   - 错误信息（如果有的话）
-func (s *TodoService) CreateTodo(ctx context.Context, title, description string, priority types.Priority, dueDate *time.Time) (*types.Todo, error) {
+func (s *TodoService) CreateTodo(ctx context.Context, title, description string, priority types.Priority, dueDate *time.Time, groupID int, path string) (*types.Todo, error) {
 	// 验证标题不能为空
 	if title == "" {
-		return nil, errors.New("标题不能为空")
+		return nil, errors.New("标题不能为空哦~ 📝")
 	}
 
 	// 验证优先级的有效性
 	if priority < types.TodoPriorityLow || priority > types.TodoPriorityUrgent {
-		return nil, errors.New("无效的优先级")
+		return nil, errors.New("无效的优先级哦~ 🎮")
 	}
 
 	// 创建新的待办事项实例
-	todo := types.NewTodo(title, description, priority)
+	// 嗯嗯！使用 types 包的构造函数，优雅地初始化~ 💖
+	todo := types.NewTodo(title, description, priority, groupID, path)
 	todo.DueDate = dueDate
 
 	// 保存到数据库
@@ -55,6 +59,24 @@ func (s *TodoService) CreateTodo(ctx context.Context, title, description string,
 	}
 
 	return todo, nil
+}
+
+// CreateGlobalTodo 创建全局待办事项
+// 便捷方法，创建 Global 作用域的待办~ 🌐
+func (s *TodoService) CreateGlobalTodo(ctx context.Context, title, description string, priority types.Priority, dueDate *time.Time) (*types.Todo, error) {
+	return s.CreateTodo(ctx, title, description, priority, dueDate, types.GlobalGroupID, "")
+}
+
+// CreatePersonalTodo 创建 Personal 作用域的待办事项
+// 便捷方法，创建属于特定路径的待办~ 📍
+func (s *TodoService) CreatePersonalTodo(ctx context.Context, title, description string, priority types.Priority, dueDate *time.Time, path string) (*types.Todo, error) {
+	return s.CreateTodo(ctx, title, description, priority, dueDate, types.GlobalGroupID, path)
+}
+
+// CreateGroupTodo 创建 Group 作用域的待办事项
+// 便捷方法，创建属于特定组的待办~ 👥
+func (s *TodoService) CreateGroupTodo(ctx context.Context, title, description string, priority types.Priority, dueDate *time.Time, groupID int) (*types.Todo, error) {
+	return s.CreateTodo(ctx, title, description, priority, dueDate, groupID, "")
 }
 
 // UpdateTodo 更新待办事项
@@ -222,4 +244,16 @@ func (s *TodoService) StartTodo(ctx context.Context, id int) error {
 
 	// 保存更新
 	return s.repo.Update(ctx, todo)
+}
+
+// ListTodosByScope 根据作用域列出待办事项
+// 嘿嘿~ 支持 Personal/Group/Global 三层作用域过滤！💖
+func (s *TodoService) ListTodosByScope(ctx context.Context, scope *types.ScopeContext) ([]types.Todo, error) {
+	return s.repo.FindByScope(ctx, scope)
+}
+
+// ListTodayByScope 根据作用域获取今天的待办事项
+// 在指定作用域内查找今天截止的任务~ ⏰
+func (s *TodoService) ListTodayByScope(ctx context.Context, scope *types.ScopeContext) ([]types.Todo, error) {
+	return s.repo.FindTodayByScope(ctx, scope)
 }

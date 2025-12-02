@@ -71,3 +71,48 @@ func (r *PlanRepo) FindByStatus(ctx context.Context, status types.PlanStatus) ([
 	}
 	return plans, nil
 }
+
+// FindByScope 根据作用域查找计划
+// 嘿嘿~ 支持 Personal/Group/Global 三层作用域过滤！💖
+func (r *PlanRepo) FindByScope(ctx context.Context, scope *types.ScopeContext) ([]types.Plan, error) {
+	if scope == nil {
+		// 没有作用域限制，返回所有
+		return r.FindAll(ctx)
+	}
+
+	var allPlans []types.Plan
+	err := r.db.All(&allPlans)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []types.Plan
+	for _, plan := range allPlans {
+		if r.matchScope(plan, scope) {
+			result = append(result, plan)
+		}
+	}
+
+	return result, nil
+}
+
+// matchScope 检查计划是否匹配作用域
+// 核心过滤逻辑~ ✨
+func (r *PlanRepo) matchScope(plan types.Plan, scope *types.ScopeContext) bool {
+	// 检查 Global
+	if scope.IncludeGlobal && plan.IsGlobal() {
+		return true
+	}
+
+	// 检查 Personal（精确路径匹配）
+	if scope.IncludePersonal && plan.Path != "" && plan.Path == scope.CurrentPath {
+		return true
+	}
+
+	// 检查 Group
+	if scope.IncludeGroup && scope.GroupID != types.GlobalGroupID && plan.GroupID == scope.GroupID {
+		return true
+	}
+
+	return false
+}

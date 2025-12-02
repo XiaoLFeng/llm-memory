@@ -35,6 +35,7 @@ func NewMenuModel(bs *startup.Bootstrap) *MenuModel {
 		{Title: "记忆管理", Description: "查看和管理记忆内容", Icon: "📝", Page: common.PageMemoryList},
 		{Title: "计划管理", Description: "管理你的计划", Icon: "📋", Page: common.PagePlanList},
 		{Title: "待办管理", Description: "管理待办事项", Icon: "✅", Page: common.PageTodoList},
+		{Title: "组管理", Description: "管理路径组，组内共享数据", Icon: "👥", Page: common.PageGroupList},
 	}
 
 	return &MenuModel{

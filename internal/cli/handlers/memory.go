@@ -7,6 +7,7 @@ import (
 
 	"github.com/XiaoLFeng/llm-memory/internal/cli"
 	"github.com/XiaoLFeng/llm-memory/internal/cli/output"
+	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 )
 
@@ -56,7 +57,7 @@ func (h *MemoryHandler) Create(ctx context.Context, title, content, category str
 		category = "默认"
 	}
 
-	memory, err := h.bs.MemoryService.CreateMemory(ctx, title, content, category, tags, 2)
+	memory, err := h.bs.MemoryService.CreateMemory(ctx, title, content, category, tags, 2, types.GlobalGroupID, "")
 	if err != nil {
 		return err
 	}

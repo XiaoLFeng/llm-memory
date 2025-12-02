@@ -1,0 +1,238 @@
+package group
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
+	"github.com/XiaoLFeng/llm-memory/pkg/types"
+	"github.com/XiaoLFeng/llm-memory/startup"
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+// DetailModel 组详情模型
+// 嘿嘿~ 查看组的详细信息和管理路径！📋
+type DetailModel struct {
+	bs            *startup.Bootstrap
+	groupID       int
+	group         *types.Group
+	selectedIndex int
+	width         int
+	height        int
+	loading       bool
+	err           error
+}
+
+// NewDetailModel 创建组详情模型
+func NewDetailModel(bs *startup.Bootstrap, groupID int) *DetailModel {
+	return &DetailModel{
+		bs:      bs,
+		groupID: groupID,
+		loading: true,
+	}
+}
+
+// Title 返回页面标题
+func (m *DetailModel) Title() string {
+	if m.group != nil {
+		return "组: " + m.group.Name
+	}
+	return "组详情"
+}
+
+// ShortHelp 返回快捷键帮助
+func (m *DetailModel) ShortHelp() []key.Binding {
+	return []key.Binding{common.KeyUp, common.KeyDown, common.KeyDelete, common.KeyBack}
+}
+
+// Init 初始化
+func (m *DetailModel) Init() tea.Cmd {
+	return m.loadGroup()
+}
+
+// loadGroup 加载组详情
+func (m *DetailModel) loadGroup() tea.Cmd {
+	return func() tea.Msg {
+		group, err := m.bs.GroupService.GetGroup(context.Background(), m.groupID)
+		if err != nil {
+			return groupDetailErrorMsg{err}
+		}
+		return groupDetailLoadedMsg{group}
+	}
+}
+
+type groupDetailLoadedMsg struct {
+	group *types.Group
+}
+
+type groupDetailErrorMsg struct {
+	err error
+}
+
+type pathAddedMsg struct{}
+
+type pathRemovedMsg struct {
+	path string
+}
+
+// Update 处理输入
+func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, common.KeyBack):
+			return m, common.Back()
+
+		case key.Matches(msg, common.KeyUp):
+			if m.group != nil && m.selectedIndex > 0 {
+				m.selectedIndex--
+			}
+
+		case key.Matches(msg, common.KeyDown):
+			if m.group != nil && m.selectedIndex < len(m.group.Paths)-1 {
+				m.selectedIndex++
+			}
+
+		case msg.String() == "a":
+			// 添加当前路径
+			return m, m.addCurrentPath()
+
+		case key.Matches(msg, common.KeyDelete):
+			// 删除选中的路径
+			if m.group != nil && len(m.group.Paths) > 0 && m.selectedIndex < len(m.group.Paths) {
+				path := m.group.Paths[m.selectedIndex]
+				return m, common.ShowConfirm(
+					"移除路径",
+					fmt.Sprintf("确定要从组中移除路径「%s」吗？", path),
+					m.removePath(path),
+					nil,
+				)
+			}
+		}
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
+	case groupDetailLoadedMsg:
+		m.loading = false
+		m.group = msg.group
+		m.selectedIndex = 0
+
+	case groupDetailErrorMsg:
+		m.loading = false
+		m.err = msg.err
+
+	case pathAddedMsg:
+		cmds = append(cmds, m.loadGroup())
+		cmds = append(cmds, common.ShowToast("路径已添加", common.ToastSuccess))
+
+	case pathRemovedMsg:
+		cmds = append(cmds, m.loadGroup())
+		cmds = append(cmds, common.ShowToast("路径已移除", common.ToastSuccess))
+
+	case common.RefreshMsg:
+		m.loading = true
+		cmds = append(cmds, m.loadGroup())
+	}
+
+	return m, tea.Batch(cmds...)
+}
+
+// addCurrentPath 添加当前工作目录到组
+func (m *DetailModel) addCurrentPath() tea.Cmd {
+	return func() tea.Msg {
+		pwd, err := os.Getwd()
+		if err != nil {
+			return groupDetailErrorMsg{fmt.Errorf("无法获取当前目录: %v", err)}
+		}
+
+		err = m.bs.GroupService.AddPath(context.Background(), m.groupID, pwd)
+		if err != nil {
+			return groupDetailErrorMsg{err}
+		}
+
+		return pathAddedMsg{}
+	}
+}
+
+// removePath 从组中移除路径
+func (m *DetailModel) removePath(path string) tea.Cmd {
+	return func() tea.Msg {
+		err := m.bs.GroupService.RemovePath(context.Background(), m.groupID, path)
+		if err != nil {
+			return groupDetailErrorMsg{err}
+		}
+		return pathRemovedMsg{path}
+	}
+}
+
+// View 渲染界面
+func (m *DetailModel) View() string {
+	var b strings.Builder
+
+	if m.loading {
+		b.WriteString(styles.InfoStyle.Render("加载中..."))
+		return b.String()
+	}
+
+	if m.err != nil {
+		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
+		return b.String()
+	}
+
+	if m.group == nil {
+		b.WriteString(styles.ErrorStyle.Render("组不存在"))
+		return b.String()
+	}
+
+	// 组信息
+	b.WriteString(styles.TitleStyle.Render(fmt.Sprintf("👥 %s", m.group.Name)))
+	b.WriteString("\n\n")
+
+	// 描述
+	if m.group.Description != "" {
+		b.WriteString(styles.LabelStyle.Render("描述"))
+		b.WriteString("\n")
+		b.WriteString(styles.DescStyle.Render(m.group.Description))
+		b.WriteString("\n\n")
+	}
+
+	// 创建时间
+	b.WriteString(styles.MutedStyle.Render(fmt.Sprintf("创建于: %s", utils.FormatRelativeTime(m.group.CreatedAt))))
+	b.WriteString("\n\n")
+
+	// 路径列表
+	b.WriteString(styles.LabelStyle.Render(fmt.Sprintf("📂 关联路径 (%d)", len(m.group.Paths))))
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", 50))
+	b.WriteString("\n")
+
+	if len(m.group.Paths) == 0 {
+		b.WriteString(styles.MutedStyle.Render("暂无关联路径~ 按 a 添加当前目录"))
+		b.WriteString("\n")
+	} else {
+		for i, path := range m.group.Paths {
+			var line string
+			if i == m.selectedIndex {
+				line = styles.SelectedStyle.Render(fmt.Sprintf("> %s", path))
+			} else {
+				line = styles.NormalStyle.Render(fmt.Sprintf("  %s", path))
+			}
+			b.WriteString(line)
+			b.WriteString("\n")
+		}
+	}
+
+	b.WriteString("\n")
+	b.WriteString(styles.HelpStyle.Render("↑/↓ 选择路径 | a 添加当前目录 | d 移除路径 | esc 返回"))
+
+	return b.String()
+}
