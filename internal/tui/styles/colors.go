@@ -41,7 +41,7 @@ var (
 	// 边框色
 	Border       = lipgloss.Color("#45475A") // 默认边框
 	BorderFocus  = lipgloss.Color("#CBA6F7") // 聚焦边框
-	BorderSubtle = lipgloss.Color("#313244") // 微妙边框
+	BorderSubtle = lipgloss.Color("#585B70") // 微妙边框 - 提高对比度使嵌套卡片可见
 )
 
 // 优先级颜色映射

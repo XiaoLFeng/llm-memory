@@ -36,6 +36,21 @@ type MemorySearchInput struct {
 	Scope   string `json:"scope,omitempty" jsonschema:"作用域过滤(personal/group/global/all)，默认all显示全部"`
 }
 
+// MemoryGetInput memory_get 工具输入
+type MemoryGetInput struct {
+	ID int `json:"id" jsonschema:"要获取的记忆ID"`
+}
+
+// MemoryUpdateInput memory_update 工具输入
+type MemoryUpdateInput struct {
+	ID       int      `json:"id" jsonschema:"要更新的记忆ID"`
+	Title    string   `json:"title,omitempty" jsonschema:"新标题（可选）"`
+	Content  string   `json:"content,omitempty" jsonschema:"新内容（可选）"`
+	Category string   `json:"category,omitempty" jsonschema:"新分类（可选）"`
+	Tags     []string `json:"tags,omitempty" jsonschema:"新标签列表（可选）"`
+	Priority int      `json:"priority,omitempty" jsonschema:"新优先级 1-4（可选）"`
+}
+
 // RegisterMemoryTools 注册记忆管理工具
 // 嘿嘿~ 记忆相关的 MCP 工具都在这里！(´∀｀)💖
 func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
@@ -177,6 +192,107 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 			result += fmt.Sprintf("- [%d] %s %s\n", m.ID, m.Title, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
+	})
+
+	// memory_get - 获取记忆详情
+	// 嘿嘿~ 获取单条记忆的完整内容！💖
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "memory_get",
+		Description: `获取指定ID的记忆详细信息，包括完整内容。
+
+使用场景：
+- 在 memory_list 或 memory_search 后获取某条记忆的完整内容
+- 需要查看记忆的详细信息时
+- 验证记忆内容是否需要更新
+
+返回信息：记忆的所有字段（ID、标题、内容、分类、标签、优先级、作用域、创建/更新时间）`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryGetInput) (*mcp.CallToolResult, any, error) {
+		memory, err := bs.MemoryService.GetMemory(ctx, input.ID)
+		if err != nil {
+			return NewErrorResult(err.Error()), nil, nil
+		}
+
+		scopeTag := getScopeTag(memory.GroupID, memory.Path)
+		result := fmt.Sprintf(`记忆详情:
+ID: %d
+标题: %s
+分类: %s
+优先级: %d
+标签: %v
+作用域: %s
+创建时间: %s
+更新时间: %s
+
+内容:
+%s`,
+			memory.ID,
+			memory.Title,
+			memory.Category,
+			memory.Priority,
+			memory.Tags,
+			scopeTag,
+			memory.CreatedAt.Format("2006-01-02 15:04:05"),
+			memory.UpdatedAt.Format("2006-01-02 15:04:05"),
+			memory.Content,
+		)
+		return NewTextResult(result), nil, nil
+	})
+
+	// memory_update - 更新记忆
+	// 呀~ 更新已有记忆的内容！✨
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "memory_update",
+		Description: `更新指定ID的记忆内容。
+
+使用场景：
+- 修正记忆中的错误信息
+- 更新已过时的内容
+- 补充或完善已有记忆
+
+注意事项：
+- 只会更新提供的字段，未提供的字段保持不变
+- 至少需要提供一个要更新的字段
+- 可以通过 memory_get 先查看当前内容`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryUpdateInput) (*mcp.CallToolResult, any, error) {
+		// 先获取现有记忆
+		memory, err := bs.MemoryService.GetMemory(ctx, input.ID)
+		if err != nil {
+			return NewErrorResult(err.Error()), nil, nil
+		}
+
+		// 更新字段
+		updated := false
+		if input.Title != "" {
+			memory.Title = input.Title
+			updated = true
+		}
+		if input.Content != "" {
+			memory.Content = input.Content
+			updated = true
+		}
+		if input.Category != "" {
+			memory.Category = input.Category
+			updated = true
+		}
+		if len(input.Tags) > 0 {
+			memory.Tags = input.Tags
+			updated = true
+		}
+		if input.Priority > 0 && input.Priority <= 4 {
+			memory.Priority = input.Priority
+			updated = true
+		}
+
+		if !updated {
+			return NewErrorResult("没有提供要更新的字段"), nil, nil
+		}
+
+		// 保存更新
+		if err := bs.MemoryService.UpdateMemory(ctx, memory); err != nil {
+			return NewErrorResult(err.Error()), nil, nil
+		}
+
+		return NewTextResult(fmt.Sprintf("记忆 %d 更新成功", input.ID)), nil, nil
 	})
 }
 

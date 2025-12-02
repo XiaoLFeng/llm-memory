@@ -44,6 +44,29 @@ func (db *DB) Close() error {
 	return db.DB.Close()
 }
 
+// OpenWithAction 打开数据库执行操作后自动关闭
+// 嘿嘿~ 每次操作独立连接，避免锁问题！💖
+func OpenWithAction[T any](path string, action func(*DB) (T, error)) (T, error) {
+	db, err := Open(path)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	defer db.Close()
+	return action(db)
+}
+
+// OpenWithActionNoReturn 打开数据库执行操作后自动关闭（无返回值版本）
+// 呀~ 适用于不需要返回值的操作！✨
+func OpenWithActionNoReturn(path string, action func(*DB) error) error {
+	db, err := Open(path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	return action(db)
+}
+
 // initIndexes 初始化所有实体的索引
 // 为 Memory、Plan、Todo 三个实体创建索引~ 🎯
 func initIndexes(db *storm.DB) error {

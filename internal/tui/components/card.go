@@ -20,6 +20,7 @@ func Card(title, content string, width int) string {
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.Border).
+		Background(styles.Surface0). // 添加背景色增强层次感
 		Width(width).
 		Padding(1, 2)
 
@@ -38,6 +39,7 @@ func CardWithColor(title, content string, width int, borderColor lipgloss.Color)
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
+		Background(styles.Surface0). // 添加背景色
 		Width(width).
 		Padding(1, 2)
 
@@ -54,6 +56,7 @@ func CardSimple(content string, width int) string {
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.Border).
+		Background(styles.Surface0). // 添加背景色
 		Width(width).
 		Padding(1, 2)
 
@@ -86,6 +89,7 @@ func CardInfo(title, content string, width int) string {
 }
 
 // NestedCard 嵌套卡片（用于详情页的信息分组）
+// 嘿嘿~ 使用更深的背景色和更明显的边框来区分层次！
 func NestedCard(title, content string, width int) string {
 	if width < 20 {
 		width = 20
@@ -95,7 +99,8 @@ func NestedCard(title, content string, width int) string {
 
 	nestedStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(styles.BorderSubtle).
+		BorderForeground(styles.BorderSubtle). // 使用提高对比度的边框色
+		Background(styles.Mantle).             // 使用更深的背景色区分层次
 		Width(width).
 		Padding(0, 1)
 
@@ -104,6 +109,7 @@ func NestedCard(title, content string, width int) string {
 }
 
 // createTitleLine 创建标题行（带装饰线）
+// 嘿嘿~ 添加了防止负值的保护和标题截断功能！
 func createTitleLine(title string, width int) string {
 	if title == "" {
 		return ""
@@ -120,6 +126,24 @@ func createTitleLine(title string, width int) string {
 	dashCount := width - titleWidth - 3
 	if dashCount < 0 {
 		dashCount = 0
+	}
+
+	// 如果宽度不够显示完整标题，截断标题
+	if dashCount == 0 && titleWidth > width-3 {
+		maxTitleLen := width - 6 // 留出 "─ " + " ─" 的空间
+		if maxTitleLen > 3 {
+			// 截断标题（考虑中文字符）
+			runes := []rune(title)
+			if len(runes) > maxTitleLen-3 {
+				title = string(runes[:maxTitleLen-3]) + "..."
+				styledTitle = titleStyle.Render(title)
+				titleWidth = lipgloss.Width(styledTitle)
+				dashCount = width - titleWidth - 3
+				if dashCount < 0 {
+					dashCount = 0
+				}
+			}
+		}
 	}
 
 	lineStyle := lipgloss.NewStyle().Foreground(styles.BorderSubtle)

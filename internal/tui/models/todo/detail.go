@@ -23,6 +23,7 @@ type DetailModel struct {
 	id       int
 	todo     *types.Todo
 	viewport viewport.Model
+	frame    *components.Frame // 添加 Frame 支持
 	ready    bool
 	width    int
 	height   int
@@ -35,6 +36,7 @@ func NewDetailModel(bs *startup.Bootstrap, id int) *DetailModel {
 	return &DetailModel{
 		bs:      bs,
 		id:      id,
+		frame:   components.NewFrame(80, 24), // 初始化 Frame
 		loading: true,
 	}
 }
@@ -98,14 +100,21 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.frame.SetSize(msg.Width, msg.Height)
+
+		// 使用 frame 的内容尺寸
+		contentWidth := m.frame.GetContentWidth()
+		contentHeight := m.frame.GetContentHeight()
+
 		if !m.ready {
-			m.viewport = viewport.New(msg.Width-4, msg.Height-10)
+			m.viewport = viewport.New(contentWidth, contentHeight)
 			m.viewport.YPosition = 0
 			m.ready = true
 		} else {
-			m.viewport.Width = msg.Width - 4
-			m.viewport.Height = msg.Height - 10
+			m.viewport.Width = contentWidth
+			m.viewport.Height = contentHeight
 		}
+		// 无论数据是否已加载，都尝试更新内容
 		if m.todo != nil {
 			m.viewport.SetContent(m.renderContent())
 		}
@@ -170,19 +179,25 @@ func (m *DetailModel) renderContent() string {
 		return ""
 	}
 
+	// 直接使用 viewport 宽度，减去卡片边框和内边距
+	cardWidth := m.viewport.Width - 4
+	if cardWidth < 40 {
+		cardWidth = 40
+	}
+
 	var sections []string
 
 	// 基本信息卡片
 	basicInfo := m.renderBasicInfo()
-	sections = append(sections, components.NestedCard("基本信息", basicInfo, m.width-12))
+	sections = append(sections, components.NestedCard("基本信息", basicInfo, cardWidth))
 
 	// 详细信息卡片
 	detailInfo := m.renderDetailInfo()
-	sections = append(sections, components.NestedCard("详细信息", detailInfo, m.width-12))
+	sections = append(sections, components.NestedCard("详细信息", detailInfo, cardWidth))
 
 	// 时间信息卡片
 	timeInfo := m.renderTimeInfo()
-	sections = append(sections, components.NestedCard("时间信息", timeInfo, m.width-12))
+	sections = append(sections, components.NestedCard("时间信息", timeInfo, cardWidth))
 
 	return strings.Join(sections, "\n\n")
 }
@@ -255,49 +270,51 @@ func (m *DetailModel) renderTimeInfo() string {
 }
 
 // View 渲染界面
+// 嘿嘿~ 现在使用统一的 Frame 渲染！
 func (m *DetailModel) View() string {
-	var content string
+	breadcrumb := "待办管理 > 待办详情"
+	if m.todo != nil {
+		breadcrumb = "待办管理 > " + m.todo.Title
+	}
 
+	// 加载中
 	if m.loading {
-		content = styles.InfoStyle.Render("加载中...")
-		if m.width > 0 && m.height > 0 {
-			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
-		}
-		return content
+		content := lipgloss.Place(
+			m.frame.GetContentWidth(),
+			m.frame.GetContentHeight(),
+			lipgloss.Center,
+			lipgloss.Center,
+			components.CardInfo("", "加载中...", 40),
+		)
+		keys := []string{"esc 返回"}
+		return m.frame.Render(breadcrumb, content, keys, "")
 	}
 
+	// 错误显示
 	if m.err != nil {
-		content = styles.ErrorStyle.Render("错误: " + m.err.Error())
-		if m.width > 0 && m.height > 0 {
-			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
-		}
-		return content
+		content := lipgloss.Place(
+			m.frame.GetContentWidth(),
+			m.frame.GetContentHeight(),
+			lipgloss.Center,
+			lipgloss.Center,
+			components.CardError("错误", m.err.Error(), 60),
+		)
+		keys := []string{"esc 返回"}
+		return m.frame.Render(breadcrumb, content, keys, "")
 	}
 
-	if !m.ready {
-		return ""
+	// 正常显示
+	content := ""
+	if m.ready {
+		content = m.viewport.View()
 	}
 
-	var b strings.Builder
-
-	// 使用卡片包装内容
-	viewportContent := m.viewport.View()
-	cardContent := components.Card("✅ 待办详情", viewportContent, m.width-4)
-	b.WriteString(cardContent)
-	b.WriteString("\n\n")
-
-	// 底部快捷键状态栏
 	keys := []string{
-		styles.StatusKeyStyle.Render("↑/↓") + " 滚动",
-		styles.StatusKeyStyle.Render("s") + " 开始",
-		styles.StatusKeyStyle.Render("f") + " 完成",
-		styles.StatusKeyStyle.Render("esc") + " 返回",
+		"↑/↓ 滚动",
+		"s 开始",
+		"f 完成",
+		"esc 返回",
 	}
-	b.WriteString(components.RenderKeysOnly(keys, m.width))
 
-	content = b.String()
-	if m.width > 0 && m.height > 0 {
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
-	}
-	return content
+	return m.frame.Render(breadcrumb, content, keys, "")
 }

@@ -30,8 +30,8 @@ type Bootstrap struct {
 	config  *app.Config
 	options *Options
 
-	// 数据库
-	db *database.DB
+	// 数据库路径（不再持有长连接）
+	dbPath string
 
 	// Service 层（公开，供外部使用）
 	MemoryService *service.MemoryService
@@ -80,19 +80,21 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 		return fmt.Errorf("加载配置失败: %w", err)
 	}
 	b.config = config
+	b.dbPath = config.DBPath
 
-	// 3. 初始化数据库
+	// 3. 初始化数据库（仅用于确保索引创建，立即关闭）
+	// 嘿嘿~ 每次操作都会自己打开关闭连接，这里只是确保表结构！💖
 	db, err := database.Open(config.DBPath)
 	if err != nil {
 		return fmt.Errorf("初始化数据库失败: %w", err)
 	}
-	b.db = db
+	db.Close() // 立即关闭，不保持长连接
 
-	// 4. 创建 Repository 实例
-	memoryRepo := repository.NewMemoryRepo(db)
-	planRepo := repository.NewPlanRepo(db)
-	todoRepo := repository.NewTodoRepo(db)
-	groupRepo := repository.NewGroupRepo(db) // 新增：组仓储
+	// 4. 创建 Repository 实例（传入 dbPath）
+	memoryRepo := repository.NewMemoryRepo(config.DBPath)
+	planRepo := repository.NewPlanRepo(config.DBPath)
+	todoRepo := repository.NewTodoRepo(config.DBPath)
+	groupRepo := repository.NewGroupRepo(config.DBPath) // 新增：组仓储
 
 	// 5. 创建 Service 实例
 	b.MemoryService = service.NewMemoryService(memoryRepo)
@@ -147,9 +149,10 @@ func (b *Bootstrap) Config() *app.Config {
 	return b.config
 }
 
-// DB 获取数据库实例
-func (b *Bootstrap) DB() *database.DB {
-	return b.db
+// DBPath 获取数据库路径
+// 嘿嘿~ 现在不再持有长连接，只提供路径！💖
+func (b *Bootstrap) DBPath() string {
+	return b.dbPath
 }
 
 // Shutdown 优雅关闭
@@ -171,12 +174,7 @@ func (b *Bootstrap) Shutdown() error {
 		}
 	}
 
-	// 关闭数据库
-	if b.db != nil {
-		if err := b.db.Close(); err != nil {
-			return fmt.Errorf("关闭数据库失败: %w", err)
-		}
-	}
+	// 数据库连接现在由每次操作自己管理，不需要在这里关闭
 
 	b.initialized = false
 	return nil

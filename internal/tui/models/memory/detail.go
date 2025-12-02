@@ -90,17 +90,19 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.frame.SetSize(msg.Width, msg.Height)
 
+		// 直接使用 frame 的内容尺寸，不再额外减法
 		contentHeight := m.frame.GetContentHeight()
 		contentWidth := m.frame.GetContentWidth()
 
 		if !m.ready {
-			m.viewport = viewport.New(contentWidth-4, contentHeight-4)
+			m.viewport = viewport.New(contentWidth, contentHeight)
 			m.viewport.YPosition = 0
 			m.ready = true
 		} else {
-			m.viewport.Width = contentWidth - 4
-			m.viewport.Height = contentHeight - 4
+			m.viewport.Width = contentWidth
+			m.viewport.Height = contentHeight
 		}
+		// 无论数据是否已加载，都尝试更新内容
 		if m.memory != nil {
 			m.viewport.SetContent(m.renderContent())
 		}
@@ -133,7 +135,8 @@ func (m *DetailModel) renderContent() string {
 		return ""
 	}
 
-	cardWidth := m.viewport.Width - 2
+	// 直接使用 viewport 宽度，减去卡片边框和内边距
+	cardWidth := m.viewport.Width - 4
 	if cardWidth < 40 {
 		cardWidth = 40
 	}

@@ -35,9 +35,9 @@ func (f *Frame) GetContentHeight() int {
 }
 
 // GetContentWidth 获取内容区域宽度
+// 嘿嘿~ 这里只减去左右边框各 1 = 2，保持和 renderContent 一致！
 func (f *Frame) GetContentWidth() int {
-	// 边距 4
-	return f.width - 4
+	return f.width - 2
 }
 
 // Render 渲染完整框架
