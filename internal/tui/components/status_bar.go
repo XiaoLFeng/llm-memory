@@ -1,6 +1,8 @@
 package components
 
 import (
+	"strings"
+
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -8,10 +10,11 @@ import (
 )
 
 // StatusBar 状态栏组件
-// 嘿嘿~ 显示当前位置和快捷键提示！📍
+// 嘿嘿~ 现代化的状态栏，带边框和分隔符！📍
 type StatusBar struct {
 	breadcrumb string
 	keys       []key.Binding
+	extra      string
 	width      int
 }
 
@@ -30,6 +33,11 @@ func (s *StatusBar) SetBreadcrumb(breadcrumb string) {
 // SetKeys 设置快捷键
 func (s *StatusBar) SetKeys(keys []key.Binding) {
 	s.keys = keys
+}
+
+// SetExtra 设置额外信息
+func (s *StatusBar) SetExtra(extra string) {
+	s.extra = extra
 }
 
 // SetWidth 设置宽度
@@ -53,30 +61,72 @@ func (s *StatusBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View 渲染界面
 func (s *StatusBar) View() string {
+	// 快捷键提示
+	var keyStrs []string
+	for _, k := range s.keys {
+		keyStr := styles.StatusKeyStyle.Render(k.Help().Key) + " " +
+			styles.StatusValueStyle.Render(k.Help().Desc)
+		keyStrs = append(keyStrs, keyStr)
+	}
+	keysStr := strings.Join(keyStrs, "  │  ")
+
+	// 状态栏样式 - 带边框
+	statusStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(styles.Border).
+		Foreground(styles.Subtext0).
+		Width(s.width-2).
+		Padding(0, 1)
+
+	return statusStyle.Render(keysStr)
+}
+
+// ViewWithBreadcrumb 带面包屑的渲染
+func (s *StatusBar) ViewWithBreadcrumb() string {
 	// 面包屑
 	breadcrumb := styles.StatusKeyStyle.Render(s.breadcrumb)
 
 	// 快捷键提示
-	var keysStr string
-	for i, k := range s.keys {
-		if i > 0 {
-			keysStr += " | "
-		}
-		keysStr += styles.StatusKeyStyle.Render(k.Help().Key) + " " +
+	var keyStrs []string
+	for _, k := range s.keys {
+		keyStr := styles.StatusKeyStyle.Render(k.Help().Key) + " " +
 			styles.StatusValueStyle.Render(k.Help().Desc)
+		keyStrs = append(keyStrs, keyStr)
 	}
+	keysStr := strings.Join(keyStrs, "  │  ")
 
-	// 组合状态栏
+	// 计算间距
 	left := breadcrumb
 	right := keysStr
 
-	// 计算间距
-	gap := s.width - lipgloss.Width(left) - lipgloss.Width(right)
+	gap := s.width - lipgloss.Width(left) - lipgloss.Width(right) - 6
 	if gap < 0 {
 		gap = 0
 	}
 
-	return styles.StatusBarStyle.
-		Width(s.width).
-		Render(left + lipgloss.NewStyle().Width(gap).Render("") + right)
+	content := left + strings.Repeat(" ", gap) + right
+
+	// 状态栏样式 - 带边框
+	statusStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(styles.Border).
+		Foreground(styles.Subtext0).
+		Width(s.width-2).
+		Padding(0, 1)
+
+	return statusStyle.Render(content)
+}
+
+// RenderKeysOnly 只渲染快捷键（用于状态栏）
+func RenderKeysOnly(keys []string, width int) string {
+	keysStr := strings.Join(keys, "  │  ")
+
+	statusStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(styles.Border).
+		Foreground(styles.Subtext0).
+		Width(width-2).
+		Padding(0, 1)
+
+	return statusStyle.Render(keysStr)
 }

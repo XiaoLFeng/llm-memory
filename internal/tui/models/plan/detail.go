@@ -5,13 +5,14 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
-	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // DetailModel 计划详情模型
@@ -26,6 +27,7 @@ type DetailModel struct {
 	height   int
 	loading  bool
 	err      error
+	frame    *components.Frame
 }
 
 // NewDetailModel 创建计划详情模型
@@ -34,6 +36,7 @@ func NewDetailModel(bs *startup.Bootstrap, id int) *DetailModel {
 		bs:      bs,
 		id:      id,
 		loading: true,
+		frame:   components.NewFrame(80, 24),
 	}
 }
 
@@ -105,6 +108,7 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.frame.SetSize(msg.Width, msg.Height)
 		if !m.ready {
 			m.viewport = viewport.New(msg.Width-4, msg.Height-10)
 			m.viewport.YPosition = 0
@@ -177,88 +181,137 @@ func (m *DetailModel) renderContent() string {
 		return ""
 	}
 
-	var b strings.Builder
+	var sections []string
+
+	// 基本信息卡片
+	basicInfo := m.renderBasicInfo()
+	sections = append(sections, components.NestedCard("📝 基本信息", basicInfo, m.width-8))
+
+	// 进度信息卡片
+	progressInfo := m.renderProgressInfo()
+	sections = append(sections, components.NestedCard("📊 进度信息", progressInfo, m.width-8))
+
+	// 时间信息卡片
+	timeInfo := m.renderTimeInfo()
+	sections = append(sections, components.NestedCard("⏰ 时间信息", timeInfo, m.width-8))
+
+	// 描述卡片（如果有）
+	if m.plan.Description != "" {
+		sections = append(sections, components.NestedCard("📄 描述", m.plan.Description, m.width-8))
+	}
+
+	// 子任务列表（如果有）
+	if len(m.plan.SubTasks) > 0 {
+		subTasksInfo := m.renderSubTasks()
+		sections = append(sections, components.NestedCard("✓ 子任务", subTasksInfo, m.width-8))
+	}
+
+	return strings.Join(sections, "\n\n")
+}
+
+// renderBasicInfo 渲染基本信息
+func (m *DetailModel) renderBasicInfo() string {
+	var lines []string
 
 	// 标题
-	b.WriteString(styles.SubtitleStyle.Render("标题"))
-	b.WriteString("\n")
-	b.WriteString(m.plan.Title)
-	b.WriteString("\n\n")
+	lines = append(lines, components.InfoRow("标题", m.plan.Title))
 
 	// 状态
-	b.WriteString(styles.SubtitleStyle.Render("状态"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatStatusIcon(string(m.plan.Status)) + " " + utils.FormatStatus(string(m.plan.Status)))
-	b.WriteString("\n\n")
+	status := components.StatusBadge(string(m.plan.Status))
+	lines = append(lines, components.InfoRow("状态", status))
 
-	// 进度
-	b.WriteString(styles.SubtitleStyle.Render("进度"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatProgress(m.plan.Progress, 20))
-	b.WriteString("\n\n")
+	// 作用域
+	scope := components.ScopeBadgeFromGroupIDPath(m.plan.GroupID, m.plan.Path)
+	lines = append(lines, components.InfoRow("作用域", scope))
 
-	// 描述
-	if m.plan.Description != "" {
-		b.WriteString(styles.SubtitleStyle.Render("描述"))
-		b.WriteString("\n")
-		b.WriteString(m.plan.Description)
-		b.WriteString("\n\n")
+	return strings.Join(lines, "\n")
+}
+
+// renderProgressInfo 渲染进度信息
+func (m *DetailModel) renderProgressInfo() string {
+	var lines []string
+
+	// 进度徽章
+	progressBadge := components.ProgressBadge(m.plan.Progress)
+	lines = append(lines, components.InfoRow("进度", progressBadge))
+
+	// 进度条
+	progressBar := utils.FormatProgress(m.plan.Progress, 30)
+	lines = append(lines, progressBar)
+
+	return strings.Join(lines, "\n")
+}
+
+// renderTimeInfo 渲染时间信息
+func (m *DetailModel) renderTimeInfo() string {
+	var lines []string
+
+	lines = append(lines, components.InfoRow("创建时间", utils.FormatTime(m.plan.CreatedAt)))
+	lines = append(lines, components.InfoRow("开始时间", utils.FormatTimePtr(m.plan.StartDate)))
+	lines = append(lines, components.InfoRow("结束时间", utils.FormatTimePtr(m.plan.EndDate)))
+
+	return strings.Join(lines, "\n")
+}
+
+// renderSubTasks 渲染子任务列表
+func (m *DetailModel) renderSubTasks() string {
+	var lines []string
+
+	for _, task := range m.plan.SubTasks {
+		statusIcon := components.StatusBadgeSimple(string(task.Status))
+		taskLine := statusIcon + " " + task.Title
+		lines = append(lines, taskLine)
 	}
 
-	// 开始时间
-	b.WriteString(styles.SubtitleStyle.Render("开始时间"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatTimePtr(m.plan.StartDate))
-	b.WriteString("\n\n")
-
-	// 结束时间
-	b.WriteString(styles.SubtitleStyle.Render("结束时间"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatTimePtr(m.plan.EndDate))
-	b.WriteString("\n\n")
-
-	// 创建时间
-	b.WriteString(styles.SubtitleStyle.Render("创建时间"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatTime(m.plan.CreatedAt))
-	b.WriteString("\n\n")
-
-	// 子任务
-	if len(m.plan.SubTasks) > 0 {
-		b.WriteString(styles.SubtitleStyle.Render("子任务"))
-		b.WriteString("\n")
-		for _, task := range m.plan.SubTasks {
-			b.WriteString(utils.FormatStatusIcon(string(task.Status)) + " " + task.Title)
-			b.WriteString("\n")
-		}
-	}
-
-	return b.String()
+	return strings.Join(lines, "\n")
 }
 
 // View 渲染界面
 func (m *DetailModel) View() string {
-	var b strings.Builder
+	breadcrumb := "计划管理 > 计划详情"
+	if m.plan != nil {
+		breadcrumb = "计划管理 > " + m.plan.Title
+	}
 
-	b.WriteString(styles.TitleStyle.Render("📋 计划详情"))
-	b.WriteString("\n\n")
-
+	// 加载中
 	if m.loading {
-		b.WriteString(styles.InfoStyle.Render("加载中..."))
-		return b.String()
+		content := lipgloss.Place(
+			m.frame.GetContentWidth(),
+			m.frame.GetContentHeight(),
+			lipgloss.Center,
+			lipgloss.Center,
+			components.CardInfo("", "加载中...", 40),
+		)
+		keys := []string{"esc 返回"}
+		return m.frame.Render(breadcrumb, content, keys, "")
 	}
 
+	// 错误显示
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		return b.String()
+		content := lipgloss.Place(
+			m.frame.GetContentWidth(),
+			m.frame.GetContentHeight(),
+			lipgloss.Center,
+			lipgloss.Center,
+			components.CardError("错误", m.err.Error(), 60),
+		)
+		keys := []string{"esc 返回"}
+		return m.frame.Render(breadcrumb, content, keys, "")
 	}
 
+	// 正常显示
+	content := ""
 	if m.ready {
-		b.WriteString(m.viewport.View())
+		content = m.viewport.View()
 	}
 
-	b.WriteString("\n\n")
-	b.WriteString(styles.HelpStyle.Render("↑/↓ 滚动 | s 开始 | f 完成 | p 进度 | esc 返回"))
+	keys := []string{
+		"↑/↓ 滚动",
+		"s 开始",
+		"f 完成",
+		"p 进度",
+		"esc 返回",
+	}
 
-	return b.String()
+	return m.frame.Render(breadcrumb, content, keys, "")
 }

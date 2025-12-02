@@ -6,12 +6,14 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // CreateModel 组创建模型
@@ -158,31 +160,74 @@ func (m *CreateModel) save() tea.Cmd {
 
 // View 渲染界面
 func (m *CreateModel) View() string {
-	var b strings.Builder
+	// 计算卡片宽度
+	cardWidth := m.width - 4
+	if cardWidth < 60 {
+		cardWidth = 60
+	}
 
-	b.WriteString(styles.TitleStyle.Render("👥 创建新组"))
-	b.WriteString("\n\n")
+	// 表单内容
+	var formContent strings.Builder
 
-	// 名称
-	b.WriteString(styles.LabelStyle.Render("名称"))
-	b.WriteString("\n")
-	b.WriteString(m.nameInput.View())
-	b.WriteString("\n\n")
+	// 名称输入
+	labelStyle := lipgloss.NewStyle().
+		Foreground(styles.Subtext0).
+		Bold(true)
 
-	// 描述
-	b.WriteString(styles.LabelStyle.Render("描述"))
-	b.WriteString("\n")
-	b.WriteString(m.descArea.View())
-	b.WriteString("\n\n")
+	formContent.WriteString(labelStyle.Render("名称"))
+	formContent.WriteString("\n")
+
+	// 输入框样式
+	inputStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(styles.Border).
+		Width(cardWidth-8).
+		Padding(0, 1)
+
+	if m.focusIndex == 0 {
+		inputStyle = inputStyle.BorderForeground(styles.Primary)
+	}
+
+	formContent.WriteString(inputStyle.Render(m.nameInput.View()))
+	formContent.WriteString("\n\n")
+
+	// 描述输入
+	formContent.WriteString(labelStyle.Render("描述（可选）"))
+	formContent.WriteString("\n")
+
+	descStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(styles.Border).
+		Width(cardWidth-8).
+		Padding(0, 1)
+
+	if m.focusIndex == 1 {
+		descStyle = descStyle.BorderForeground(styles.Primary)
+	}
+
+	formContent.WriteString(descStyle.Render(m.descArea.View()))
 
 	// 错误信息
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		b.WriteString("\n\n")
+		formContent.WriteString("\n\n")
+		errorStyle := lipgloss.NewStyle().Foreground(styles.Error)
+		formContent.WriteString(errorStyle.Render("错误: " + m.err.Error()))
 	}
 
-	// 帮助
-	b.WriteString(styles.HelpStyle.Render("Tab 切换 | Ctrl+S 保存 | Esc 返回"))
+	// 使用卡片包装表单
+	card := components.Card("👥 创建新组", formContent.String(), cardWidth)
 
-	return b.String()
+	// 状态栏
+	keys := []string{
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("tab") + " 切换",
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("ctrl+s") + " 保存",
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("esc") + " 返回",
+	}
+	statusBar := components.RenderKeysOnly(keys, m.width)
+
+	// 组合视图
+	contentHeight := m.height - 3
+	centeredCard := lipgloss.Place(m.width, contentHeight, lipgloss.Center, lipgloss.Center, card)
+
+	return lipgloss.JoinVertical(lipgloss.Left, centeredCard, statusBar)
 }

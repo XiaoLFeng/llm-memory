@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // DetailModel 组详情模型
@@ -176,63 +178,92 @@ func (m *DetailModel) removePath(path string) tea.Cmd {
 
 // View 渲染界面
 func (m *DetailModel) View() string {
-	var b strings.Builder
-
 	if m.loading {
-		b.WriteString(styles.InfoStyle.Render("加载中..."))
-		return b.String()
+		loadingStyle := lipgloss.NewStyle().
+			Foreground(styles.Info).
+			Align(lipgloss.Center)
+		content := loadingStyle.Render("加载中...")
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 	}
 
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		return b.String()
+		errorStyle := lipgloss.NewStyle().
+			Foreground(styles.Error).
+			Align(lipgloss.Center)
+		content := errorStyle.Render("错误: " + m.err.Error())
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 	}
 
 	if m.group == nil {
-		b.WriteString(styles.ErrorStyle.Render("组不存在"))
-		return b.String()
+		errorStyle := lipgloss.NewStyle().
+			Foreground(styles.Error).
+			Align(lipgloss.Center)
+		content := errorStyle.Render("组不存在")
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 	}
 
-	// 组信息
-	b.WriteString(styles.TitleStyle.Render(fmt.Sprintf("👥 %s", m.group.Name)))
-	b.WriteString("\n\n")
+	// 计算卡片宽度
+	cardWidth := m.width - 4
+	if cardWidth < 60 {
+		cardWidth = 60
+	}
 
-	// 描述
+	// 基本信息卡片
+	var basicInfo strings.Builder
+	basicInfo.WriteString(components.InfoRow("ID", fmt.Sprintf("%d", m.group.ID)))
+	basicInfo.WriteString("\n")
+	basicInfo.WriteString(components.InfoRow("名称", m.group.Name))
+	basicInfo.WriteString("\n")
 	if m.group.Description != "" {
-		b.WriteString(styles.LabelStyle.Render("描述"))
-		b.WriteString("\n")
-		b.WriteString(styles.DescStyle.Render(m.group.Description))
-		b.WriteString("\n\n")
+		basicInfo.WriteString(components.InfoRow("描述", m.group.Description))
+		basicInfo.WriteString("\n")
 	}
+	basicInfo.WriteString(components.InfoRow("创建时间", utils.FormatRelativeTime(m.group.CreatedAt)))
 
-	// 创建时间
-	b.WriteString(styles.MutedStyle.Render(fmt.Sprintf("创建于: %s", utils.FormatRelativeTime(m.group.CreatedAt))))
-	b.WriteString("\n\n")
+	basicCard := components.Card("📋 基本信息", basicInfo.String(), cardWidth)
 
-	// 路径列表
-	b.WriteString(styles.LabelStyle.Render(fmt.Sprintf("📂 关联路径 (%d)", len(m.group.Paths))))
-	b.WriteString("\n")
-	b.WriteString(strings.Repeat("─", 50))
-	b.WriteString("\n")
-
+	// 路径列表卡片
+	var pathsList strings.Builder
 	if len(m.group.Paths) == 0 {
-		b.WriteString(styles.MutedStyle.Render("暂无关联路径~ 按 a 添加当前目录"))
-		b.WriteString("\n")
+		pathsList.WriteString(lipgloss.NewStyle().
+			Foreground(styles.Subtext0).
+			Render("暂无关联路径~ 按 a 添加当前目录"))
 	} else {
 		for i, path := range m.group.Paths {
 			var line string
 			if i == m.selectedIndex {
-				line = styles.SelectedStyle.Render(fmt.Sprintf("> %s", path))
+				indicator := lipgloss.NewStyle().Foreground(styles.Primary).Render("▸ ")
+				pathStyle := lipgloss.NewStyle().Foreground(styles.Primary).Bold(true)
+				line = indicator + pathStyle.Render(path)
 			} else {
-				line = styles.NormalStyle.Render(fmt.Sprintf("  %s", path))
+				line = "  " + lipgloss.NewStyle().Foreground(styles.Text).Render(path)
 			}
-			b.WriteString(line)
-			b.WriteString("\n")
+			pathsList.WriteString(line)
+			if i < len(m.group.Paths)-1 {
+				pathsList.WriteString("\n")
+			}
 		}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(styles.HelpStyle.Render("↑/↓ 选择路径 | a 添加当前目录 | d 移除路径 | esc 返回"))
+	pathsTitle := fmt.Sprintf("📂 关联路径 %s",
+		lipgloss.NewStyle().Foreground(styles.Subtext0).Render(fmt.Sprintf("(%d)", len(m.group.Paths))))
+	pathsCard := components.Card(pathsTitle, pathsList.String(), cardWidth)
 
-	return b.String()
+	// 组合卡片
+	cards := lipgloss.JoinVertical(lipgloss.Left, basicCard, "", pathsCard)
+
+	// 状态栏
+	keys := []string{
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("↑/↓") + " 选择路径",
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("a") + " 添加当前目录",
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("d") + " 移除路径",
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("esc") + " 返回",
+	}
+	statusBar := components.RenderKeysOnly(keys, m.width)
+
+	// 组合视图
+	contentHeight := m.height - 3
+	centeredCards := lipgloss.Place(m.width, contentHeight, lipgloss.Center, lipgloss.Center, cards)
+
+	return lipgloss.JoinVertical(lipgloss.Left, centeredCards, statusBar)
 }

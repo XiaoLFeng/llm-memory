@@ -5,6 +5,7 @@ import (
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // ToastType 提示消息类型
@@ -18,18 +19,22 @@ const (
 )
 
 // Toast 提示消息组件
-// 嘿嘿~ 用于显示操作反馈的短暂提示！💬
+// 嘿嘿~ 现代化的 Toast 组件，带边框和图标！💬
 type Toast struct {
 	message   string
 	toastType ToastType
 	visible   bool
 	duration  time.Duration
+	width     int
+	height    int
 }
 
 // NewToast 创建 Toast 组件
 func NewToast() *Toast {
 	return &Toast{
 		duration: 3 * time.Second,
+		width:    80,
+		height:   24,
 	}
 }
 
@@ -48,6 +53,12 @@ func (t *Toast) Hide() {
 // IsVisible 是否可见
 func (t *Toast) IsVisible() bool {
 	return t.visible
+}
+
+// SetSize 设置窗口大小
+func (t *Toast) SetSize(width, height int) {
+	t.width = width
+	t.height = height
 }
 
 // HideAfter 延迟隐藏
@@ -79,23 +90,47 @@ func (t *Toast) View() string {
 		return ""
 	}
 
-	var style = styles.InfoStyle
+	var borderColor lipgloss.Color
 	var icon string
 
 	switch t.toastType {
 	case ToastSuccess:
-		style = styles.SuccessStyle
-		icon = "✓ "
+		borderColor = styles.Success
+		icon = "✓"
 	case ToastError:
-		style = styles.ErrorStyle
-		icon = "✗ "
+		borderColor = styles.Error
+		icon = "✗"
 	case ToastWarning:
-		style = styles.WarningStyle
-		icon = "⚠ "
+		borderColor = styles.Warning
+		icon = "⚠"
 	case ToastInfo:
-		style = styles.InfoStyle
-		icon = "ℹ "
+		borderColor = styles.Info
+		icon = "ℹ"
 	}
 
-	return style.Render(icon + t.message)
+	// 创建 Toast 样式 - 带边框
+	toastStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Foreground(styles.Text).
+		Padding(0, 2)
+
+	// 图标样式
+	iconStyle := lipgloss.NewStyle().
+		Foreground(borderColor).
+		Bold(true)
+
+	content := iconStyle.Render(icon) + "  " + t.message
+
+	return toastStyle.Render(content)
+}
+
+// RenderOverlay 渲染为浮动层（用于居中显示）
+func (t *Toast) RenderOverlay(base string) string {
+	if !t.visible {
+		return base
+	}
+
+	toastView := t.View()
+	return PlaceOverlay(base, toastView, t.width, t.height, TopCenter)
 }

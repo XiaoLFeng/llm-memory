@@ -198,3 +198,46 @@ func ShowConfirm(title, message string, onConfirm, onCancel tea.Cmd) tea.Cmd {
 		}
 	}
 }
+
+// 额外的快捷键定义
+var (
+	KeyEdit = key.NewBinding(
+		key.WithKeys("e"),
+		key.WithHelp("e", "编辑"),
+	)
+
+	KeyToggle = key.NewBinding(
+		key.WithKeys("space"),
+		key.WithHelp("space", "切换"),
+	)
+
+	KeyConfirm = key.NewBinding(
+		key.WithKeys("y"),
+		key.WithHelp("y", "确认"),
+	)
+
+	KeyCancel = key.NewBinding(
+		key.WithKeys("n"),
+		key.WithHelp("n", "取消"),
+	)
+
+	KeyRefresh = key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "刷新"),
+	)
+
+	KeyFilter = key.NewBinding(
+		key.WithKeys("f"),
+		key.WithHelp("f", "筛选"),
+	)
+
+	KeySort = key.NewBinding(
+		key.WithKeys("o"),
+		key.WithHelp("o", "排序"),
+	)
+
+	KeySave = key.NewBinding(
+		key.WithKeys("ctrl+s"),
+		key.WithHelp("ctrl+s", "保存"),
+	)
+)

@@ -6,63 +6,36 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
-
-// planItem 计划列表项
-type planItem struct {
-	plan types.Plan
-}
-
-func (i planItem) Title() string {
-	return fmt.Sprintf("%d. %s %s", i.plan.ID, utils.FormatStatusIcon(string(i.plan.Status)), i.plan.Title)
-}
-
-func (i planItem) Description() string {
-	return fmt.Sprintf("%s | %s", utils.FormatStatus(string(i.plan.Status)), utils.FormatProgress(i.plan.Progress, 10))
-}
-
-func (i planItem) FilterValue() string {
-	return i.plan.Title
-}
 
 // ListModel 计划列表模型
 // 嘿嘿~ 展示所有计划的列表！📋
 type ListModel struct {
-	bs      *startup.Bootstrap
-	list    list.Model
-	plans   []types.Plan
-	width   int
-	height  int
-	loading bool
-	err     error
+	bs          *startup.Bootstrap
+	plans       []types.Plan
+	cursor      int
+	width       int
+	height      int
+	loading     bool
+	err         error
+	frame       *components.Frame
+	scrollStart int
 }
 
 // NewListModel 创建计划列表模型
 func NewListModel(bs *startup.Bootstrap) *ListModel {
-	// 创建列表
-	delegate := list.NewDefaultDelegate()
-	delegate.Styles.SelectedTitle = styles.ListSelectedStyle
-	delegate.Styles.SelectedDesc = styles.ListDescStyle
-	delegate.Styles.NormalTitle = styles.ListItemStyle
-	delegate.Styles.NormalDesc = styles.ListDescStyle
-
-	l := list.New([]list.Item{}, delegate, 80, 20)
-	l.Title = "📋 计划列表"
-	l.SetShowHelp(false)
-	l.SetFilteringEnabled(true)
-	l.Styles.Title = styles.ListTitleStyle
-
 	return &ListModel{
 		bs:      bs,
-		list:    l,
 		loading: true,
+		frame:   components.NewFrame(80, 24),
 	}
 }
 
@@ -121,11 +94,6 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// 如果正在过滤，让列表处理
-		if m.list.FilterState() == list.Filtering {
-			break
-		}
-
 		switch {
 		case key.Matches(msg, common.KeyBack):
 			return m, common.Back()
@@ -133,43 +101,59 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, common.KeyCreate):
 			return m, common.Navigate(common.PagePlanCreate)
 
+		case key.Matches(msg, common.KeyUp):
+			if m.cursor > 0 {
+				m.cursor--
+				m.updateScroll()
+			}
+
+		case key.Matches(msg, common.KeyDown):
+			if m.cursor < len(m.plans)-1 {
+				m.cursor++
+				m.updateScroll()
+			}
+
 		case key.Matches(msg, common.KeyEnter):
-			if item, ok := m.list.SelectedItem().(planItem); ok {
-				return m, common.Navigate(common.PagePlanDetail, map[string]any{"id": item.plan.ID})
+			if len(m.plans) > 0 && m.cursor < len(m.plans) {
+				return m, common.Navigate(common.PagePlanDetail, map[string]any{"id": m.plans[m.cursor].ID})
 			}
 
 		case key.Matches(msg, common.KeyDelete):
-			if item, ok := m.list.SelectedItem().(planItem); ok {
+			if len(m.plans) > 0 && m.cursor < len(m.plans) {
+				plan := m.plans[m.cursor]
 				return m, common.ShowConfirm(
 					"删除计划",
-					fmt.Sprintf("确定要删除计划「%s」吗？", item.plan.Title),
-					m.deletePlan(item.plan.ID),
+					fmt.Sprintf("确定要删除计划「%s」吗？", plan.Title),
+					m.deletePlan(plan.ID),
 					nil,
 				)
 			}
 
 		case msg.String() == "s":
 			// 开始计划
-			if item, ok := m.list.SelectedItem().(planItem); ok {
-				if item.plan.Status == types.PlanStatusPending {
-					return m, m.startPlan(item.plan.ID)
+			if len(m.plans) > 0 && m.cursor < len(m.plans) {
+				plan := m.plans[m.cursor]
+				if plan.Status == types.PlanStatusPending {
+					return m, m.startPlan(plan.ID)
 				}
 			}
 
 		case msg.String() == "f":
 			// 完成计划
-			if item, ok := m.list.SelectedItem().(planItem); ok {
-				if item.plan.Status == types.PlanStatusInProgress {
-					return m, m.completePlan(item.plan.ID)
+			if len(m.plans) > 0 && m.cursor < len(m.plans) {
+				plan := m.plans[m.cursor]
+				if plan.Status == types.PlanStatusInProgress {
+					return m, m.completePlan(plan.ID)
 				}
 			}
 
 		case msg.String() == "p":
 			// 更新进度
-			if item, ok := m.list.SelectedItem().(planItem); ok {
+			if len(m.plans) > 0 && m.cursor < len(m.plans) {
+				plan := m.plans[m.cursor]
 				return m, common.Navigate(common.PagePlanProgress, map[string]any{
-					"id":       item.plan.ID,
-					"progress": item.plan.Progress,
+					"id":       plan.ID,
+					"progress": plan.Progress,
 				})
 			}
 		}
@@ -177,16 +161,18 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.list.SetSize(msg.Width-4, msg.Height-8)
+		m.frame.SetSize(msg.Width, msg.Height)
 
 	case plansLoadedMsg:
 		m.loading = false
 		m.plans = msg.plans
-		items := make([]list.Item, len(msg.plans))
-		for i, plan := range msg.plans {
-			items[i] = planItem{plan: plan}
+		// 确保光标不越界
+		if m.cursor >= len(m.plans) {
+			m.cursor = len(m.plans) - 1
 		}
-		m.list.SetItems(items)
+		if m.cursor < 0 {
+			m.cursor = 0
+		}
 
 	case plansErrorMsg:
 		m.loading = false
@@ -209,14 +195,18 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.loadPlans())
 	}
 
-	// 更新列表
-	newList, cmd := m.list.Update(msg)
-	m.list = newList
-	if cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
 	return m, tea.Batch(cmds...)
+}
+
+// updateScroll 更新滚动位置
+func (m *ListModel) updateScroll() {
+	visibleLines := m.frame.GetContentHeight() / 3 // 每个条目大约占 3 行
+	if m.cursor < m.scrollStart {
+		m.scrollStart = m.cursor
+	}
+	if m.cursor >= m.scrollStart+visibleLines {
+		m.scrollStart = m.cursor - visibleLines + 1
+	}
 }
 
 // deletePlan 删除计划
@@ -254,30 +244,119 @@ func (m *ListModel) completePlan(id int) tea.Cmd {
 
 // View 渲染界面
 func (m *ListModel) View() string {
-	var b strings.Builder
-
+	// 加载中
 	if m.loading {
-		b.WriteString(styles.InfoStyle.Render("加载中..."))
-		return b.String()
+		content := lipgloss.Place(
+			m.frame.GetContentWidth(),
+			m.frame.GetContentHeight(),
+			lipgloss.Center,
+			lipgloss.Center,
+			components.CardInfo("", "加载中...", 40),
+		)
+		keys := []string{"esc 返回"}
+		return m.frame.Render("计划管理 > 计划列表", content, keys, "")
 	}
 
+	// 错误显示
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		return b.String()
+		content := lipgloss.Place(
+			m.frame.GetContentWidth(),
+			m.frame.GetContentHeight(),
+			lipgloss.Center,
+			lipgloss.Center,
+			components.CardError("错误", m.err.Error(), 60),
+		)
+		keys := []string{"esc 返回"}
+		return m.frame.Render("计划管理 > 计划列表", content, keys, "")
 	}
 
+	// 空列表
 	if len(m.plans) == 0 {
-		b.WriteString(styles.TitleStyle.Render("📋 计划列表"))
-		b.WriteString("\n\n")
-		b.WriteString(styles.MutedStyle.Render("暂无计划~ 按 c 创建新计划"))
-		b.WriteString("\n\n")
-		b.WriteString(styles.HelpStyle.Render("c 新建 | esc 返回"))
-		return b.String()
+		emptyText := lipgloss.NewStyle().
+			Foreground(styles.Subtext0).
+			Render("暂无计划~ 按 c 创建新计划吧！")
+		content := lipgloss.Place(
+			m.frame.GetContentWidth(),
+			m.frame.GetContentHeight(),
+			lipgloss.Center,
+			lipgloss.Center,
+			components.Card("📋 计划列表", emptyText, 60),
+		)
+		keys := []string{"c 新建", "esc 返回"}
+		return m.frame.Render("计划管理 > 计划列表", content, keys, "")
 	}
 
-	b.WriteString(m.list.View())
-	b.WriteString("\n")
-	b.WriteString(styles.HelpStyle.Render("↑/↓ 选择 | enter 查看 | c 新建 | s 开始 | f 完成 | p 进度 | d 删除 | esc 返回"))
+	// 渲染列表项
+	var listItems []string
+	visibleLines := m.frame.GetContentHeight() / 3
+	endIdx := m.scrollStart + visibleLines
+	if endIdx > len(m.plans) {
+		endIdx = len(m.plans)
+	}
 
-	return b.String()
+	for i := m.scrollStart; i < endIdx; i++ {
+		plan := m.plans[i]
+		listItems = append(listItems, m.renderPlanItem(plan, i == m.cursor))
+	}
+
+	listContent := strings.Join(listItems, "\n")
+
+	// 统计信息
+	extra := fmt.Sprintf("共 %d 个计划", len(m.plans))
+
+	// 包装在卡片中
+	cardContent := components.Card("📋 计划列表", listContent, m.frame.GetContentWidth()-4)
+
+	content := lipgloss.NewStyle().
+		Width(m.frame.GetContentWidth()).
+		Render(cardContent)
+
+	keys := []string{
+		"↑/↓ 选择",
+		"enter 查看",
+		"c 新建",
+		"s 开始",
+		"f 完成",
+		"p 进度",
+		"d 删除",
+		"esc 返回",
+	}
+
+	return m.frame.Render("计划管理 > 计划列表", content, keys, extra)
+}
+
+// renderPlanItem 渲染计划列表项
+func (m *ListModel) renderPlanItem(plan types.Plan, selected bool) string {
+	// 指示器
+	indicator := "  "
+	if selected {
+		indicator = lipgloss.NewStyle().
+			Foreground(styles.Primary).
+			Bold(true).
+			Render("▸ ")
+	}
+
+	// 标题 + 作用域
+	titleStyle := lipgloss.NewStyle().
+		Foreground(styles.Text).
+		Bold(selected)
+	if selected {
+		titleStyle = titleStyle.Foreground(styles.Primary)
+	}
+
+	title := titleStyle.Render(plan.Title)
+	scope := components.ScopeBadgeFromGroupIDPath(plan.GroupID, plan.Path)
+
+	// 状态 + 进度
+	status := components.StatusBadge(string(plan.Status))
+	progress := components.ProgressBadge(plan.Progress)
+
+	// 第一行：指示器 + 标题 + 作用域
+	line1 := indicator + title + " " + scope
+
+	// 第二行：状态 + 进度条
+	progressBar := utils.FormatProgress(plan.Progress, 20)
+	line2 := "   " + status + " " + progress + " " + progressBar
+
+	return line1 + "\n" + line2
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
@@ -12,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // DetailModel 待办详情模型
@@ -168,85 +170,134 @@ func (m *DetailModel) renderContent() string {
 		return ""
 	}
 
-	var b strings.Builder
+	var sections []string
+
+	// 基本信息卡片
+	basicInfo := m.renderBasicInfo()
+	sections = append(sections, components.NestedCard("基本信息", basicInfo, m.width-12))
+
+	// 详细信息卡片
+	detailInfo := m.renderDetailInfo()
+	sections = append(sections, components.NestedCard("详细信息", detailInfo, m.width-12))
+
+	// 时间信息卡片
+	timeInfo := m.renderTimeInfo()
+	sections = append(sections, components.NestedCard("时间信息", timeInfo, m.width-12))
+
+	return strings.Join(sections, "\n\n")
+}
+
+// renderBasicInfo 渲染基本信息
+func (m *DetailModel) renderBasicInfo() string {
+	var lines []string
 
 	// 标题
-	b.WriteString(styles.SubtitleStyle.Render("标题"))
-	b.WriteString("\n")
-	b.WriteString(m.todo.Title)
-	b.WriteString("\n\n")
+	lines = append(lines, components.InfoRow("标题", m.todo.Title))
 
 	// 状态
-	b.WriteString(styles.SubtitleStyle.Render("状态"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatTodoStatusIcon(int(m.todo.Status)) + " " + utils.FormatTodoStatus(int(m.todo.Status)))
-	b.WriteString("\n\n")
+	statusBadge := components.StatusBadge(m.todo.Status.String())
+	lines = append(lines, components.InfoRow("状态", statusBadge))
 
 	// 优先级
-	b.WriteString(styles.SubtitleStyle.Render("优先级"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatPriorityIcon(int(m.todo.Priority)) + " " + utils.FormatPriority(int(m.todo.Priority)))
-	b.WriteString("\n\n")
+	priorityBadge := components.PriorityBadge(int(m.todo.Priority))
+	lines = append(lines, components.InfoRow("优先级", priorityBadge))
+
+	// 作用域
+	scopeBadge := components.ScopeBadgeFromGroupIDPath(m.todo.GroupID, m.todo.Path)
+	lines = append(lines, components.InfoRow("作用域", scopeBadge))
+
+	return strings.Join(lines, "\n")
+}
+
+// renderDetailInfo 渲染详细信息
+func (m *DetailModel) renderDetailInfo() string {
+	var lines []string
 
 	// 描述
-	if m.todo.Description != "" {
-		b.WriteString(styles.SubtitleStyle.Render("描述"))
-		b.WriteString("\n")
-		b.WriteString(m.todo.Description)
-		b.WriteString("\n\n")
+	description := m.todo.Description
+	if description == "" {
+		description = lipgloss.NewStyle().Foreground(styles.Overlay0).Render("-")
 	}
-
-	// 截止日期
-	b.WriteString(styles.SubtitleStyle.Render("截止日期"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatDatePtr(m.todo.DueDate))
-	b.WriteString("\n\n")
+	lines = append(lines, components.InfoRow("描述", description))
 
 	// 标签
-	b.WriteString(styles.SubtitleStyle.Render("标签"))
-	b.WriteString("\n")
-	b.WriteString(utils.JoinTags(m.todo.Tags))
-	b.WriteString("\n\n")
+	tags := utils.JoinTags(m.todo.Tags)
+	if len(m.todo.Tags) > 0 {
+		tags = components.TagsBadge(m.todo.Tags)
+	}
+	lines = append(lines, components.InfoRow("标签", tags))
+
+	return strings.Join(lines, "\n")
+}
+
+// renderTimeInfo 渲染时间信息
+func (m *DetailModel) renderTimeInfo() string {
+	var lines []string
+
+	// 截止日期
+	dueDate := utils.FormatDatePtr(m.todo.DueDate)
+	if m.todo.DueDate != nil {
+		dueDate = components.TimeBadge(dueDate)
+	}
+	lines = append(lines, components.InfoRow("截止日期", dueDate))
 
 	// 创建时间
-	b.WriteString(styles.SubtitleStyle.Render("创建时间"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatTime(m.todo.CreatedAt))
-	b.WriteString("\n\n")
+	createdAt := components.TimeBadge(utils.FormatTime(m.todo.CreatedAt))
+	lines = append(lines, components.InfoRow("创建时间", createdAt))
 
 	// 完成时间
 	if m.todo.CompletedAt != nil {
-		b.WriteString(styles.SubtitleStyle.Render("完成时间"))
-		b.WriteString("\n")
-		b.WriteString(utils.FormatTime(*m.todo.CompletedAt))
+		completedAt := components.TimeBadge(utils.FormatTime(*m.todo.CompletedAt))
+		lines = append(lines, components.InfoRow("完成时间", completedAt))
 	}
 
-	return b.String()
+	return strings.Join(lines, "\n")
 }
 
 // View 渲染界面
 func (m *DetailModel) View() string {
-	var b strings.Builder
-
-	b.WriteString(styles.TitleStyle.Render("✅ 待办详情"))
-	b.WriteString("\n\n")
+	var content string
 
 	if m.loading {
-		b.WriteString(styles.InfoStyle.Render("加载中..."))
-		return b.String()
+		content = styles.InfoStyle.Render("加载中...")
+		if m.width > 0 && m.height > 0 {
+			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+		}
+		return content
 	}
 
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		return b.String()
+		content = styles.ErrorStyle.Render("错误: " + m.err.Error())
+		if m.width > 0 && m.height > 0 {
+			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+		}
+		return content
 	}
 
-	if m.ready {
-		b.WriteString(m.viewport.View())
+	if !m.ready {
+		return ""
 	}
 
+	var b strings.Builder
+
+	// 使用卡片包装内容
+	viewportContent := m.viewport.View()
+	cardContent := components.Card("✅ 待办详情", viewportContent, m.width-4)
+	b.WriteString(cardContent)
 	b.WriteString("\n\n")
-	b.WriteString(styles.HelpStyle.Render("↑/↓ 滚动 | s 开始 | f 完成 | esc 返回"))
 
-	return b.String()
+	// 底部快捷键状态栏
+	keys := []string{
+		styles.StatusKeyStyle.Render("↑/↓") + " 滚动",
+		styles.StatusKeyStyle.Render("s") + " 开始",
+		styles.StatusKeyStyle.Render("f") + " 完成",
+		styles.StatusKeyStyle.Render("esc") + " 返回",
+	}
+	b.WriteString(components.RenderKeysOnly(keys, m.width))
+
+	content = b.String()
+	if m.width > 0 && m.height > 0 {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+	}
+	return content
 }

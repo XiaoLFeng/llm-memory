@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
@@ -13,6 +14,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // CreateModel 计划创建模型
@@ -25,6 +27,7 @@ type CreateModel struct {
 	width      int
 	height     int
 	err        error
+	frame      *components.Frame
 }
 
 // NewCreateModel 创建计划创建模型
@@ -46,6 +49,7 @@ func NewCreateModel(bs *startup.Bootstrap) *CreateModel {
 		bs:         bs,
 		titleInput: ti,
 		descArea:   ta,
+		frame:      components.NewFrame(80, 24),
 	}
 }
 
@@ -91,6 +95,7 @@ func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.frame.SetSize(msg.Width, msg.Height)
 
 	case planCreatedMsg:
 		return m, tea.Batch(
@@ -159,31 +164,73 @@ func (m *CreateModel) save() tea.Cmd {
 
 // View 渲染界面
 func (m *CreateModel) View() string {
-	var b strings.Builder
+	// 构建表单内容
+	var formParts []string
 
-	b.WriteString(styles.TitleStyle.Render("📝 创建新计划"))
-	b.WriteString("\n\n")
+	// 标题输入
+	titleLabel := lipgloss.NewStyle().
+		Foreground(styles.Subtext1).
+		Bold(true).
+		Render("标题")
 
-	// 标题
-	b.WriteString(styles.LabelStyle.Render("标题"))
-	b.WriteString("\n")
-	b.WriteString(m.titleInput.View())
-	b.WriteString("\n\n")
+	titleInput := m.titleInput.View()
+	if m.focusIndex == 0 {
+		titleInput = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(styles.Primary).
+			Padding(0, 1).
+			Render(titleInput)
+	}
+	formParts = append(formParts, titleLabel+"\n"+titleInput)
 
-	// 描述
-	b.WriteString(styles.LabelStyle.Render("描述"))
-	b.WriteString("\n")
-	b.WriteString(m.descArea.View())
-	b.WriteString("\n\n")
+	// 描述输入
+	descLabel := lipgloss.NewStyle().
+		Foreground(styles.Subtext1).
+		Bold(true).
+		Render("描述")
+
+	descArea := m.descArea.View()
+	if m.focusIndex == 1 {
+		descArea = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(styles.Primary).
+			Padding(0, 1).
+			Render(descArea)
+	}
+	formParts = append(formParts, descLabel+"\n"+descArea)
+
+	// 提示信息
+	hint := lipgloss.NewStyle().
+		Foreground(styles.Overlay1).
+		Italic(true).
+		Render("💡 提示：按 tab 切换输入框，ctrl+s 保存")
+	formParts = append(formParts, hint)
 
 	// 错误信息
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		b.WriteString("\n\n")
+		errorBox := components.CardError("错误", m.err.Error(), 60)
+		formParts = append(formParts, errorBox)
 	}
 
-	// 帮助信息
-	b.WriteString(styles.HelpStyle.Render("tab 切换 | ctrl+s 保存 | esc 取消"))
+	formContent := strings.Join(formParts, "\n\n")
 
-	return b.String()
+	// 用卡片包装表单
+	cardContent := components.Card("📝 创建新计划", formContent, m.frame.GetContentWidth()-4)
+
+	// 居中显示
+	content := lipgloss.Place(
+		m.frame.GetContentWidth(),
+		m.frame.GetContentHeight(),
+		lipgloss.Center,
+		lipgloss.Center,
+		cardContent,
+	)
+
+	keys := []string{
+		"tab 切换",
+		"ctrl+s 保存",
+		"esc 取消",
+	}
+
+	return m.frame.Render("计划管理 > 创建计划", content, keys, "")
 }

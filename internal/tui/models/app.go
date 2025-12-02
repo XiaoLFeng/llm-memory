@@ -142,60 +142,33 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View 渲染界面
 func (m *AppModel) View() string {
 	if m.quitting {
-		return "再见~ 👋\n"
+		quitStyle := lipgloss.NewStyle().
+			Foreground(styles.Primary).
+			Bold(true)
+		return quitStyle.Render("再见~ 👋") + "\n"
 	}
+
+	// 设置组件尺寸
+	m.toast.SetSize(m.width, m.height)
+	m.confirm.SetSize(m.width, m.height)
 
 	// 渲染当前页面
 	content := m.currentPage.View()
 
-	// 添加状态栏
-	statusBar := m.renderStatusBar()
+	// 主视图
+	mainView := content
 
-	// 组合视图
-	mainView := lipgloss.JoinVertical(
-		lipgloss.Left,
-		content,
-		statusBar,
-	)
-
-	// 如果有 Toast，叠加显示
+	// 如果有 Toast，叠加显示（使用 Overlay 居中）
 	if m.toast.IsVisible() {
-		mainView = m.overlayToast(mainView)
+		mainView = m.toast.RenderOverlay(mainView)
 	}
 
-	// 如果有确认对话框，叠加显示
+	// 如果有确认对话框，叠加显示（使用 Overlay 居中）
 	if m.confirm.IsVisible() {
-		mainView = m.overlayConfirm(mainView)
+		mainView = m.confirm.RenderOverlay(mainView)
 	}
 
 	return mainView
-}
-
-// renderStatusBar 渲染状态栏
-func (m *AppModel) renderStatusBar() string {
-	// 构建面包屑导航
-	breadcrumb := "主菜单"
-	if len(m.pageStack) > 0 {
-		breadcrumb += " > " + m.currentPage.Title()
-	}
-
-	return styles.StatusBarStyle.
-		Width(m.width).
-		Render(breadcrumb)
-}
-
-// overlayToast 叠加 Toast 显示
-func (m *AppModel) overlayToast(base string) string {
-	toastView := m.toast.View()
-	// 简单地在底部添加 Toast
-	return lipgloss.JoinVertical(lipgloss.Left, base, toastView)
-}
-
-// overlayConfirm 叠加确认对话框显示
-func (m *AppModel) overlayConfirm(base string) string {
-	confirmView := m.confirm.View()
-	// 居中显示确认对话框
-	return lipgloss.JoinVertical(lipgloss.Center, base, confirmView)
 }
 
 // createPage 创建页面

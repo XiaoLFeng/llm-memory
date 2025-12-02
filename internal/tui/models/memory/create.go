@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
@@ -13,6 +14,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // CreateModel 记忆创建模型
@@ -24,6 +26,7 @@ type CreateModel struct {
 	contentArea   textarea.Model
 	categoryInput textinput.Model
 	tagsInput     textinput.Model
+	frame         *components.Frame
 	width         int
 	height        int
 	err           error
@@ -36,25 +39,36 @@ func NewCreateModel(bs *startup.Bootstrap) *CreateModel {
 	ti.Placeholder = "记忆标题"
 	ti.Focus()
 	ti.CharLimit = 100
-	ti.Width = 50
+	ti.Width = 60
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(styles.Primary)
+	ti.TextStyle = lipgloss.NewStyle().Foreground(styles.Text)
 
 	// 内容输入框
 	ta := textarea.New()
 	ta.Placeholder = "记忆内容..."
-	ta.SetWidth(50)
-	ta.SetHeight(6)
+	ta.SetWidth(60)
+	ta.SetHeight(8)
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	ta.FocusedStyle.Prompt = lipgloss.NewStyle().Foreground(styles.Primary)
+	ta.FocusedStyle.Text = lipgloss.NewStyle().Foreground(styles.Text)
+	ta.BlurredStyle.Prompt = lipgloss.NewStyle().Foreground(styles.Overlay0)
+	ta.BlurredStyle.Text = lipgloss.NewStyle().Foreground(styles.Subtext0)
 
 	// 分类输入框
 	ci := textinput.New()
 	ci.Placeholder = "分类（可选）"
 	ci.CharLimit = 50
-	ci.Width = 50
+	ci.Width = 60
+	ci.PromptStyle = lipgloss.NewStyle().Foreground(styles.Primary)
+	ci.TextStyle = lipgloss.NewStyle().Foreground(styles.Text)
 
 	// 标签输入框
 	tgi := textinput.New()
 	tgi.Placeholder = "标签，用逗号分隔（可选）"
 	tgi.CharLimit = 200
-	tgi.Width = 50
+	tgi.Width = 60
+	tgi.PromptStyle = lipgloss.NewStyle().Foreground(styles.Primary)
+	tgi.TextStyle = lipgloss.NewStyle().Foreground(styles.Text)
 
 	return &CreateModel{
 		bs:            bs,
@@ -62,6 +76,7 @@ func NewCreateModel(bs *startup.Bootstrap) *CreateModel {
 		contentArea:   ta,
 		categoryInput: ci,
 		tagsInput:     tgi,
+		frame:         components.NewFrame(80, 24),
 	}
 }
 
@@ -107,6 +122,7 @@ func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.frame.SetSize(msg.Width, msg.Height)
 
 	case memoryCreatedMsg:
 		return m, tea.Batch(
@@ -204,43 +220,73 @@ func (m *CreateModel) save() tea.Cmd {
 
 // View 渲染界面
 func (m *CreateModel) View() string {
-	var b strings.Builder
+	// 计算表单卡片宽度
+	contentWidth := m.frame.GetContentWidth()
+	cardWidth := contentWidth - 4
+	if cardWidth > 70 {
+		cardWidth = 70
+	}
+	if cardWidth < 60 {
+		cardWidth = 60
+	}
 
-	b.WriteString(styles.TitleStyle.Render("✨ 创建新记忆"))
-	b.WriteString("\n\n")
+	// 构建表单内容
+	var formContent strings.Builder
 
-	// 标题
-	b.WriteString(styles.LabelStyle.Render("标题"))
-	b.WriteString("\n")
-	b.WriteString(m.titleInput.View())
-	b.WriteString("\n\n")
+	// 标题字段
+	labelStyle := lipgloss.NewStyle().
+		Foreground(styles.Text).
+		Bold(true).
+		MarginBottom(1)
 
-	// 内容
-	b.WriteString(styles.LabelStyle.Render("内容"))
-	b.WriteString("\n")
-	b.WriteString(m.contentArea.View())
-	b.WriteString("\n\n")
+	formContent.WriteString(labelStyle.Render("标题"))
+	formContent.WriteString("\n")
+	formContent.WriteString(m.titleInput.View())
+	formContent.WriteString("\n\n")
 
-	// 分类
-	b.WriteString(styles.LabelStyle.Render("分类"))
-	b.WriteString("\n")
-	b.WriteString(m.categoryInput.View())
-	b.WriteString("\n\n")
+	// 内容字段
+	formContent.WriteString(labelStyle.Render("内容"))
+	formContent.WriteString("\n")
+	formContent.WriteString(m.contentArea.View())
+	formContent.WriteString("\n\n")
 
-	// 标签
-	b.WriteString(styles.LabelStyle.Render("标签"))
-	b.WriteString("\n")
-	b.WriteString(m.tagsInput.View())
-	b.WriteString("\n\n")
+	// 分类字段
+	formContent.WriteString(labelStyle.Render("分类"))
+	formContent.WriteString("\n")
+	formContent.WriteString(m.categoryInput.View())
+	formContent.WriteString("\n\n")
+
+	// 标签字段
+	formContent.WriteString(labelStyle.Render("标签"))
+	formContent.WriteString("\n")
+	formContent.WriteString(m.tagsInput.View())
+	formContent.WriteString("\n")
 
 	// 错误信息
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		b.WriteString("\n\n")
+		formContent.WriteString("\n")
+		errorStyle := lipgloss.NewStyle().Foreground(styles.Error)
+		formContent.WriteString(errorStyle.Render("错误: " + m.err.Error()))
 	}
 
-	// 帮助信息
-	b.WriteString(styles.HelpStyle.Render("tab 切换 | ctrl+s 保存 | esc 取消"))
+	// 将表单包装在卡片中
+	formCard := components.Card("创建新记忆", formContent.String(), cardWidth)
 
-	return b.String()
+	// 居中显示卡片
+	centeredContent := lipgloss.Place(
+		contentWidth,
+		m.frame.GetContentHeight(),
+		lipgloss.Center,
+		lipgloss.Top,
+		formCard,
+	)
+
+	// 快捷键
+	keys := []string{
+		styles.StatusKeyStyle.Render("Tab") + " " + styles.StatusValueStyle.Render("切换"),
+		styles.StatusKeyStyle.Render("Ctrl+S") + " " + styles.StatusValueStyle.Render("保存"),
+		styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("取消"),
+	}
+
+	return m.frame.Render("记忆管理 > 创建记忆", centeredContent, keys, "")
 }

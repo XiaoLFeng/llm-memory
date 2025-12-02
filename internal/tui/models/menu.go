@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
@@ -100,52 +101,108 @@ func (m *MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View 渲染界面
 func (m *MenuModel) View() string {
-	var b strings.Builder
+	// 计算合适的宽度
+	contentWidth := m.width - 4
+	if contentWidth > 70 {
+		contentWidth = 70
+	}
+	if contentWidth < 40 {
+		contentWidth = 40
+	}
 
-	// 标题
-	title := styles.TitleStyle.Render("🧠 LLM-Memory 管理系统")
-	b.WriteString(title)
-	b.WriteString("\n\n")
+	// Logo 区域
+	logoStyle := lipgloss.NewStyle().
+		Foreground(styles.Primary).
+		Bold(true).
+		Align(lipgloss.Center).
+		Width(contentWidth)
+
+	subtitleStyle := lipgloss.NewStyle().
+		Foreground(styles.Subtext0).
+		Align(lipgloss.Center).
+		Width(contentWidth)
+
+	logo := logoStyle.Render("🧠 LLM-Memory")
+	subtitle := subtitleStyle.Render("AI 记忆管理系统 v1.0")
+
+	// Logo 卡片
+	logoContent := logo + "\n" + subtitle
+	logoCard := components.CardSimple(logoContent, contentWidth)
 
 	// 菜单项
+	var menuItems strings.Builder
 	for i, item := range m.items {
-		var line string
-		itemText := item.Icon + " " + item.Title
+		var itemLine string
+
+		// 选中指示器
+		indicator := "  "
 		if i == m.selected {
-			line = styles.SelectedStyle.Render("> " + itemText)
-		} else {
-			line = styles.NormalStyle.Render("  " + itemText)
+			indicator = "▸ "
 		}
-		b.WriteString(line)
-		b.WriteString("\n")
+
+		// 图标和标题
+		iconStyle := lipgloss.NewStyle().Foreground(styles.Primary)
+		titleStyle := lipgloss.NewStyle().Foreground(styles.Text)
+		if i == m.selected {
+			titleStyle = titleStyle.Bold(true).Foreground(styles.Primary)
+		}
+
+		itemLine = indicator + iconStyle.Render(item.Icon) + "  " + titleStyle.Render(item.Title)
+
+		// 描述（仅选中项显示）
+		if i == m.selected {
+			descStyle := lipgloss.NewStyle().
+				Foreground(styles.Subtext0).
+				MarginLeft(5)
+			itemLine += "\n" + descStyle.Render(item.Description)
+		}
+
+		if i > 0 {
+			menuItems.WriteString("\n")
+		}
+		menuItems.WriteString(itemLine)
+		if i == m.selected {
+			menuItems.WriteString("\n")
+		}
 	}
 
-	// 退出选项
-	b.WriteString("\n")
-	exitText := "🚪 退出"
-	if m.selected == len(m.items) {
-		b.WriteString(styles.SelectedStyle.Render("> " + exitText))
-	} else {
-		b.WriteString(styles.NormalStyle.Render("  " + exitText))
-	}
-	b.WriteString("\n")
+	// 菜单卡片
+	menuCard := components.Card("功能菜单", menuItems.String(), contentWidth)
 
-	// 当前选中项的描述
-	b.WriteString("\n")
-	if m.selected < len(m.items) {
-		desc := styles.DescStyle.Render(m.items[m.selected].Description)
-		b.WriteString(desc)
-	} else {
-		desc := styles.DescStyle.Render("退出程序")
-		b.WriteString(desc)
+	// 快捷键提示
+	keys := []key.Binding{
+		key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "向上")),
+		key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "向下")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("Enter", "确认")),
+		key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "退出")),
 	}
 
-	// 帮助信息
-	help := styles.HelpStyle.Render("↑/↓ 选择 | Enter 确认 | q 退出")
-	b.WriteString("\n\n")
-	b.WriteString(help)
+	var keyStrs []string
+	for _, k := range keys {
+		keyStr := styles.StatusKeyStyle.Render(k.Help().Key) + " " +
+			styles.StatusValueStyle.Render(k.Help().Desc)
+		keyStrs = append(keyStrs, keyStr)
+	}
+	statusBar := components.RenderKeysOnly(keyStrs, contentWidth)
 
-	return b.String()
+	// 组合所有内容
+	content := lipgloss.JoinVertical(
+		lipgloss.Center,
+		logoCard,
+		"",
+		menuCard,
+		"",
+		statusBar,
+	)
+
+	// 居中显示
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		content,
+	)
 }
 
 // SetSize 设置窗口大小
@@ -153,7 +210,3 @@ func (m *MenuModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 }
-
-// containerStyle 容器样式
-var containerStyle = lipgloss.NewStyle().
-	Padding(1, 2)

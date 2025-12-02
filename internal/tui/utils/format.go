@@ -267,3 +267,104 @@ func RuneWidth(s string) int {
 	}
 	return width
 }
+
+// FormatScope 格式化作用域
+// 嘿嘿~ 根据 GroupID 和 Path 判断作用域类型！✨
+func FormatScope(groupID int, path string) string {
+	if path != "" {
+		return "Personal"
+	}
+	if groupID != 0 {
+		return "Group"
+	}
+	return "Global"
+}
+
+// FormatProgressBar 格式化美观的进度条
+// 呀~ 使用渐变色块显示进度！📊
+func FormatProgressBar(progress int, width int) string {
+	if width <= 0 {
+		width = 20
+	}
+	if progress < 0 {
+		progress = 0
+	}
+	if progress > 100 {
+		progress = 100
+	}
+
+	filled := width * progress / 100
+	empty := width - filled
+
+	// 使用更美观的进度条字符
+	return fmt.Sprintf("▐%s%s▌ %3d%%",
+		strings.Repeat("█", filled),
+		strings.Repeat("░", empty),
+		progress,
+	)
+}
+
+// FormatDueStatus 格式化截止日期状态
+// 嘿嘿~ 根据截止日期显示不同状态！⏰
+func FormatDueStatus(dueDate *time.Time) string {
+	if dueDate == nil {
+		return ""
+	}
+
+	now := time.Now()
+	diff := dueDate.Sub(now)
+
+	switch {
+	case diff < 0:
+		return "已过期"
+	case diff < 24*time.Hour:
+		return "今天到期"
+	case diff < 48*time.Hour:
+		return "明天到期"
+	case diff < 7*24*time.Hour:
+		return fmt.Sprintf("%d天后", int(diff.Hours()/24))
+	default:
+		return FormatDate(*dueDate)
+	}
+}
+
+// ResponsiveWidth 计算响应式宽度
+// 呀~ 根据终端宽度计算合适的内容宽度！📐
+func ResponsiveWidth(termWidth, minWidth, maxWidth int) int {
+	width := termWidth - 4 // 留出边距
+	if width < minWidth {
+		width = minWidth
+	}
+	if width > maxWidth {
+		width = maxWidth
+	}
+	return width
+}
+
+// FormatCount 格式化数量
+func FormatCount(count int) string {
+	if count == 0 {
+		return "无"
+	}
+	return fmt.Sprintf("%d", count)
+}
+
+// FormatBytes 格式化字节大小
+func FormatBytes(bytes int64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+
+	switch {
+	case bytes >= GB:
+		return fmt.Sprintf("%.2f GB", float64(bytes)/GB)
+	case bytes >= MB:
+		return fmt.Sprintf("%.2f MB", float64(bytes)/MB)
+	case bytes >= KB:
+		return fmt.Sprintf("%.2f KB", float64(bytes)/KB)
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
+}

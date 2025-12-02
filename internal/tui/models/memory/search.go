@@ -16,6 +16,30 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// memoryItem 记忆列表项
+type memoryItem struct {
+	memory types.Memory
+}
+
+func (i memoryItem) Title() string {
+	return fmt.Sprintf("%d. %s", i.memory.ID, i.memory.Content)
+}
+
+func (i memoryItem) Description() string {
+	// 根据 GroupID 和 Path 判断作用域
+	scope := "Global"
+	if i.memory.Path != "" {
+		scope = "Personal"
+	} else if i.memory.GroupID != 0 {
+		scope = "Group"
+	}
+	return fmt.Sprintf("📂 %s | %s", scope, utils.FormatRelativeTime(i.memory.CreatedAt))
+}
+
+func (i memoryItem) FilterValue() string {
+	return i.memory.Content
+}
+
 // SearchModel 记忆搜索模型
 // 呀~ 搜索记忆的界面！🔍
 type SearchModel struct {

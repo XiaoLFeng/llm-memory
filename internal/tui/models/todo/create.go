@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
@@ -14,6 +15,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // CreateModel 待办创建模型
@@ -184,37 +186,125 @@ func (m *CreateModel) save() tea.Cmd {
 
 // View 渲染界面
 func (m *CreateModel) View() string {
-	var b strings.Builder
+	var formContent strings.Builder
 
-	b.WriteString(styles.TitleStyle.Render("📝 创建新待办"))
-	b.WriteString("\n\n")
+	// 标题输入
+	formContent.WriteString(lipgloss.NewStyle().
+		Foreground(styles.Subtext1).
+		Bold(true).
+		Render("标题"))
+	formContent.WriteString("\n")
+	formContent.WriteString(m.renderInput(0))
+	formContent.WriteString("\n\n")
 
-	// 标题
-	b.WriteString(styles.LabelStyle.Render("标题"))
-	b.WriteString("\n")
-	b.WriteString(m.titleInput.View())
-	b.WriteString("\n\n")
+	// 描述输入
+	formContent.WriteString(lipgloss.NewStyle().
+		Foreground(styles.Subtext1).
+		Bold(true).
+		Render("描述"))
+	formContent.WriteString("\n")
+	formContent.WriteString(m.renderInput(1))
+	formContent.WriteString("\n\n")
 
-	// 描述
-	b.WriteString(styles.LabelStyle.Render("描述"))
-	b.WriteString("\n")
-	b.WriteString(m.descArea.View())
-	b.WriteString("\n\n")
-
-	// 优先级
-	b.WriteString(styles.LabelStyle.Render("优先级 (1低/2中/3高/4紧急)"))
-	b.WriteString("\n")
-	b.WriteString(m.priorityInput.View())
-	b.WriteString("\n\n")
+	// 优先级输入
+	formContent.WriteString(lipgloss.NewStyle().
+		Foreground(styles.Subtext1).
+		Bold(true).
+		Render("优先级"))
+	formContent.WriteString(" ")
+	formContent.WriteString(lipgloss.NewStyle().
+		Foreground(styles.Overlay0).
+		Render("(1低/2中/3高/4紧急)"))
+	formContent.WriteString("\n")
+	formContent.WriteString(m.renderInput(2))
+	formContent.WriteString("\n")
 
 	// 错误信息
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		b.WriteString("\n\n")
+		formContent.WriteString("\n")
+		formContent.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
 	}
 
-	// 帮助信息
-	b.WriteString(styles.HelpStyle.Render("tab 切换 | ctrl+s 保存 | esc 取消"))
+	// 使用卡片包装表单
+	var b strings.Builder
+	cardContent := components.Card("📝 创建新待办", formContent.String(), m.width-4)
+	b.WriteString(cardContent)
+	b.WriteString("\n\n")
 
-	return b.String()
+	// 底部快捷键状态栏
+	keys := []string{
+		styles.StatusKeyStyle.Render("tab") + " 切换",
+		styles.StatusKeyStyle.Render("ctrl+s") + " 保存",
+		styles.StatusKeyStyle.Render("esc") + " 取消",
+	}
+	b.WriteString(components.RenderKeysOnly(keys, m.width))
+
+	content := b.String()
+	if m.width > 0 && m.height > 0 {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+	}
+	return content
+}
+
+// renderInput 渲染输入框（带聚焦样式）
+func (m *CreateModel) renderInput(index int) string {
+	focused := m.focusIndex == index
+
+	switch index {
+	case 0:
+		// 标题输入框
+		inputView := m.titleInput.View()
+		if focused {
+			return lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(styles.Primary).
+				Padding(0, 1).
+				Width(m.width - 12).
+				Render(inputView)
+		}
+		return lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(styles.Border).
+			Padding(0, 1).
+			Width(m.width - 12).
+			Render(inputView)
+
+	case 1:
+		// 描述输入框
+		textView := m.descArea.View()
+		if focused {
+			return lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(styles.Primary).
+				Padding(0, 1).
+				Width(m.width - 12).
+				Render(textView)
+		}
+		return lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(styles.Border).
+			Padding(0, 1).
+			Width(m.width - 12).
+			Render(textView)
+
+	case 2:
+		// 优先级输入框
+		priorityView := m.priorityInput.View()
+		if focused {
+			return lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(styles.Primary).
+				Padding(0, 1).
+				Width(20).
+				Render(priorityView)
+		}
+		return lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(styles.Border).
+			Padding(0, 1).
+			Width(20).
+			Render(priorityView)
+	}
+
+	return ""
 }

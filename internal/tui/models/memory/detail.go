@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
@@ -12,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // DetailModel 记忆详情模型
@@ -21,6 +23,7 @@ type DetailModel struct {
 	id       int
 	memory   *types.Memory
 	viewport viewport.Model
+	frame    *components.Frame
 	ready    bool
 	width    int
 	height   int
@@ -33,6 +36,7 @@ func NewDetailModel(bs *startup.Bootstrap, id int) *DetailModel {
 	return &DetailModel{
 		bs:      bs,
 		id:      id,
+		frame:   components.NewFrame(80, 24),
 		loading: true,
 	}
 }
@@ -84,13 +88,18 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.frame.SetSize(msg.Width, msg.Height)
+
+		contentHeight := m.frame.GetContentHeight()
+		contentWidth := m.frame.GetContentWidth()
+
 		if !m.ready {
-			m.viewport = viewport.New(msg.Width-4, msg.Height-10)
+			m.viewport = viewport.New(contentWidth-4, contentHeight-4)
 			m.viewport.YPosition = 0
 			m.ready = true
 		} else {
-			m.viewport.Width = msg.Width - 4
-			m.viewport.Height = msg.Height - 10
+			m.viewport.Width = contentWidth - 4
+			m.viewport.Height = contentHeight - 4
 		}
 		if m.memory != nil {
 			m.viewport.SetContent(m.renderContent())
@@ -124,75 +133,80 @@ func (m *DetailModel) renderContent() string {
 		return ""
 	}
 
-	var b strings.Builder
+	cardWidth := m.viewport.Width - 2
+	if cardWidth < 40 {
+		cardWidth = 40
+	}
 
-	// 标题
-	b.WriteString(styles.SubtitleStyle.Render("标题"))
-	b.WriteString("\n")
-	b.WriteString(m.memory.Title)
-	b.WriteString("\n\n")
+	// 基本信息卡片
+	var basicInfo strings.Builder
+	basicInfo.WriteString(components.InfoRow("标题", m.memory.Title))
+	basicInfo.WriteString("\n")
+	basicInfo.WriteString(components.InfoRow("分类", components.CategoryBadge(m.memory.Category)))
+	basicInfo.WriteString("\n")
+	basicInfo.WriteString(components.InfoRow("优先级", components.PriorityBadge(m.memory.Priority)))
+	basicInfo.WriteString("\n")
+	basicInfo.WriteString(components.InfoRow("作用域", components.ScopeBadgeFromGroupIDPath(m.memory.GroupID, m.memory.Path)))
+	basicInfo.WriteString("\n")
+	if len(m.memory.Tags) > 0 {
+		basicInfo.WriteString(components.InfoRow("标签", components.TagsBadge(m.memory.Tags)))
+		basicInfo.WriteString("\n")
+	}
+	basicInfo.WriteString(components.InfoRow("创建时间", utils.FormatTime(m.memory.CreatedAt)))
+	basicInfo.WriteString("\n")
+	basicInfo.WriteString(components.InfoRow("更新时间", utils.FormatTime(m.memory.UpdatedAt)))
 
-	// 分类
-	b.WriteString(styles.SubtitleStyle.Render("分类"))
-	b.WriteString("\n")
-	b.WriteString(m.memory.Category)
-	b.WriteString("\n\n")
+	basicCard := components.NestedCard("基本信息", basicInfo.String(), cardWidth)
 
-	// 优先级
-	b.WriteString(styles.SubtitleStyle.Render("优先级"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatPriorityIcon(m.memory.Priority) + " " + utils.FormatPriority(m.memory.Priority))
-	b.WriteString("\n\n")
+	// 内容卡片
+	contentStyle := lipgloss.NewStyle().
+		Foreground(styles.Text)
+	contentCard := components.NestedCard("记忆内容", contentStyle.Render(m.memory.Content), cardWidth)
 
-	// 标签
-	b.WriteString(styles.SubtitleStyle.Render("标签"))
-	b.WriteString("\n")
-	b.WriteString(utils.JoinTags(m.memory.Tags))
-	b.WriteString("\n\n")
-
-	// 创建时间
-	b.WriteString(styles.SubtitleStyle.Render("创建时间"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatTime(m.memory.CreatedAt))
-	b.WriteString("\n\n")
-
-	// 更新时间
-	b.WriteString(styles.SubtitleStyle.Render("更新时间"))
-	b.WriteString("\n")
-	b.WriteString(utils.FormatTime(m.memory.UpdatedAt))
-	b.WriteString("\n\n")
-
-	// 内容
-	b.WriteString(styles.SubtitleStyle.Render("内容"))
-	b.WriteString("\n")
-	b.WriteString(m.memory.Content)
-
-	return b.String()
+	// 组合所有卡片
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		basicCard,
+		"",
+		contentCard,
+	)
 }
 
 // View 渲染界面
 func (m *DetailModel) View() string {
-	var b strings.Builder
-
-	b.WriteString(styles.TitleStyle.Render("📝 记忆详情"))
-	b.WriteString("\n\n")
-
+	// 加载中
 	if m.loading {
-		b.WriteString(styles.InfoStyle.Render("加载中..."))
-		return b.String()
+		loadingContent := lipgloss.NewStyle().
+			Foreground(styles.Info).
+			Render("加载中...")
+		return m.frame.Render("记忆管理 > 记忆详情", loadingContent, []string{}, "")
 	}
 
+	// 错误
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		return b.String()
+		errorContent := lipgloss.NewStyle().
+			Foreground(styles.Error).
+			Render("错误: " + m.err.Error())
+		return m.frame.Render("记忆管理 > 记忆详情", errorContent, []string{}, "")
 	}
 
+	// 内容
+	var content string
 	if m.ready {
-		b.WriteString(m.viewport.View())
+		content = m.viewport.View()
 	}
 
-	b.WriteString("\n\n")
-	b.WriteString(styles.HelpStyle.Render("↑/↓ 滚动 | esc 返回"))
+	// 快捷键
+	keys := []string{
+		styles.StatusKeyStyle.Render("↑/↓") + " " + styles.StatusValueStyle.Render("滚动"),
+		styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("返回"),
+	}
 
-	return b.String()
+	// 面包屑
+	breadcrumb := "记忆管理 > 记忆详情"
+	if m.memory != nil {
+		breadcrumb = "记忆管理 > " + m.memory.Title
+	}
+
+	return m.frame.Render(breadcrumb, content, keys, "")
 }

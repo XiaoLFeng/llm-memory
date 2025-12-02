@@ -6,38 +6,23 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
-
-// memoryItem 记忆列表项
-type memoryItem struct {
-	memory types.Memory
-}
-
-func (i memoryItem) Title() string {
-	return fmt.Sprintf("%d. %s", i.memory.ID, i.memory.Title)
-}
-
-func (i memoryItem) Description() string {
-	return fmt.Sprintf("[%s] %s", i.memory.Category, utils.FormatRelativeTime(i.memory.CreatedAt))
-}
-
-func (i memoryItem) FilterValue() string {
-	return i.memory.Title
-}
 
 // ListModel 记忆列表模型
 // 嘿嘿~ 展示所有记忆的列表！📚
 type ListModel struct {
 	bs       *startup.Bootstrap
-	list     list.Model
 	memories []types.Memory
+	selected int
+	frame    *components.Frame
 	width    int
 	height   int
 	loading  bool
@@ -46,22 +31,9 @@ type ListModel struct {
 
 // NewListModel 创建记忆列表模型
 func NewListModel(bs *startup.Bootstrap) *ListModel {
-	// 创建列表
-	delegate := list.NewDefaultDelegate()
-	delegate.Styles.SelectedTitle = styles.ListSelectedStyle
-	delegate.Styles.SelectedDesc = styles.ListDescStyle
-	delegate.Styles.NormalTitle = styles.ListItemStyle
-	delegate.Styles.NormalDesc = styles.ListDescStyle
-
-	l := list.New([]list.Item{}, delegate, 80, 20)
-	l.Title = "📚 记忆列表"
-	l.SetShowHelp(false)
-	l.SetFilteringEnabled(true)
-	l.Styles.Title = styles.ListTitleStyle
-
 	return &ListModel{
 		bs:      bs,
-		list:    l,
+		frame:   components.NewFrame(80, 24),
 		loading: true,
 	}
 }
@@ -113,11 +85,6 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// 如果正在过滤，让列表处理
-		if m.list.FilterState() == list.Filtering {
-			break
-		}
-
 		switch {
 		case key.Matches(msg, common.KeyBack):
 			return m, common.Back()
@@ -128,17 +95,27 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, common.KeySearch):
 			return m, common.Navigate(common.PageMemorySearch)
 
+		case key.Matches(msg, common.KeyUp):
+			if m.selected > 0 {
+				m.selected--
+			}
+
+		case key.Matches(msg, common.KeyDown):
+			if m.selected < len(m.memories)-1 {
+				m.selected++
+			}
+
 		case key.Matches(msg, common.KeyEnter):
-			if item, ok := m.list.SelectedItem().(memoryItem); ok {
-				return m, common.Navigate(common.PageMemoryDetail, map[string]any{"id": item.memory.ID})
+			if len(m.memories) > 0 && m.selected < len(m.memories) {
+				return m, common.Navigate(common.PageMemoryDetail, map[string]any{"id": m.memories[m.selected].ID})
 			}
 
 		case key.Matches(msg, common.KeyDelete):
-			if item, ok := m.list.SelectedItem().(memoryItem); ok {
+			if len(m.memories) > 0 && m.selected < len(m.memories) {
 				return m, common.ShowConfirm(
 					"删除记忆",
-					fmt.Sprintf("确定要删除记忆「%s」吗？", item.memory.Title),
-					m.deleteMemory(item.memory.ID),
+					fmt.Sprintf("确定要删除记忆「%s」吗？", m.memories[m.selected].Title),
+					m.deleteMemory(m.memories[m.selected].ID),
 					nil,
 				)
 			}
@@ -147,16 +124,18 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.list.SetSize(msg.Width-4, msg.Height-8)
+		m.frame.SetSize(msg.Width, msg.Height)
 
 	case memoriesLoadedMsg:
 		m.loading = false
 		m.memories = msg.memories
-		items := make([]list.Item, len(msg.memories))
-		for i, memory := range msg.memories {
-			items[i] = memoryItem{memory: memory}
+		// 确保选中项在范围内
+		if m.selected >= len(m.memories) {
+			m.selected = len(m.memories) - 1
 		}
-		m.list.SetItems(items)
+		if m.selected < 0 {
+			m.selected = 0
+		}
 
 	case memoriesErrorMsg:
 		m.loading = false
@@ -169,13 +148,6 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case common.RefreshMsg:
 		m.loading = true
 		cmds = append(cmds, m.loadMemories())
-	}
-
-	// 更新列表
-	newList, cmd := m.list.Update(msg)
-	m.list = newList
-	if cmd != nil {
-		cmds = append(cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -194,30 +166,111 @@ func (m *ListModel) deleteMemory(id int) tea.Cmd {
 
 // View 渲染界面
 func (m *ListModel) View() string {
-	var b strings.Builder
-
+	// 加载中
 	if m.loading {
-		b.WriteString(styles.InfoStyle.Render("加载中..."))
-		return b.String()
+		loadingContent := lipgloss.NewStyle().
+			Foreground(styles.Info).
+			Render("加载中...")
+		return m.frame.Render("记忆管理 > 记忆列表", loadingContent, []string{}, "")
 	}
 
+	// 错误
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		return b.String()
+		errorContent := lipgloss.NewStyle().
+			Foreground(styles.Error).
+			Render("错误: " + m.err.Error())
+		return m.frame.Render("记忆管理 > 记忆列表", errorContent, []string{}, "")
 	}
 
+	// 空列表
 	if len(m.memories) == 0 {
-		b.WriteString(styles.TitleStyle.Render("📚 记忆列表"))
-		b.WriteString("\n\n")
-		b.WriteString(styles.MutedStyle.Render("暂无记忆~ 按 c 创建新记忆"))
-		b.WriteString("\n\n")
-		b.WriteString(styles.HelpStyle.Render("c 新建 | / 搜索 | esc 返回"))
-		return b.String()
+		emptyContent := lipgloss.NewStyle().
+			Foreground(styles.Overlay0).
+			Render("暂无记忆~ 按 c 创建新记忆")
+		keys := []string{
+			styles.StatusKeyStyle.Render("c") + " " + styles.StatusValueStyle.Render("新建"),
+			styles.StatusKeyStyle.Render("/") + " " + styles.StatusValueStyle.Render("搜索"),
+			styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("返回"),
+		}
+		return m.frame.Render("记忆管理 > 记忆列表", emptyContent, keys, "")
 	}
 
-	b.WriteString(m.list.View())
-	b.WriteString("\n")
-	b.WriteString(styles.HelpStyle.Render("↑/↓ 选择 | enter 查看 | c 新建 | d 删除 | / 搜索 | esc 返回"))
+	// 渲染列表
+	var listItems strings.Builder
+	for i, memory := range m.memories {
+		// 选中指示器
+		indicator := "  "
+		if i == m.selected {
+			indicator = lipgloss.NewStyle().Foreground(styles.Primary).Render("▸ ")
+		} else {
+			indicator = "  "
+		}
 
-	return b.String()
+		// 标题样式
+		titleStyle := styles.ListItemTitleStyle
+		if i == m.selected {
+			titleStyle = styles.ListItemTitleSelectedStyle
+		}
+
+		// 构建元信息
+		var meta []string
+
+		// 作用域徽章
+		scopeBadge := components.ScopeBadgeFromGroupIDPath(memory.GroupID, memory.Path)
+		meta = append(meta, scopeBadge)
+
+		// 分类
+		categoryBadge := components.CategoryBadge(memory.Category)
+		meta = append(meta, categoryBadge)
+
+		// 优先级
+		priorityBadge := components.PriorityBadgeSimple(memory.Priority)
+		meta = append(meta, priorityBadge)
+
+		// 标签
+		if len(memory.Tags) > 0 {
+			tagsBadge := components.TagsBadge(memory.Tags)
+			meta = append(meta, tagsBadge)
+		}
+
+		// 时间
+		timeStr := utils.FormatRelativeTime(memory.CreatedAt)
+		timeBadge := components.TimeBadge(timeStr)
+		meta = append(meta, timeBadge)
+
+		metaStr := strings.Join(meta, styles.MetaSeparator)
+
+		// 描述样式
+		descStyle := styles.ListItemDescStyle
+		if i == m.selected {
+			descStyle = styles.ListItemDescSelectedStyle
+		}
+
+		// 渲染列表项
+		title := fmt.Sprintf("%s%s", indicator, titleStyle.Render(memory.Title))
+		desc := "    " + descStyle.Render(metaStr)
+
+		listItems.WriteString(title)
+		listItems.WriteString("\n")
+		listItems.WriteString(desc)
+
+		if i < len(m.memories)-1 {
+			listItems.WriteString("\n\n")
+		}
+	}
+
+	// 快捷键
+	keys := []string{
+		styles.StatusKeyStyle.Render("↑/↓") + " " + styles.StatusValueStyle.Render("选择"),
+		styles.StatusKeyStyle.Render("Enter") + " " + styles.StatusValueStyle.Render("查看"),
+		styles.StatusKeyStyle.Render("c") + " " + styles.StatusValueStyle.Render("新建"),
+		styles.StatusKeyStyle.Render("d") + " " + styles.StatusValueStyle.Render("删除"),
+		styles.StatusKeyStyle.Render("/") + " " + styles.StatusValueStyle.Render("搜索"),
+		styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("返回"),
+	}
+
+	// 额外信息：总数
+	extra := fmt.Sprintf("共 %d 条", len(m.memories))
+
+	return m.frame.Render("记忆管理 > 记忆列表", listItems.String(), keys, extra)
 }

@@ -6,13 +6,14 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // groupItem 组列表项
@@ -36,34 +37,21 @@ func (i groupItem) FilterValue() string {
 // ListModel 组列表模型
 // 嘿嘿~ 展示所有组的列表！👥
 type ListModel struct {
-	bs      *startup.Bootstrap
-	list    list.Model
-	groups  []types.Group
-	width   int
-	height  int
-	loading bool
-	err     error
+	bs            *startup.Bootstrap
+	groups        []types.Group
+	selectedIndex int
+	width         int
+	height        int
+	loading       bool
+	err           error
 }
 
 // NewListModel 创建组列表模型
 func NewListModel(bs *startup.Bootstrap) *ListModel {
-	// 创建列表
-	delegate := list.NewDefaultDelegate()
-	delegate.Styles.SelectedTitle = styles.ListSelectedStyle
-	delegate.Styles.SelectedDesc = styles.ListDescStyle
-	delegate.Styles.NormalTitle = styles.ListItemStyle
-	delegate.Styles.NormalDesc = styles.ListDescStyle
-
-	l := list.New([]list.Item{}, delegate, 80, 20)
-	l.Title = "👥 组管理"
-	l.SetShowHelp(false)
-	l.SetFilteringEnabled(true)
-	l.Styles.Title = styles.ListTitleStyle
-
 	return &ListModel{
-		bs:      bs,
-		list:    l,
-		loading: true,
+		bs:            bs,
+		loading:       true,
+		selectedIndex: 0,
 	}
 }
 
@@ -114,11 +102,6 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// 如果正在过滤，让列表处理
-		if m.list.FilterState() == list.Filtering {
-			break
-		}
-
 		switch {
 		case key.Matches(msg, common.KeyBack):
 			return m, common.Back()
@@ -126,17 +109,28 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, common.KeyCreate):
 			return m, common.Navigate(common.PageGroupCreate)
 
+		case key.Matches(msg, common.KeyUp):
+			if m.selectedIndex > 0 {
+				m.selectedIndex--
+			}
+
+		case key.Matches(msg, common.KeyDown):
+			if m.selectedIndex < len(m.groups)-1 {
+				m.selectedIndex++
+			}
+
 		case key.Matches(msg, common.KeyEnter):
-			if item, ok := m.list.SelectedItem().(groupItem); ok {
-				return m, common.Navigate(common.PageGroupDetail, map[string]any{"id": item.group.ID})
+			if len(m.groups) > 0 && m.selectedIndex < len(m.groups) {
+				return m, common.Navigate(common.PageGroupDetail, map[string]any{"id": m.groups[m.selectedIndex].ID})
 			}
 
 		case key.Matches(msg, common.KeyDelete):
-			if item, ok := m.list.SelectedItem().(groupItem); ok {
+			if len(m.groups) > 0 && m.selectedIndex < len(m.groups) {
+				group := m.groups[m.selectedIndex]
 				return m, common.ShowConfirm(
 					"删除组",
-					fmt.Sprintf("确定要删除组「%s」吗？", item.group.Name),
-					m.deleteGroup(item.group.ID),
+					fmt.Sprintf("确定要删除组「%s」吗？", group.Name),
+					m.deleteGroup(group.ID),
 					nil,
 				)
 			}
@@ -145,16 +139,11 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.list.SetSize(msg.Width-4, msg.Height-8)
 
 	case groupsLoadedMsg:
 		m.loading = false
 		m.groups = msg.groups
-		items := make([]list.Item, len(msg.groups))
-		for i, group := range msg.groups {
-			items[i] = groupItem{group: group}
-		}
-		m.list.SetItems(items)
+		m.selectedIndex = 0
 
 	case groupsErrorMsg:
 		m.loading = false
@@ -167,13 +156,6 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case common.RefreshMsg:
 		m.loading = true
 		cmds = append(cmds, m.loadGroups())
-	}
-
-	// 更新列表
-	newList, cmd := m.list.Update(msg)
-	m.list = newList
-	if cmd != nil {
-		cmds = append(cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -192,30 +174,103 @@ func (m *ListModel) deleteGroup(id int) tea.Cmd {
 
 // View 渲染界面
 func (m *ListModel) View() string {
-	var b strings.Builder
-
 	if m.loading {
-		b.WriteString(styles.InfoStyle.Render("加载中..."))
-		return b.String()
+		loadingStyle := lipgloss.NewStyle().
+			Foreground(styles.Info).
+			Align(lipgloss.Center)
+		content := loadingStyle.Render("加载中...")
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 	}
 
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		return b.String()
+		errorStyle := lipgloss.NewStyle().
+			Foreground(styles.Error).
+			Align(lipgloss.Center)
+		content := errorStyle.Render("错误: " + m.err.Error())
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 	}
 
 	if len(m.groups) == 0 {
-		b.WriteString(styles.TitleStyle.Render("👥 组管理"))
-		b.WriteString("\n\n")
-		b.WriteString(styles.MutedStyle.Render("暂无组~ 按 c 创建新组"))
-		b.WriteString("\n\n")
-		b.WriteString(styles.HelpStyle.Render("c 新建 | esc 返回"))
-		return b.String()
+		emptyStyle := lipgloss.NewStyle().
+			Foreground(styles.Subtext0).
+			Align(lipgloss.Center)
+		content := emptyStyle.Render("暂无组~ 按 c 创建新组")
+
+		// 状态栏
+		keys := []string{
+			lipgloss.NewStyle().Foreground(styles.Primary).Render("c") + " 新建",
+			lipgloss.NewStyle().Foreground(styles.Primary).Render("esc") + " 返回",
+		}
+		statusBar := components.RenderKeysOnly(keys, m.width)
+
+		view := lipgloss.Place(m.width, m.height-3, lipgloss.Center, lipgloss.Center, content)
+		return lipgloss.JoinVertical(lipgloss.Left, view, statusBar)
 	}
 
-	b.WriteString(m.list.View())
-	b.WriteString("\n")
-	b.WriteString(styles.HelpStyle.Render("↑/↓ 选择 | enter 查看 | c 新建 | d 删除 | esc 返回"))
+	// 构建列表内容
+	var listItems strings.Builder
+	for i, group := range m.groups {
+		var line string
 
-	return b.String()
+		// 构建一行内容
+		indicator := "  "
+		if i == m.selectedIndex {
+			indicator = lipgloss.NewStyle().Foreground(styles.Primary).Render("▸ ")
+		} else {
+			indicator = "  "
+		}
+
+		// 组名和ID
+		nameStyle := lipgloss.NewStyle().Foreground(styles.Text).Bold(true)
+		if i == m.selectedIndex {
+			nameStyle = nameStyle.Foreground(styles.Primary)
+		}
+		name := nameStyle.Render(fmt.Sprintf("%d. %s", group.ID, group.Name))
+
+		// 路径数量
+		pathCount := len(group.Paths)
+		countBadge := lipgloss.NewStyle().
+			Foreground(styles.Subtext0).
+			Render(fmt.Sprintf("(%d 个路径)", pathCount))
+
+		// 时间
+		timeStr := lipgloss.NewStyle().
+			Foreground(styles.Overlay1).
+			Italic(true).
+			Render(utils.FormatRelativeTime(group.CreatedAt))
+
+		line = fmt.Sprintf("%s%s %s │ %s", indicator, name, countBadge, timeStr)
+
+		listItems.WriteString(line)
+		if i < len(m.groups)-1 {
+			listItems.WriteString("\n")
+		}
+	}
+
+	// 计算卡片宽度
+	cardWidth := m.width - 4
+	if cardWidth < 60 {
+		cardWidth = 60
+	}
+
+	// 使用卡片包装列表
+	titleWithCount := fmt.Sprintf("👥 组管理 %s",
+		lipgloss.NewStyle().Foreground(styles.Subtext0).Render(fmt.Sprintf("(%d)", len(m.groups))))
+	card := components.Card(titleWithCount, listItems.String(), cardWidth)
+
+	// 状态栏
+	keys := []string{
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("↑/↓") + " 选择",
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("enter") + " 查看",
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("c") + " 新建",
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("d") + " 删除",
+		lipgloss.NewStyle().Foreground(styles.Primary).Render("esc") + " 返回",
+	}
+	statusBar := components.RenderKeysOnly(keys, m.width)
+
+	// 组合视图
+	contentHeight := m.height - 3
+	centeredCard := lipgloss.Place(m.width, contentHeight, lipgloss.Center, lipgloss.Center, card)
+
+	return lipgloss.JoinVertical(lipgloss.Left, centeredCard, statusBar)
 }

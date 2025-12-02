@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
@@ -12,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // TodayModel 今日待办模型
@@ -177,32 +179,139 @@ func (m *TodayModel) completeTodo(id int) tea.Cmd {
 
 // View 渲染界面
 func (m *TodayModel) View() string {
-	var b strings.Builder
+	var content string
 
 	if m.loading {
-		b.WriteString(styles.InfoStyle.Render("加载中..."))
-		return b.String()
+		content = styles.InfoStyle.Render("加载中...")
+		if m.width > 0 && m.height > 0 {
+			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+		}
+		return content
 	}
 
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		return b.String()
+		content = styles.ErrorStyle.Render("错误: " + m.err.Error())
+		if m.width > 0 && m.height > 0 {
+			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+		}
+		return content
 	}
 
 	if len(m.todos) == 0 {
-		b.WriteString(styles.TitleStyle.Render("📅 今日待办"))
+		var b strings.Builder
+		emptyContent := strings.Join([]string{
+			styles.MutedStyle.Render("今日暂无待办事项~"),
+			"",
+			styles.SuccessStyle.Render("🎉"),
+		}, "\n")
+
+		cardContent := components.Card("📅 今日待办", emptyContent, m.width-4)
+		b.WriteString(cardContent)
 		b.WriteString("\n\n")
-		b.WriteString(styles.MutedStyle.Render("今日暂无待办事项~ 🎉"))
-		b.WriteString("\n\n")
-		b.WriteString(styles.HelpStyle.Render("esc 返回"))
-		return b.String()
+
+		keys := []string{
+			styles.StatusKeyStyle.Render("esc") + " 返回",
+		}
+		b.WriteString(components.RenderKeysOnly(keys, m.width))
+
+		content = b.String()
+		if m.width > 0 && m.height > 0 {
+			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+		}
+		return content
 	}
 
-	b.WriteString(m.list.View())
-	b.WriteString("\n")
-	b.WriteString(styles.HelpStyle.Render("↑/↓ 选择 | enter 查看 | s 开始 | f 完成 | esc 返回"))
+	// 渲染列表内容
+	var b strings.Builder
+	listContent := m.renderList()
+	cardContent := components.Card("📅 今日待办", listContent, m.width-4)
+	b.WriteString(cardContent)
+	b.WriteString("\n\n")
+
+	// 底部快捷键状态栏
+	keys := []string{
+		styles.StatusKeyStyle.Render("↑/↓") + " 选择",
+		styles.StatusKeyStyle.Render("enter") + " 查看",
+		styles.StatusKeyStyle.Render("s") + " 开始",
+		styles.StatusKeyStyle.Render("f") + " 完成",
+		styles.StatusKeyStyle.Render("esc") + " 返回",
+	}
+	b.WriteString(components.RenderKeysOnly(keys, m.width))
+
+	content = b.String()
+	if m.width > 0 && m.height > 0 {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+	}
+	return content
+}
+
+// renderList 渲染待办列表
+func (m *TodayModel) renderList() string {
+	var b strings.Builder
+	selected := m.list.Index()
+
+	for i, item := range m.list.Items() {
+		if todoItem, ok := item.(todoItem); ok {
+			line := m.renderTodoItem(todoItem.todo, i == selected)
+			b.WriteString(line)
+			if i < len(m.list.Items())-1 {
+				b.WriteString("\n")
+			}
+		}
+	}
 
 	return b.String()
+}
+
+// renderTodoItem 渲染单个待办项
+func (m *TodayModel) renderTodoItem(todo types.Todo, selected bool) string {
+	// 指示器
+	indicator := " "
+	if selected {
+		indicator = lipgloss.NewStyle().Foreground(styles.Primary).Render("▸")
+	}
+
+	// 状态图标
+	statusIcon := components.StatusBadgeSimple(todo.Status.String())
+
+	// 标题
+	titleStyle := lipgloss.NewStyle().Foreground(styles.Text)
+	if selected {
+		titleStyle = titleStyle.Bold(true)
+	}
+	title := titleStyle.Render(todo.Title)
+
+	// 优先级徽章
+	priority := components.PriorityBadge(int(todo.Priority))
+
+	// 截止时间
+	dueDate := ""
+	if todo.DueDate != nil {
+		dueDate = components.TimeBadge(utils.FormatDate(*todo.DueDate))
+	}
+
+	// 组合行
+	parts := []string{indicator, statusIcon, title, priority}
+	if dueDate != "" {
+		parts = append(parts, dueDate)
+	}
+
+	line := strings.Join(parts, " ")
+
+	// 选中项带背景
+	if selected {
+		return lipgloss.NewStyle().
+			Background(styles.Surface1).
+			Foreground(styles.Text).
+			Width(m.width-8).
+			Padding(0, 1).
+			Render(line)
+	}
+
+	return lipgloss.NewStyle().
+		Width(m.width-8).
+		Padding(0, 1).
+		Render(line)
 }
 
 // 引入 utils 进行格式化
