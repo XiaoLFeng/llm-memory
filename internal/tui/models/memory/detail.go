@@ -148,7 +148,7 @@ func (m *DetailModel) renderContent() string {
 	basicInfo.WriteString("\n")
 	basicInfo.WriteString(components.InfoRow("优先级", components.PriorityBadge(m.memory.Priority)))
 	basicInfo.WriteString("\n")
-	basicInfo.WriteString(components.InfoRow("作用域", components.ScopeBadgeFromGroupIDPath(m.memory.GroupID, m.memory.Path)))
+	basicInfo.WriteString(components.InfoRow("作用域", components.ScopeBadgeFromPathID(m.memory.PathID)))
 	basicInfo.WriteString("\n")
 	if len(m.memory.Tags) > 0 {
 		// 转换 []entity.MemoryTag 为 []string

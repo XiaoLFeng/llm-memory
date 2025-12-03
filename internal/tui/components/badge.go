@@ -37,6 +37,7 @@ func ScopeBadge(scope string) string {
 }
 
 // ScopeBadgeFromGroupIDPath 根据 GroupID 和 Path 生成作用域徽章
+// Deprecated: 使用 ScopeBadgeFromPathID 代替
 func ScopeBadgeFromGroupIDPath(groupID int64, path string) string {
 	if path != "" {
 		return ScopeBadge("Personal")
@@ -45,6 +46,15 @@ func ScopeBadgeFromGroupIDPath(groupID int64, path string) string {
 		return ScopeBadge("Group")
 	}
 	return ScopeBadge("Global")
+}
+
+// ScopeBadgeFromPathID 根据 PathID 生成作用域徽章
+// 纯关联模式：PathID=0 为 Global，PathID>0 为 Personal
+func ScopeBadgeFromPathID(pathID int64) string {
+	if pathID == 0 {
+		return ScopeBadge("Global")
+	}
+	return ScopeBadge("Personal")
 }
 
 // PriorityBadge 优先级徽章

@@ -100,7 +100,13 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 	}
 	b.db = gormDB
 
-	// 4. 自动迁移表结构
+	// 4. 执行数据库迁移（表重命名等）
+	// 嘿嘿~ 在 AutoMigrate 之前处理特殊迁移！💖
+	if err := database.RunMigrations(gormDB); err != nil {
+		return fmt.Errorf("执行数据库迁移失败: %w", err)
+	}
+
+	// 5. 自动迁移表结构
 	// 呀~ 确保数据库表结构是最新的！✨
 	if err := database.AutoMigrateSQLite(gormDB,
 		&entity.Memory{},
@@ -116,19 +122,27 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 		return fmt.Errorf("迁移数据库表结构失败: %w", err)
 	}
 
-	// 5. 创建 Model 实例
+	// 6. 创建 Model 实例
 	memoryModel := models.NewMemoryModel(gormDB)
 	planModel := models.NewPlanModel(gormDB)
 	todoModel := models.NewToDoModel(gormDB)
 	groupModel := models.NewGroupModel(gormDB)
+	personalPathModel := models.NewPersonalPathModel(gormDB)
 
-	// 6. 创建 Service 实例
+	// 7. 初始化当前路径到 personal_paths
+	// 嘿嘿~ 启动时自动注册当前工作目录！💖
+	pwd, err := os.Getwd()
+	if err == nil && pwd != "" {
+		_, _ = personalPathModel.EnsurePath(b.appCtx.Context(), pwd)
+	}
+
+	// 8. 创建 Service 实例
 	b.MemoryService = service.NewMemoryService(memoryModel)
 	b.PlanService = service.NewPlanService(planModel)
 	b.ToDoService = service.NewToDoService(todoModel)
 	b.GroupService = service.NewGroupService(groupModel)
 
-	// 7. 解析当前作用域
+	// 9. 解析当前作用域
 	// 嘿嘿~ 启动时自动获取当前目录的作用域上下文！💖
 	scope, err := b.GroupService.GetCurrentScope(b.appCtx.Context())
 	if err != nil {
@@ -137,7 +151,7 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 	}
 	b.CurrentScope = scope
 
-	// 8. 启动信号处理
+	// 10. 启动信号处理
 	if b.options.EnableSignalHandler {
 		b.signalHandler = NewSignalHandler()
 		b.signalHandler.Start(func(sig os.Signal) {

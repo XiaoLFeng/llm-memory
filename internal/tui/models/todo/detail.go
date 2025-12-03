@@ -217,7 +217,7 @@ func (m *DetailModel) renderBasicInfo() string {
 	lines = append(lines, components.InfoRow("优先级", priorityBadge))
 
 	// 作用域
-	scopeBadge := components.ScopeBadgeFromGroupIDPath(m.todo.GroupID, m.todo.Path)
+	scopeBadge := components.ScopeBadgeFromPathID(m.todo.PathID)
 	lines = append(lines, components.InfoRow("作用域", scopeBadge))
 
 	return strings.Join(lines, "\n")

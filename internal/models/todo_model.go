@@ -33,9 +33,16 @@ func (m *ToDoModel) Update(ctx context.Context, todo *entity.ToDo) error {
 	return m.db.WithContext(ctx).Save(todo).Error
 }
 
-// Delete 删除待办（软删除）
+// Delete 删除待办（硬删除）
 func (m *ToDoModel) Delete(ctx context.Context, id int64) error {
-	return m.db.WithContext(ctx).Delete(&entity.ToDo{}, id).Error
+	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 先删除关联的标签
+		if err := tx.Where("to_do_id = ?", id).Unscoped().Delete(&entity.ToDoTag{}).Error; err != nil {
+			return err
+		}
+		// 硬删除待办本身
+		return tx.Unscoped().Delete(&entity.ToDo{}, id).Error
+	})
 }
 
 // FindByID 根据 ID 查找待办
@@ -63,8 +70,11 @@ func (m *ToDoModel) FindByStatus(ctx context.Context, status entity.ToDoStatus) 
 }
 
 // FindByScope 根据作用域查找待办
-// 支持 Personal/Group/Global 三层作用域过滤
-func (m *ToDoModel) FindByScope(ctx context.Context, groupID int64, path string, includeGlobal bool) ([]entity.ToDo, error) {
+// 纯关联模式：基于 PathID 进行查询
+// pathID: 当前路径的 PathID（0 表示无路径）
+// groupPathIDs: 组内所有路径 ID 列表（空切片表示无组）
+// includeGlobal: 是否包含全局待办
+func (m *ToDoModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs []int64, includeGlobal bool) ([]entity.ToDo, error) {
 	var todos []entity.ToDo
 	query := m.db.WithContext(ctx).Preload("Tags")
 
@@ -72,20 +82,27 @@ func (m *ToDoModel) FindByScope(ctx context.Context, groupID int64, path string,
 	var conditions []string
 	var args []interface{}
 
-	if path != "" {
-		conditions = append(conditions, "(path = ?)")
-		args = append(args, path)
+	// Personal: 当前路径
+	if pathID > 0 {
+		conditions = append(conditions, "(path_id = ?)")
+		args = append(args, pathID)
 	}
-	if groupID > 0 {
-		conditions = append(conditions, "(group_id = ? AND path = '')")
-		args = append(args, groupID)
+
+	// Group: 组内所有路径
+	if len(groupPathIDs) > 0 {
+		conditions = append(conditions, "(path_id IN ?)")
+		args = append(args, groupPathIDs)
 	}
+
+	// Global: PathID = 0
 	if includeGlobal {
-		conditions = append(conditions, "(group_id = 0 AND path = '')")
+		conditions = append(conditions, "(path_id = 0)")
 	}
 
 	if len(conditions) > 0 {
 		query = query.Where(strings.Join(conditions, " OR "), args...)
+	} else {
+		return todos, nil
 	}
 
 	err := query.Order("priority DESC, created_at DESC").Find(&todos).Error

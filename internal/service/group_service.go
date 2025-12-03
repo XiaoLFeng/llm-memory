@@ -217,6 +217,7 @@ func (s *GroupService) GetGroupByPath(ctx context.Context, path string) (*entity
 
 // ResolveScope 解析当前作用域
 // 这是核心方法，根据 pwd 确定当前的 ScopeContext
+// 纯关联模式：会填充 PathID 和 GroupPathIDs
 func (s *GroupService) ResolveScope(ctx context.Context, pwd string) (*types.ScopeContext, error) {
 	// 规范化路径
 	absPath, err := filepath.Abs(pwd)
@@ -226,6 +227,12 @@ func (s *GroupService) ResolveScope(ctx context.Context, pwd string) (*types.Sco
 
 	// 创建默认的作用域上下文
 	scope := types.NewScopeContext(absPath)
+
+	// 获取当前路径的 PathID
+	pathID, err := s.model.GetPathIDByPath(ctx, absPath)
+	if err == nil {
+		scope.PathID = pathID
+	}
 
 	// 查找路径所属的组
 	group, err := s.model.FindByPath(ctx, absPath)
@@ -238,6 +245,12 @@ func (s *GroupService) ResolveScope(ctx context.Context, pwd string) (*types.Sco
 		// 找到了组，设置组信息
 		scope.GroupID = group.ID
 		scope.GroupName = group.Name
+
+		// 获取组内所有路径 ID
+		groupPathIDs, err := s.model.GetPathIDsByGroupID(ctx, group.ID)
+		if err == nil {
+			scope.GroupPathIDs = groupPathIDs
+		}
 	}
 
 	return scope, nil
@@ -286,14 +299,32 @@ func (s *GroupService) GetScopeInfo(ctx context.Context) (*dto.ScopeInfoDTO, err
 }
 
 // ToGroupResponseDTO 将 Group entity 转换为 ResponseDTO
+// 注意：纯关联模式下，需要单独查询路径字符串
 func ToGroupResponseDTO(group *entity.Group) *dto.GroupResponseDTO {
 	if group == nil {
 		return nil
 	}
 
-	paths := make([]string, 0, len(group.Paths))
-	for _, p := range group.Paths {
-		paths = append(paths, p.Path)
+	// 纯关联模式下，直接返回路径 ID 列表
+	// 路径字符串需要在 Service 层单独获取
+	pathIDs := group.GetPathIDs()
+
+	return &dto.GroupResponseDTO{
+		ID:          group.ID,
+		Name:        group.Name,
+		Description: group.Description,
+		Paths:       []string{}, // 路径字符串需要通过 GetPathStrings 单独获取
+		PathCount:   len(pathIDs),
+		CreatedAt:   group.CreatedAt,
+		UpdatedAt:   group.UpdatedAt,
+	}
+}
+
+// ToGroupResponseDTOWithPaths 将 Group entity 转换为 ResponseDTO（包含路径字符串）
+// 嘿嘿~ 这个方法需要传入路径字符串列表！💖
+func ToGroupResponseDTOWithPaths(group *entity.Group, paths []string) *dto.GroupResponseDTO {
+	if group == nil {
+		return nil
 	}
 
 	return &dto.GroupResponseDTO{

@@ -57,7 +57,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// memory_list - 列出所有记忆
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "memory_list",
-		Description: `列出可见记忆。scope参数: personal/group/global/all(默认)。`,
+		Description: `列出可见记忆。scope: personal/group/global/all，默认all=使用当前作用域集合；未指定也会落在 currentScope（无则 global）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -71,7 +71,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := "记忆列表:\n"
 		for _, m := range memories {
-			scopeTag := getScopeTag(m.GroupID, m.Path)
+			scopeTag := getScopeTagFromPathID(m.PathID)
 			result += fmt.Sprintf("- [%d] %s (分类: %s) %s\n", m.ID, m.Title, m.Category, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -80,7 +80,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// memory_create - 创建新记忆
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "memory_create",
-		Description: `创建记忆条目。必填: title(标题)、content(内容)。可选: category(分类)、tags(标签列表)、scope(作用域personal/group/global，默认global)。`,
+		Description: `创建记忆条目，适合长期事实、偏好、上下文片段。必填: title、content。可选: category、tags、scope。可执行的小任务请用 todo_create，需要进度跟踪的多步骤目标请用 plan_create。未指定 scope 默认使用 currentScope（缺省则 global）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryCreateInput) (*mcp.CallToolResult, any, error) {
 		// 构建创建 DTO
 		createDTO := &dto.MemoryCreateDTO{
@@ -99,7 +99,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTag(memory.GroupID, memory.Path)
+		scopeTag := getScopeTagFromPathID(memory.PathID)
 		return NewTextResult(fmt.Sprintf("记忆创建成功! ID: %d, 标题: %s %s", memory.ID, memory.Title, scopeTag)), nil, nil
 	})
 
@@ -117,7 +117,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// memory_search - 搜索记忆
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "memory_search",
-		Description: `搜索记忆，在标题和内容中模糊匹配keyword。scope参数: personal/group/global/all(默认)。`,
+		Description: `搜索记忆（标题与内容模糊匹配 keyword）。scope: personal/group/global/all，默认all=使用当前作用域集合；未指定也会落在 currentScope（无则 global）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemorySearchInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -131,7 +131,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := fmt.Sprintf("搜索结果 (%d 条):\n", len(memories))
 		for _, m := range memories {
-			scopeTag := getScopeTag(m.GroupID, m.Path)
+			scopeTag := getScopeTagFromPathID(m.PathID)
 			result += fmt.Sprintf("- [%d] %s %s\n", m.ID, m.Title, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -153,36 +153,26 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 			tags = append(tags, t.Tag)
 		}
 
-		scopeTag := getScopeTag(memory.GroupID, memory.Path)
-		result := fmt.Sprintf(`记忆详情:
-ID: %d
-标题: %s
-分类: %s
-优先级: %d
-标签: %v
-作用域: %s
-创建时间: %s
-更新时间: %s
-
-内容:
-%s`,
-			memory.ID,
-			memory.Title,
-			memory.Category,
-			memory.Priority,
-			tags,
-			scopeTag,
-			memory.CreatedAt.Format("2006-01-02 15:04:05"),
-			memory.UpdatedAt.Format("2006-01-02 15:04:05"),
-			memory.Content,
-		)
+		scopeTag := getScopeTagFromPathID(memory.PathID)
+		var sb strings.Builder
+		_, _ = fmt.Fprintf(&sb, "记忆详情:\n")
+		_, _ = fmt.Fprintf(&sb, "ID: %d\n", memory.ID)
+		_, _ = fmt.Fprintf(&sb, "标题: %s\n", memory.Title)
+		_, _ = fmt.Fprintf(&sb, "分类: %s\n", memory.Category)
+		_, _ = fmt.Fprintf(&sb, "优先级: %d\n", memory.Priority)
+		_, _ = fmt.Fprintf(&sb, "标签: %v\n", tags)
+		_, _ = fmt.Fprintf(&sb, "作用域: %s\n", scopeTag)
+		_, _ = fmt.Fprintf(&sb, "创建时间: %s\n", memory.CreatedAt.Format("2006-01-02 15:04:05"))
+		_, _ = fmt.Fprintf(&sb, "更新时间: %s\n", memory.UpdatedAt.Format("2006-01-02 15:04:05"))
+		_, _ = fmt.Fprintf(&sb, "\n内容:\n%s", memory.Content)
+		result := sb.String()
 		return NewTextResult(result), nil, nil
 	})
 
 	// memory_update - 更新记忆
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "memory_update",
-		Description: `更新记忆，只更新提供的字段。可选: title、content、category、tags、priority(1-4)。`,
+		Description: `更新记忆，只更新提供的字段（title/content/category/tags/priority1-4）；至少提供一个字段，否则返回错误。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryUpdateInput) (*mcp.CallToolResult, any, error) {
 		// 构建更新 DTO
 		updateDTO := &dto.MemoryUpdateDTO{
@@ -260,6 +250,7 @@ func buildScopeContext(scope string, bs *startup.Bootstrap) *types.ScopeContext 
 }
 
 // getScopeTag 获取作用域标签
+// Deprecated: 使用 getScopeTagFromPathID 代替
 func getScopeTag(groupID int64, path string) string {
 	if path != "" {
 		return "[Personal]"
@@ -268,6 +259,15 @@ func getScopeTag(groupID int64, path string) string {
 		return "[Group]"
 	}
 	return "[Global]"
+}
+
+// getScopeTagFromPathID 根据 PathID 获取作用域标签
+// 纯关联模式：PathID=0 为 Global，PathID>0 为 Personal
+func getScopeTagFromPathID(pathID int64) string {
+	if pathID == 0 {
+		return "[Global]"
+	}
+	return "[Personal]"
 }
 
 // tagsToStringSlice 将 MemoryTag 切片转换为字符串切片

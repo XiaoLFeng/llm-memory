@@ -34,7 +34,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// todo_list - 列出所有待办
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "todo_list",
-		Description: `列出所有待办及状态。scope参数: personal/group/global/all(默认)。`,
+		Description: `列出所有待办及状态。scope: personal/group/global/all，默认all=使用当前作用域集合；未指定也会落在 currentScope（无则 global）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -50,7 +50,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		for _, t := range todos {
 			status := getToDoStatusText(t.Status)
 			priority := getToDoPriorityText(t.Priority)
-			scopeTag := getScopeTag(t.GroupID, t.Path)
+			scopeTag := getScopeTagFromPathID(t.PathID)
 			result += fmt.Sprintf("- [%d] %s (%s, %s) %s\n", t.ID, t.Title, status, priority, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -59,7 +59,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// todo_create - 创建待办
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "todo_create",
-		Description: `创建待办。必填: title。可选: description、priority(1低/2中/3高/4紧急，默认2)、scope(作用域)。`,
+		Description: `创建待办，适合可立即执行或短周期的单一步行动。必填: title。可选: description、priority(1低/2中/3高/4紧急，默认2)、scope。若是多步骤需跟踪的目标请用 plan_create；长期背景/事实请用 memory_create。未指定 scope 默认使用 currentScope（缺省则 global）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoCreateInput) (*mcp.CallToolResult, any, error) {
 		// 默认优先级
 		priority := input.Priority
@@ -82,7 +82,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTag(todo.GroupID, todo.Path)
+		scopeTag := getScopeTagFromPathID(todo.PathID)
 		return NewTextResult(fmt.Sprintf("待办事项创建成功! ID: %d, 标题: %s %s", todo.ID, todo.Title, scopeTag)), nil, nil
 	})
 

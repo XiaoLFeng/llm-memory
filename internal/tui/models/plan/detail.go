@@ -233,7 +233,7 @@ func (m *DetailModel) renderBasicInfo() string {
 	lines = append(lines, components.InfoRow("状态", status))
 
 	// 作用域
-	scope := components.ScopeBadgeFromGroupIDPath(m.plan.GroupID, m.plan.Path)
+	scope := components.ScopeBadgeFromPathID(m.plan.PathID)
 	lines = append(lines, components.InfoRow("作用域", scope))
 
 	return strings.Join(lines, "\n")

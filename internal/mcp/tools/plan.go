@@ -35,7 +35,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// plan_list - 列出所有计划
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "plan_list",
-		Description: `列出所有计划及进度状态。scope参数: personal/group/global/all(默认)。`,
+		Description: `列出所有计划及进度状态。scope: personal/group/global/all，默认all=使用当前作用域集合。未指定也会落在 currentScope（无则 global）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -50,7 +50,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		result := "计划列表:\n"
 		for _, p := range plans {
 			status := getPlanStatusText(p.Status)
-			scopeTag := getScopeTag(p.GroupID, p.Path)
+			scopeTag := getScopeTagFromPathID(p.PathID)
 			result += fmt.Sprintf("- [%d] %s (%s, 进度: %d%%) %s\n", p.ID, p.Title, status, p.Progress, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -59,7 +59,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// plan_create - 创建新计划
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "plan_create",
-		Description: `创建计划。必填: title。可选: description(摘要)、content(详细内容，支持Markdown)、scope(作用域)。`,
+		Description: `创建计划，用于“需要跟踪进度的多步骤目标”。必填: title。可选: description、content(Markdown)、scope。短平快的单一步行动请用 todo_create；长期事实/偏好请用 memory_create。未指定 scope 默认使用 currentScope（缺省则 global）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanCreateInput) (*mcp.CallToolResult, any, error) {
 		// 构建创建 DTO
 		createDTO := &dto.PlanCreateDTO{
@@ -76,7 +76,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTag(plan.GroupID, plan.Path)
+		scopeTag := getScopeTagFromPathID(plan.PathID)
 		return NewTextResult(fmt.Sprintf("计划创建成功! ID: %d, 标题: %s %s", plan.ID, plan.Title, scopeTag)), nil, nil
 	})
 

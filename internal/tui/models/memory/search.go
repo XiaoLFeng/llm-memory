@@ -27,12 +27,10 @@ func (i memoryItem) Title() string {
 }
 
 func (i memoryItem) Description() string {
-	// 根据 GroupID 和 Path 判断作用域
+	// 根据 PathID 判断作用域
 	scope := "Global"
-	if i.memory.Path != "" {
+	if i.memory.PathID != 0 {
 		scope = "Personal"
-	} else if i.memory.GroupID != 0 {
-		scope = "Group"
 	}
 	return fmt.Sprintf("%s %s | %s", styles.IconFolder, scope, utils.FormatRelativeTime(i.memory.CreatedAt))
 }

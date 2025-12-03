@@ -26,7 +26,7 @@ func NewToDoService(model *models.ToDoModel) *ToDoService {
 }
 
 // CreateToDo 创建新的待办事项
-// 创建待办前会先验证数据的完整性
+// 纯关联模式：数据存储时只使用 PathID
 func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, scopeCtx *types.ScopeContext) (*entity.ToDo, error) {
 	// 验证标题不能为空
 	if strings.TrimSpace(input.Title) == "" {
@@ -39,31 +39,32 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 		priority = entity.ToDoPriorityMedium
 	}
 
-	// 解析作用域
-	var groupID int64
-	var path string
+	// 解析作用域 -> PathID
+	var pathID int64
 
 	scope := strings.ToLower(input.Scope)
 	switch scope {
 	case "personal":
-		if scopeCtx != nil && scopeCtx.CurrentPath != "" {
-			path = scopeCtx.CurrentPath
+		if scopeCtx != nil && scopeCtx.PathID > 0 {
+			pathID = scopeCtx.PathID
 		}
 	case "group":
-		if scopeCtx != nil && scopeCtx.GroupID > 0 {
-			groupID = int64(scopeCtx.GroupID)
+		// group 作用域下，仍然保存到当前路径
+		if scopeCtx != nil && scopeCtx.PathID > 0 {
+			pathID = scopeCtx.PathID
 		}
 	case "global":
-		// groupID 和 path 都为空即为 global
+		pathID = 0
 	default:
-		// 默认：group 优先，然后 personal
-		groupID, path = resolveDefaultScope(scopeCtx)
+		// 默认使用当前路径
+		if scopeCtx != nil && scopeCtx.PathID > 0 {
+			pathID = scopeCtx.PathID
+		}
 	}
 
 	// 创建待办事项实例
 	todo := &entity.ToDo{
-		GroupID:     groupID,
-		Path:        path,
+		PathID:      pathID,
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
 		Priority:    priority,
@@ -176,40 +177,10 @@ func (s *ToDoService) ListToDos(ctx context.Context) ([]entity.ToDo, error) {
 }
 
 // ListToDosByScope 根据作用域列出待办事项
-// 支持 Personal/Group/Global 三层作用域过滤
+// 纯关联模式：使用 PathID 和 GroupPathIDs 进行查询
 func (s *ToDoService) ListToDosByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.ToDo, error) {
-	var groupID int64
-	var path string
-	var includeGlobal bool
-
-	switch strings.ToLower(scope) {
-	case "personal":
-		if scopeCtx != nil && scopeCtx.CurrentPath != "" {
-			path = scopeCtx.CurrentPath
-		}
-		includeGlobal = false
-	case "group":
-		if scopeCtx != nil && scopeCtx.GroupID > 0 {
-			groupID = int64(scopeCtx.GroupID)
-		}
-		includeGlobal = false
-	case "global":
-		includeGlobal = true
-	case "all", "":
-		if scopeCtx != nil {
-			if scopeCtx.CurrentPath != "" {
-				path = scopeCtx.CurrentPath
-			}
-			if scopeCtx.GroupID > 0 {
-				groupID = int64(scopeCtx.GroupID)
-			}
-		}
-		includeGlobal = true
-	default:
-		includeGlobal = true
-	}
-
-	return s.model.FindByScope(ctx, groupID, path, includeGlobal)
+	pathID, groupPathIDs, includeGlobal := parseScope(scope, scopeCtx)
+	return s.model.FindByScope(ctx, pathID, groupPathIDs, includeGlobal)
 }
 
 // ListByStatus 根据状态获取待办事项列表
@@ -278,6 +249,7 @@ func (s *ToDoService) CancelToDo(ctx context.Context, id int64) error {
 }
 
 // BatchCreateToDos 批量创建待办事项
+// 纯关联模式：使用 PathID
 func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatchCreateDTO, scopeCtx *types.ScopeContext) (*dto.ToDoBatchResultDTO, error) {
 	// 验证数量限制
 	if len(input.Items) == 0 {
@@ -294,24 +266,25 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 			continue // 跳过空标题
 		}
 
-		// 解析作用域
-		var groupID int64
-		var path string
+		// 解析作用域 -> PathID
+		var pathID int64
 
 		scope := strings.ToLower(item.Scope)
 		switch scope {
 		case "personal":
-			if scopeCtx != nil && scopeCtx.CurrentPath != "" {
-				path = scopeCtx.CurrentPath
+			if scopeCtx != nil && scopeCtx.PathID > 0 {
+				pathID = scopeCtx.PathID
 			}
 		case "group":
-			if scopeCtx != nil && scopeCtx.GroupID > 0 {
-				groupID = scopeCtx.GroupID
+			if scopeCtx != nil && scopeCtx.PathID > 0 {
+				pathID = scopeCtx.PathID
 			}
 		case "global":
-			// 留空
+			pathID = 0
 		default:
-			groupID, path = resolveDefaultScope(scopeCtx)
+			if scopeCtx != nil && scopeCtx.PathID > 0 {
+				pathID = scopeCtx.PathID
+			}
 		}
 
 		priority := entity.ToDoPriority(item.Priority)
@@ -320,8 +293,7 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 		}
 
 		todo := entity.ToDo{
-			GroupID:     groupID,
-			Path:        path,
+			PathID:      pathID,
 			Title:       strings.TrimSpace(item.Title),
 			Description: strings.TrimSpace(item.Description),
 			Priority:    priority,
@@ -387,7 +359,8 @@ func (s *ToDoService) BatchUpdateStatus(ctx context.Context, ids []int64, status
 }
 
 // ToToDoResponseDTO 将 ToDo entity 转换为 ResponseDTO
-func ToToDoResponseDTO(todo *entity.ToDo, currentPath string) *dto.ToDoResponseDTO {
+// 纯关联模式：使用 PathID 判断作用域
+func ToToDoResponseDTO(todo *entity.ToDo, scopeCtx *types.ScopeContext) *dto.ToDoResponseDTO {
 	if todo == nil {
 		return nil
 	}
@@ -397,14 +370,12 @@ func ToToDoResponseDTO(todo *entity.ToDo, currentPath string) *dto.ToDoResponseD
 		tags = append(tags, t.Tag)
 	}
 
-	// 判断作用域
+	// 使用 PathID 判断作用域
 	var scope types.Scope
-	if todo.Path != "" {
-		scope = types.ScopePersonal
-	} else if todo.GroupID > 0 {
-		scope = types.ScopeGroup
+	if scopeCtx != nil {
+		scope = types.GetScopeForDisplay(todo.PathID, scopeCtx.PathID, scopeCtx.GroupPathIDs)
 	} else {
-		scope = types.ScopeGlobal
+		scope = types.GetScope(todo.PathID)
 	}
 
 	return &dto.ToDoResponseDTO{

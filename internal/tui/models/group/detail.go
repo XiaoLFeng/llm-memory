@@ -110,7 +110,7 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, common.KeyDelete):
 			// 删除选中的路径
 			if m.group != nil && len(m.group.Paths) > 0 && m.selectedIndex < len(m.group.Paths) {
-				path := m.group.Paths[m.selectedIndex].Path
+				path := m.group.Paths[m.selectedIndex].GetPath()
 				return m, common.ShowConfirm(
 					"移除路径",
 					fmt.Sprintf("确定要从组中移除路径「%s」吗？", path),
@@ -256,7 +256,7 @@ func (m *DetailModel) View() string {
 			Render("暂无关联路径~ 按 a 添加当前目录"))
 	} else {
 		for i, groupPath := range m.group.Paths {
-			path := groupPath.Path
+			path := groupPath.GetPath()
 			var line string
 			if i == m.selectedIndex {
 				indicator := lipgloss.NewStyle().Foreground(styles.Primary).Render(styles.IconTriangle + " ")

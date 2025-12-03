@@ -62,7 +62,7 @@ func RegisterGroupTools(server *mcp.Server, bs *startup.Bootstrap) {
 			}
 			result += fmt.Sprintf(" - %d 个路径\n", len(g.Paths))
 			for _, p := range g.Paths {
-				result += fmt.Sprintf("    %s\n", p.Path)
+				result += fmt.Sprintf("    %s\n", p.GetPath())
 			}
 		}
 		return NewTextResult(result), nil, nil

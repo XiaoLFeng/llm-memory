@@ -2,8 +2,6 @@ package entity
 
 import (
 	"time"
-
-	"gorm.io/gorm"
 )
 
 // PlanStatus 计划状态类型
@@ -21,20 +19,19 @@ const (
 
 // Plan 计划实体（数据表结构）
 // 用于跟踪长期目标和复杂任务的计划实体
+// 纯关联模式：PathID=0 表示 Global，PathID>0 关联 PersonalPath
 type Plan struct {
-	ID          int64          `gorm:"primaryKey"`                              // 雪花算法生成
-	GroupID     int64          `gorm:"index;default:0;comment:所属组ID（0=Global）"` // 关联组ID
-	Path        string         `gorm:"index;size:1024;comment:精确路径（Personal作用域）"`
-	Title       string         `gorm:"index;size:255;not null;comment:标题"`
-	Description string         `gorm:"type:text;comment:简要描述（摘要）"`
-	Content     string         `gorm:"type:text;comment:详细内容（新增字段）"` // 新增：详细内容
-	Status      PlanStatus     `gorm:"index;size:20;default:'pending'"`
-	StartDate   *time.Time     `gorm:"comment:开始日期"`
-	EndDate     *time.Time     `gorm:"comment:结束日期"`
-	Progress    int            `gorm:"default:0;comment:进度 0-100"`
-	CreatedAt   time.Time      `gorm:"index;autoCreateTime"`
-	UpdatedAt   time.Time      `gorm:"autoUpdateTime"`
-	DeletedAt   gorm.DeletedAt `gorm:"index"` // 软删除支持
+	ID          int64      `gorm:"primaryKey"`                             // 雪花算法生成
+	PathID      int64      `gorm:"index;default:0;comment:路径ID（0=Global）"` // 关联 PersonalPath.ID，0 表示 Global
+	Title       string     `gorm:"index;size:255;not null;comment:标题"`
+	Description string     `gorm:"type:text;comment:简要描述（摘要）"`
+	Content     string     `gorm:"type:text;comment:详细内容（新增字段）"` // 新增：详细内容
+	Status      PlanStatus `gorm:"index;size:20;default:'pending'"`
+	StartDate   *time.Time `gorm:"comment:开始日期"`
+	EndDate     *time.Time `gorm:"comment:结束日期"`
+	Progress    int        `gorm:"default:0;comment:进度 0-100"`
+	CreatedAt   time.Time  `gorm:"index;autoCreateTime"`
+	UpdatedAt   time.Time  `gorm:"autoUpdateTime"`
 
 	// 关联：子任务（独立存储，不再 inline）
 	SubTasks []SubTask `gorm:"foreignKey:PlanID;constraint:OnDelete:CASCADE"`
@@ -47,26 +44,20 @@ func (Plan) TableName() string {
 
 // IsGlobal 检查是否为全局计划
 func (p *Plan) IsGlobal() bool {
-	return p.GroupID == 0 && p.Path == ""
+	return p.PathID == 0
 }
 
 // IsPersonal 检查是否为 Personal 作用域
+// 纯关联模式下，PathID > 0 表示关联某个路径
 func (p *Plan) IsPersonal() bool {
-	return p.Path != ""
-}
-
-// IsGroup 检查是否为 Group 作用域
-func (p *Plan) IsGroup() bool {
-	return p.GroupID != 0 && p.Path == ""
+	return p.PathID > 0
 }
 
 // GetScope 获取作用域类型字符串
+// 注意：纯关联模式下只有 personal 和 global，group 通过 join 查询实现
 func (p *Plan) GetScope() string {
-	if p.Path != "" {
+	if p.PathID > 0 {
 		return "personal"
-	}
-	if p.GroupID != 0 {
-		return "group"
 	}
 	return "global"
 }

@@ -246,7 +246,7 @@ func (m *ListModel) View() string {
 		var meta []string
 
 		// 作用域徽章
-		scopeBadge := components.ScopeBadgeFromGroupIDPath(memory.GroupID, memory.Path)
+		scopeBadge := components.ScopeBadgeFromPathID(memory.PathID)
 		meta = append(meta, scopeBadge)
 
 		// 分类

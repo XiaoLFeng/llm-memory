@@ -30,9 +30,16 @@ func (m *MemoryModel) Update(ctx context.Context, memory *entity.Memory) error {
 	return m.db.WithContext(ctx).Save(memory).Error
 }
 
-// Delete 删除记忆（软删除）
+// Delete 删除记忆（硬删除）
 func (m *MemoryModel) Delete(ctx context.Context, id int64) error {
-	return m.db.WithContext(ctx).Delete(&entity.Memory{}, id).Error
+	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 先删除关联的标签
+		if err := tx.Where("memory_id = ?", id).Unscoped().Delete(&entity.MemoryTag{}).Error; err != nil {
+			return err
+		}
+		// 硬删除记忆本身
+		return tx.Unscoped().Delete(&entity.Memory{}, id).Error
+	})
 }
 
 // FindByID 根据 ID 查找记忆
@@ -60,8 +67,11 @@ func (m *MemoryModel) FindByCategory(ctx context.Context, category string) ([]en
 }
 
 // FindByScope 根据作用域查找记忆
-// 支持 Personal/Group/Global 三层作用域过滤
-func (m *MemoryModel) FindByScope(ctx context.Context, groupID int64, path string, includeGlobal bool) ([]entity.Memory, error) {
+// 纯关联模式：基于 PathID 进行查询
+// pathID: 当前路径的 PathID（0 表示无路径）
+// groupPathIDs: 组内所有路径 ID 列表（空切片表示无组）
+// includeGlobal: 是否包含全局记忆
+func (m *MemoryModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs []int64, includeGlobal bool) ([]entity.Memory, error) {
 	var memories []entity.Memory
 	query := m.db.WithContext(ctx).Preload("Tags")
 
@@ -69,20 +79,28 @@ func (m *MemoryModel) FindByScope(ctx context.Context, groupID int64, path strin
 	var conditions []string
 	var args []interface{}
 
-	if path != "" {
-		conditions = append(conditions, "(path = ?)")
-		args = append(args, path)
+	// Personal: 当前路径
+	if pathID > 0 {
+		conditions = append(conditions, "(path_id = ?)")
+		args = append(args, pathID)
 	}
-	if groupID > 0 {
-		conditions = append(conditions, "(group_id = ? AND path = '')")
-		args = append(args, groupID)
+
+	// Group: 组内所有路径（排除已包含的 pathID 避免重复）
+	if len(groupPathIDs) > 0 {
+		conditions = append(conditions, "(path_id IN ?)")
+		args = append(args, groupPathIDs)
 	}
+
+	// Global: PathID = 0
 	if includeGlobal {
-		conditions = append(conditions, "(group_id = 0 AND path = '')")
+		conditions = append(conditions, "(path_id = 0)")
 	}
 
 	if len(conditions) > 0 {
 		query = query.Where(strings.Join(conditions, " OR "), args...)
+	} else {
+		// 无任何条件时，返回空结果
+		return memories, nil
 	}
 
 	err := query.Order("created_at DESC").Find(&memories).Error
@@ -101,7 +119,8 @@ func (m *MemoryModel) Search(ctx context.Context, keyword string) ([]entity.Memo
 }
 
 // SearchByScope 在指定作用域内搜索记忆
-func (m *MemoryModel) SearchByScope(ctx context.Context, keyword string, groupID int64, path string, includeGlobal bool) ([]entity.Memory, error) {
+// 纯关联模式：基于 PathID 进行查询
+func (m *MemoryModel) SearchByScope(ctx context.Context, keyword string, pathID int64, groupPathIDs []int64, includeGlobal bool) ([]entity.Memory, error) {
 	var memories []entity.Memory
 	pattern := "%" + keyword + "%"
 	query := m.db.WithContext(ctx).Preload("Tags").
@@ -111,20 +130,27 @@ func (m *MemoryModel) SearchByScope(ctx context.Context, keyword string, groupID
 	var conditions []string
 	var args []interface{}
 
-	if path != "" {
-		conditions = append(conditions, "(path = ?)")
-		args = append(args, path)
+	// Personal: 当前路径
+	if pathID > 0 {
+		conditions = append(conditions, "(path_id = ?)")
+		args = append(args, pathID)
 	}
-	if groupID > 0 {
-		conditions = append(conditions, "(group_id = ? AND path = '')")
-		args = append(args, groupID)
+
+	// Group: 组内所有路径
+	if len(groupPathIDs) > 0 {
+		conditions = append(conditions, "(path_id IN ?)")
+		args = append(args, groupPathIDs)
 	}
+
+	// Global: PathID = 0
 	if includeGlobal {
-		conditions = append(conditions, "(group_id = 0 AND path = '')")
+		conditions = append(conditions, "(path_id = 0)")
 	}
 
 	if len(conditions) > 0 {
 		query = query.Where(strings.Join(conditions, " OR "), args...)
+	} else {
+		return memories, nil
 	}
 
 	err := query.Order("created_at DESC").Find(&memories).Error

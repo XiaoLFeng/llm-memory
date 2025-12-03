@@ -96,12 +96,12 @@ func (m *PersonalPathModel) ListRecentPaths(ctx context.Context, limit int) ([]e
 	return paths, err
 }
 
-// Delete 删除路径记录（软删除）
+// Delete 删除路径记录（硬删除）
 func (m *PersonalPathModel) Delete(ctx context.Context, id int64) error {
-	return m.db.WithContext(ctx).Delete(&entity.PersonalPath{}, id).Error
+	return m.db.WithContext(ctx).Unscoped().Delete(&entity.PersonalPath{}, id).Error
 }
 
-// DeleteByPath 根据路径删除记录
+// DeleteByPath 根据路径删除记录（硬删除）
 func (m *PersonalPathModel) DeleteByPath(ctx context.Context, path string) error {
 	// 规范化路径
 	absPath, err := filepath.Abs(path)
@@ -109,7 +109,7 @@ func (m *PersonalPathModel) DeleteByPath(ctx context.Context, path string) error
 		absPath = path
 	}
 
-	return m.db.WithContext(ctx).Where("path = ?", absPath).Delete(&entity.PersonalPath{}).Error
+	return m.db.WithContext(ctx).Unscoped().Where("path = ?", absPath).Delete(&entity.PersonalPath{}).Error
 }
 
 // Count 获取路径总数

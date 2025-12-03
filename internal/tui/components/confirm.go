@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -68,11 +69,6 @@ func (c *Confirm) Init() tea.Cmd {
 	return nil
 }
 
-// confirmResultMsg 确认结果消息
-type confirmResultMsg struct {
-	confirmed bool
-}
-
 // Update 处理输入
 func (c *Confirm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !c.visible {
@@ -91,17 +87,17 @@ func (c *Confirm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("enter"))):
 			c.visible = false
 			return c, func() tea.Msg {
-				return confirmResultMsg{confirmed: c.selected == 1}
+				return common.ConfirmResultMsg{Confirmed: c.selected == 1}
 			}
 		case key.Matches(msg, key.NewBinding(key.WithKeys("esc", "n"))):
 			c.visible = false
 			return c, func() tea.Msg {
-				return confirmResultMsg{confirmed: false}
+				return common.ConfirmResultMsg{Confirmed: false}
 			}
 		case key.Matches(msg, key.NewBinding(key.WithKeys("y"))):
 			c.visible = false
 			return c, func() tea.Msg {
-				return confirmResultMsg{confirmed: true}
+				return common.ConfirmResultMsg{Confirmed: true}
 			}
 		}
 	}

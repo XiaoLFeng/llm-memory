@@ -32,13 +32,16 @@ const GlobalGroupID = 0
 
 // ScopeContext 作用域上下文
 // 用于在请求链路中传递当前作用域信息
+// 纯关联模式：使用 PathID 代替 Path 字符串进行查询
 type ScopeContext struct {
-	CurrentPath     string // 当前工作目录
-	GroupID         int64  // 所属组 ID（0 表示无组）
-	GroupName       string // 组名称（方便显示）
-	IncludePersonal bool   // 查询时是否包含 Personal 数据
-	IncludeGroup    bool   // 查询时是否包含 Group 数据
-	IncludeGlobal   bool   // 查询时是否包含 Global 数据
+	CurrentPath     string  // 当前工作目录
+	PathID          int64   // 当前路径的 PersonalPath ID（0 表示无路径记录）
+	GroupID         int64   // 所属组 ID（0 表示无组）
+	GroupName       string  // 组名称（方便显示）
+	GroupPathIDs    []int64 // 组内所有路径 ID 列表（用于组作用域查询）
+	IncludePersonal bool    // 查询时是否包含 Personal 数据
+	IncludeGroup    bool    // 查询时是否包含 Group 数据
+	IncludeGlobal   bool    // 查询时是否包含 Global 数据
 }
 
 // NewScopeContext 创建默认的作用域上下文
@@ -126,16 +129,29 @@ func (sc *ScopeContext) HasGroup() bool {
 	return sc.GroupID != GlobalGroupID
 }
 
-// GetScope 根据数据的 GroupID 和 Path 判断其作用域
-func GetScope(groupID int64, path, currentPath string) Scope {
-	if groupID == GlobalGroupID && path == "" {
+// GetScope 根据 PathID 判断数据的作用域
+// 纯关联模式：PathID=0 表示 Global，PathID>0 表示 Personal
+func GetScope(pathID int64) Scope {
+	if pathID == 0 {
 		return ScopeGlobal
 	}
-	if path != "" && path == currentPath {
+	return ScopePersonal
+}
+
+// GetScopeForDisplay 获取用于显示的作用域
+// 如果 pathID 在 groupPathIDs 中，则显示为 group
+func GetScopeForDisplay(pathID int64, currentPathID int64, groupPathIDs []int64) Scope {
+	if pathID == 0 {
+		return ScopeGlobal
+	}
+	if pathID == currentPathID {
 		return ScopePersonal
 	}
-	if groupID != GlobalGroupID {
-		return ScopeGroup
+	// 检查是否在组内
+	for _, gid := range groupPathIDs {
+		if pathID == gid {
+			return ScopeGroup
+		}
 	}
-	return ScopeGlobal
+	return ScopePersonal
 }

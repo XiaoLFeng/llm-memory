@@ -235,26 +235,26 @@ func (m *AppModel) createPage(pageType common.PageType, params map[string]any) c
 	case common.PagePlanCreate:
 		return plan.NewCreateModel(m.bs)
 	case common.PagePlanDetail:
-		id := getIntParam(params, "id")
-		return plan.NewDetailModel(m.bs, int64(id))
+		id := getInt64Param(params, "id")
+		return plan.NewDetailModel(m.bs, id)
 	case common.PagePlanProgress:
-		id := getIntParam(params, "id")
+		id := getInt64Param(params, "id")
 		progress := getIntParam(params, "progress")
-		return plan.NewProgressModel(m.bs, int64(id), progress)
+		return plan.NewProgressModel(m.bs, id, progress)
 	case common.PageTodoList:
 		return todo.NewListModel(m.bs)
 	case common.PageTodoCreate:
 		return todo.NewCreateModel(m.bs)
 	case common.PageTodoDetail:
-		id := getIntParam(params, "id")
-		return todo.NewDetailModel(m.bs, int64(id))
+		id := getInt64Param(params, "id")
+		return todo.NewDetailModel(m.bs, id)
 	case common.PageGroupList:
 		return group.NewListModel(m.bs)
 	case common.PageGroupCreate:
 		return group.NewCreateModel(m.bs)
 	case common.PageGroupDetail:
-		id := getIntParam(params, "id")
-		return group.NewDetailModel(m.bs, int64(id))
+		id := getInt64Param(params, "id")
+		return group.NewDetailModel(m.bs, id)
 	default:
 		return NewMenuModel(m.bs)
 	}
@@ -267,6 +267,19 @@ func getIntParam(params map[string]any, key string) int {
 	}
 	if v, ok := params[key]; ok {
 		if i, ok := v.(int); ok {
+			return i
+		}
+	}
+	return 0
+}
+
+// getInt64Param 从参数中获取 int64 整数
+func getInt64Param(params map[string]any, key string) int64 {
+	if params == nil {
+		return 0
+	}
+	if v, ok := params[key]; ok {
+		if i, ok := v.(int64); ok {
 			return i
 		}
 	}

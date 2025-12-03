@@ -8,19 +8,28 @@ import (
 )
 
 // Card 创建卡片容器
+// width 参数代表卡片的期望总宽度（包含边框和 padding）
 func Card(title, content string, width int) string {
 	if width < 20 {
 		width = 20
 	}
 
+	// 边框占 2 (左 1 + 右 1)
+	// Padding 占 4 (左 2 + 右 2)
+	// 所以内容区域 = width - 6
+	contentWidth := width - 6
+	if contentWidth < 10 {
+		contentWidth = 10
+	}
+
 	// 计算标题行
-	titleLine := createTitleLine(title, width-4)
+	titleLine := createTitleLine(title, contentWidth)
 
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.Border).
 		Background(styles.Surface0). // 添加背景色增强层次感
-		Width(width).
+		Width(contentWidth).
 		Padding(1, 2)
 
 	innerContent := titleLine + "\n" + content
@@ -28,18 +37,25 @@ func Card(title, content string, width int) string {
 }
 
 // CardWithColor 带自定义边框颜色的卡片
+// width 参数代表卡片的期望总宽度（包含边框和 padding）
 func CardWithColor(title, content string, width int, borderColor lipgloss.Color) string {
 	if width < 20 {
 		width = 20
 	}
 
-	titleLine := createTitleLine(title, width-4)
+	// 边框占 2，Padding 占 4
+	contentWidth := width - 6
+	if contentWidth < 10 {
+		contentWidth = 10
+	}
+
+	titleLine := createTitleLine(title, contentWidth)
 
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
 		Background(styles.Surface0). // 添加背景色
-		Width(width).
+		Width(contentWidth).
 		Padding(1, 2)
 
 	innerContent := titleLine + "\n" + content
@@ -47,16 +63,23 @@ func CardWithColor(title, content string, width int, borderColor lipgloss.Color)
 }
 
 // CardSimple 简单卡片（无标题）
+// width 参数代表卡片的期望总宽度（包含边框和 padding）
 func CardSimple(content string, width int) string {
 	if width < 20 {
 		width = 20
+	}
+
+	// 边框占 2，Padding 占 4
+	contentWidth := width - 6
+	if contentWidth < 10 {
+		contentWidth = 10
 	}
 
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.Border).
 		Background(styles.Surface0). // 添加背景色
-		Width(width).
+		Width(contentWidth).
 		Padding(1, 2)
 
 	return cardStyle.Render(content)
@@ -88,18 +111,25 @@ func CardInfo(title, content string, width int) string {
 }
 
 // NestedCard 嵌套卡片（用于详情页的信息分组）
+// width 参数代表卡片的期望总宽度（包含边框和 padding）
 func NestedCard(title, content string, width int) string {
 	if width < 20 {
 		width = 20
 	}
 
-	titleLine := createTitleLine(title, width-4)
+	// 边框占 2，Padding 占 2 (左右各1)
+	contentWidth := width - 4
+	if contentWidth < 10 {
+		contentWidth = 10
+	}
+
+	titleLine := createTitleLine(title, contentWidth)
 
 	nestedStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.BorderSubtle). // 使用提高对比度的边框色
 		Background(styles.Mantle).             // 使用更深的背景色区分层次
-		Width(width).
+		Width(contentWidth).
 		Padding(0, 1)
 
 	innerContent := titleLine + "\n" + content

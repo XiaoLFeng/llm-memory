@@ -386,7 +386,7 @@ func (m *ListModel) renderPlanItem(plan entity.Plan, selected bool) string {
 	}
 
 	title := titleStyle.Render(plan.Title)
-	scope := components.ScopeBadgeFromGroupIDPath(plan.GroupID, plan.Path)
+	scope := components.ScopeBadgeFromPathID(plan.PathID)
 
 	// 状态 + 进度
 	status := components.StatusBadge(string(plan.Status))

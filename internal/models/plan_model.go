@@ -30,9 +30,16 @@ func (m *PlanModel) Update(ctx context.Context, plan *entity.Plan) error {
 	return m.db.WithContext(ctx).Save(plan).Error
 }
 
-// Delete 删除计划（软删除）
+// Delete 删除计划（硬删除）
 func (m *PlanModel) Delete(ctx context.Context, id int64) error {
-	return m.db.WithContext(ctx).Delete(&entity.Plan{}, id).Error
+	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 先删除关联的子任务
+		if err := tx.Where("plan_id = ?", id).Unscoped().Delete(&entity.SubTask{}).Error; err != nil {
+			return err
+		}
+		// 硬删除计划本身
+		return tx.Unscoped().Delete(&entity.Plan{}, id).Error
+	})
 }
 
 // FindByID 根据 ID 查找计划
@@ -66,8 +73,11 @@ func (m *PlanModel) FindByStatus(ctx context.Context, status entity.PlanStatus) 
 }
 
 // FindByScope 根据作用域查找计划
-// 支持 Personal/Group/Global 三层作用域过滤
-func (m *PlanModel) FindByScope(ctx context.Context, groupID int64, path string, includeGlobal bool) ([]entity.Plan, error) {
+// 纯关联模式：基于 PathID 进行查询
+// pathID: 当前路径的 PathID（0 表示无路径）
+// groupPathIDs: 组内所有路径 ID 列表（空切片表示无组）
+// includeGlobal: 是否包含全局计划
+func (m *PlanModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs []int64, includeGlobal bool) ([]entity.Plan, error) {
 	var plans []entity.Plan
 	query := m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
 		return db.Order("sort_order ASC")
@@ -77,20 +87,27 @@ func (m *PlanModel) FindByScope(ctx context.Context, groupID int64, path string,
 	var conditions []string
 	var args []interface{}
 
-	if path != "" {
-		conditions = append(conditions, "(path = ?)")
-		args = append(args, path)
+	// Personal: 当前路径
+	if pathID > 0 {
+		conditions = append(conditions, "(path_id = ?)")
+		args = append(args, pathID)
 	}
-	if groupID > 0 {
-		conditions = append(conditions, "(group_id = ? AND path = '')")
-		args = append(args, groupID)
+
+	// Group: 组内所有路径
+	if len(groupPathIDs) > 0 {
+		conditions = append(conditions, "(path_id IN ?)")
+		args = append(args, groupPathIDs)
 	}
+
+	// Global: PathID = 0
 	if includeGlobal {
-		conditions = append(conditions, "(group_id = 0 AND path = '')")
+		conditions = append(conditions, "(path_id = 0)")
 	}
 
 	if len(conditions) > 0 {
 		query = query.Where(strings.Join(conditions, " OR "), args...)
+	} else {
+		return plans, nil
 	}
 
 	err := query.Order("created_at DESC").Find(&plans).Error
@@ -164,9 +181,9 @@ func (m *PlanModel) UpdateSubTask(ctx context.Context, subTask *entity.SubTask) 
 	return m.db.WithContext(ctx).Save(subTask).Error
 }
 
-// DeleteSubTask 删除子任务
+// DeleteSubTask 删除子任务（硬删除）
 func (m *PlanModel) DeleteSubTask(ctx context.Context, subTaskID int64) error {
-	return m.db.WithContext(ctx).Delete(&entity.SubTask{}, subTaskID).Error
+	return m.db.WithContext(ctx).Unscoped().Delete(&entity.SubTask{}, subTaskID).Error
 }
 
 // GetSubTask 获取子任务

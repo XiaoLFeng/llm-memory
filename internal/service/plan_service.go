@@ -25,37 +25,39 @@ func NewPlanService(model *models.PlanModel) *PlanService {
 }
 
 // CreatePlan 创建新计划
+// 纯关联模式：数据存储时只使用 PathID
 func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, scopeCtx *types.ScopeContext) (*entity.Plan, error) {
 	// 参数验证 - 标题不能为空
 	if strings.TrimSpace(input.Title) == "" {
 		return nil, errors.New("计划标题不能为空")
 	}
 
-	// 解析作用域
-	var groupID int64
-	var path string
+	// 解析作用域 -> PathID
+	var pathID int64
 
 	scope := strings.ToLower(input.Scope)
 	switch scope {
 	case "personal":
-		if scopeCtx != nil && scopeCtx.CurrentPath != "" {
-			path = scopeCtx.CurrentPath
+		if scopeCtx != nil && scopeCtx.PathID > 0 {
+			pathID = scopeCtx.PathID
 		}
 	case "group":
-		if scopeCtx != nil && scopeCtx.GroupID > 0 {
-			groupID = scopeCtx.GroupID
+		// group 作用域下，仍然保存到当前路径
+		if scopeCtx != nil && scopeCtx.PathID > 0 {
+			pathID = scopeCtx.PathID
 		}
 	case "global":
-		// groupID 和 path 都为空即为 global
+		pathID = 0
 	default:
-		// 默认：group 优先，然后 personal
-		groupID, path = resolveDefaultScope(scopeCtx)
+		// 默认使用当前路径
+		if scopeCtx != nil && scopeCtx.PathID > 0 {
+			pathID = scopeCtx.PathID
+		}
 	}
 
 	// 创建计划实例
 	plan := &entity.Plan{
-		GroupID:     groupID,
-		Path:        path,
+		PathID:      pathID,
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
 		Content:     strings.TrimSpace(input.Content),
@@ -175,39 +177,11 @@ func (s *PlanService) ListPlans(ctx context.Context) ([]entity.Plan, error) {
 }
 
 // ListPlansByScope 根据作用域列出计划
+// 纯关联模式：使用 PathID 和 GroupPathIDs 进行查询
 func (s *PlanService) ListPlansByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.Plan, error) {
-	var groupID int64
-	var path string
-	var includeGlobal bool
+	pathID, groupPathIDs, includeGlobal := parseScope(scope, scopeCtx)
 
-	switch strings.ToLower(scope) {
-	case "personal":
-		if scopeCtx != nil && scopeCtx.CurrentPath != "" {
-			path = scopeCtx.CurrentPath
-		}
-		includeGlobal = false
-	case "group":
-		if scopeCtx != nil && scopeCtx.GroupID > 0 {
-			groupID = scopeCtx.GroupID
-		}
-		includeGlobal = false
-	case "global":
-		includeGlobal = true
-	case "all", "":
-		if scopeCtx != nil {
-			if scopeCtx.CurrentPath != "" {
-				path = scopeCtx.CurrentPath
-			}
-			if scopeCtx.GroupID > 0 {
-				groupID = scopeCtx.GroupID
-			}
-		}
-		includeGlobal = true
-	default:
-		includeGlobal = true
-	}
-
-	plans, err := s.model.FindByScope(ctx, groupID, path, includeGlobal)
+	plans, err := s.model.FindByScope(ctx, pathID, groupPathIDs, includeGlobal)
 	if err != nil {
 		return nil, err
 	}
@@ -425,19 +399,18 @@ func isValidPlanStatus(status entity.PlanStatus) bool {
 }
 
 // ToPlanResponseDTO 将 Plan entity 转换为 ResponseDTO
-func ToPlanResponseDTO(plan *entity.Plan, currentPath string) *dto.PlanResponseDTO {
+// 纯关联模式：使用 PathID 判断作用域
+func ToPlanResponseDTO(plan *entity.Plan, scopeCtx *types.ScopeContext) *dto.PlanResponseDTO {
 	if plan == nil {
 		return nil
 	}
 
-	// 判断作用域
+	// 使用 PathID 判断作用域
 	var scope types.Scope
-	if plan.Path != "" {
-		scope = types.ScopePersonal
-	} else if plan.GroupID > 0 {
-		scope = types.ScopeGroup
+	if scopeCtx != nil {
+		scope = types.GetScopeForDisplay(plan.PathID, scopeCtx.PathID, scopeCtx.GroupPathIDs)
 	} else {
-		scope = types.ScopeGlobal
+		scope = types.GetScope(plan.PathID)
 	}
 
 	// 转换子任务

@@ -2,24 +2,21 @@ package entity
 
 import (
 	"time"
-
-	"gorm.io/gorm"
 )
 
 // Memory 记忆实体（数据表结构）
 // 记忆条目，用于持久化存储重要信息
+// 纯关联模式：PathID=0 表示 Global，PathID>0 关联 PersonalPath
 type Memory struct {
-	ID         int64          `gorm:"primaryKey"`                              // 雪花算法生成
-	GroupID    int64          `gorm:"index;default:0;comment:所属组ID（0=Global）"` // 关联组ID
-	Path       string         `gorm:"index;size:1024;comment:精确路径（Personal作用域）"`
-	Title      string         `gorm:"index;size:255;not null;comment:标题"`
-	Content    string         `gorm:"type:text;not null;comment:内容"`
-	Category   string         `gorm:"index;size:100;default:'默认';comment:分类"`
-	Priority   int            `gorm:"default:1;comment:优先级 1-4"`
-	IsArchived bool           `gorm:"index;default:false;comment:是否归档"`
-	CreatedAt  time.Time      `gorm:"index;autoCreateTime"`
-	UpdatedAt  time.Time      `gorm:"autoUpdateTime"`
-	DeletedAt  gorm.DeletedAt `gorm:"index"` // 软删除支持
+	ID         int64     `gorm:"primaryKey"`                             // 雪花算法生成
+	PathID     int64     `gorm:"index;default:0;comment:路径ID（0=Global）"` // 关联 PersonalPath.ID，0 表示 Global
+	Title      string    `gorm:"index;size:255;not null;comment:标题"`
+	Content    string    `gorm:"type:text;not null;comment:内容"`
+	Category   string    `gorm:"index;size:100;default:'默认';comment:分类"`
+	Priority   int       `gorm:"default:1;comment:优先级 1-4"`
+	IsArchived bool      `gorm:"index;default:false;comment:是否归档"`
+	CreatedAt  time.Time `gorm:"index;autoCreateTime"`
+	UpdatedAt  time.Time `gorm:"autoUpdateTime"`
 
 	// 关联：标签
 	Tags []MemoryTag `gorm:"foreignKey:MemoryID;constraint:OnDelete:CASCADE"`
@@ -54,26 +51,20 @@ const (
 
 // IsGlobal 检查是否为全局记忆
 func (m *Memory) IsGlobal() bool {
-	return m.GroupID == 0 && m.Path == ""
+	return m.PathID == 0
 }
 
 // IsPersonal 检查是否为 Personal 作用域
+// 纯关联模式下，PathID > 0 表示关联某个路径
 func (m *Memory) IsPersonal() bool {
-	return m.Path != ""
-}
-
-// IsGroup 检查是否为 Group 作用域
-func (m *Memory) IsGroup() bool {
-	return m.GroupID != 0 && m.Path == ""
+	return m.PathID > 0
 }
 
 // GetScope 获取作用域类型字符串
+// 注意：纯关联模式下只有 personal 和 global，group 通过 join 查询实现
 func (m *Memory) GetScope() string {
-	if m.Path != "" {
+	if m.PathID > 0 {
 		return "personal"
-	}
-	if m.GroupID != 0 {
-		return "group"
 	}
 	return "global"
 }
