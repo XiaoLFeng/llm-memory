@@ -8,6 +8,7 @@ import (
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/layout"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
@@ -316,5 +317,12 @@ func (m *ListModel) View() string {
 	}
 	extra := fmt.Sprintf("%s 共 %d 条", scopeInfo, len(m.memories))
 
-	return m.frame.Render("记忆管理 > 记忆列表", listItems.String(), keys, extra)
+	return layout.ListPage(
+		m.frame,
+		"记忆管理 > 记忆列表",
+		styles.IconBrain+" 记忆列表",
+		listItems.String(),
+		keys,
+		extra,
+	)
 }

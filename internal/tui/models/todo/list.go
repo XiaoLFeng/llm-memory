@@ -8,6 +8,7 @@ import (
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/layout"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
@@ -43,6 +44,9 @@ type ListModel struct {
 	todos        []entity.ToDo
 	width        int
 	height       int
+	frame        *components.Frame
+	cardWidth    int
+	cardInner    int
 	loading      bool
 	err          error
 	showAllScope bool   // false = personal, true = all
@@ -76,6 +80,8 @@ func NewListModel(bs *startup.Bootstrap) *ListModel {
 		m.currentPath = bs.CurrentScope.CurrentPath
 		m.groupName = bs.CurrentScope.GroupName
 	}
+	m.frame = components.NewFrame(80, 24)
+	m.updateCardMetrics()
 	return m
 }
 
@@ -197,7 +203,9 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.list.SetSize(msg.Width-4, msg.Height-8)
+		m.frame.SetSize(msg.Width, msg.Height)
+		m.updateCardMetrics()
+		m.list.SetSize(m.cardInner, m.frame.GetContentHeight()-4)
 
 	case todosLoadedMsg:
 		m.loading = false
@@ -282,18 +290,26 @@ func (m *ListModel) View() string {
 
 	if m.loading {
 		content = styles.InfoStyle.Render("加载中...")
-		if m.width > 0 && m.height > 0 {
-			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
-		}
-		return content
+		return layout.ListPage(
+			m.frame,
+			"待办管理 > 待办列表",
+			styles.IconTodo+" 待办列表",
+			content,
+			[]string{},
+			"",
+		)
 	}
 
 	if m.err != nil {
 		content = styles.ErrorStyle.Render("错误: " + m.err.Error())
-		if m.width > 0 && m.height > 0 {
-			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
-		}
-		return content
+		return layout.ListPage(
+			m.frame,
+			"待办管理 > 待办列表",
+			styles.IconTodo+" 待办列表",
+			content,
+			[]string{},
+			"",
+		)
 	}
 
 	if len(m.todos) == 0 {
@@ -304,25 +320,23 @@ func (m *ListModel) View() string {
 			styles.HelpStyle.Render("按 c 创建新待办"),
 		}, "\n")
 
-		cardContent := components.Card(styles.IconTodo+" 待办列表", emptyContent, m.width-4)
-		b.WriteString(cardContent)
-		b.WriteString("\n\n")
-
 		keys := []string{
 			styles.StatusKeyStyle.Render("c") + " 新建",
 			styles.StatusKeyStyle.Render("esc") + " 返回",
 		}
-		b.WriteString(components.RenderKeysOnly(keys, m.width))
 
 		content = b.String()
-		if m.width > 0 && m.height > 0 {
-			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
-		}
-		return content
+		return layout.ListPage(
+			m.frame,
+			"待办管理 > 待办列表",
+			styles.IconTodo+" 待办列表",
+			emptyContent,
+			keys,
+			"",
+		)
 	}
 
 	// 渲染列表内容
-	var b strings.Builder
 	listContent := m.renderList()
 
 	// 卡片标题带作用域信息
@@ -331,10 +345,6 @@ func (m *ListModel) View() string {
 		scopeInfo = "[All]"
 	}
 	cardTitle := fmt.Sprintf("%s 待办列表 %s", styles.IconTodo, scopeInfo)
-	cardContent := components.Card(cardTitle, listContent, m.width-4)
-	b.WriteString(cardContent)
-	b.WriteString("\n\n")
-
 	// 底部快捷键状态栏
 	scopeLabel := "Personal"
 	if m.showAllScope {
@@ -350,13 +360,14 @@ func (m *ListModel) View() string {
 		styles.StatusKeyStyle.Render("d") + " 删除",
 		styles.StatusKeyStyle.Render("esc") + " 返回",
 	}
-	b.WriteString(components.RenderKeysOnly(keys, m.width))
-
-	content = b.String()
-	if m.width > 0 && m.height > 0 {
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
-	}
-	return content
+	return layout.ListPage(
+		m.frame,
+		"待办管理 > 待办列表",
+		cardTitle,
+		listContent,
+		keys,
+		"",
+	)
 }
 
 // renderList 渲染待办列表
@@ -412,18 +423,29 @@ func (m *ListModel) renderTodoItem(todo entity.ToDo, selected bool) string {
 
 	line := strings.Join(parts, " ")
 
+	width := m.cardInner - 2
+	if width < 10 {
+		width = 10
+	}
+
 	// 选中项带背景
 	if selected {
 		return lipgloss.NewStyle().
 			Background(styles.Surface1).
 			Foreground(styles.Text).
-			Width(m.width-8).
+			Width(width).
 			Padding(0, 1).
 			Render(line)
 	}
 
 	return lipgloss.NewStyle().
-		Width(m.width-8).
+		Width(width).
 		Padding(0, 1).
 		Render(line)
+}
+
+// updateCardMetrics 统一计算列表卡片的宽度与可用内容宽度
+func (m *ListModel) updateCardMetrics() {
+	m.cardWidth = layout.DefaultCardWidth(m.frame)
+	m.cardInner = layout.CardInnerWidth(m.cardWidth)
 }

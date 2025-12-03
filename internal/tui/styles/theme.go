@@ -66,6 +66,7 @@ var (
 			Border(RoundedBorder).
 			BorderForeground(Border).
 			Foreground(Text).
+			Background(Mantle).
 			Padding(0, 1)
 
 	// 内容区样式
@@ -77,6 +78,7 @@ var (
 			Border(RoundedBorder).
 			BorderForeground(Border).
 			Foreground(Subtext0).
+			Background(Mantle).
 			Padding(0, 1)
 )
 

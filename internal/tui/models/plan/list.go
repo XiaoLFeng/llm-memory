@@ -8,6 +8,7 @@ import (
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/layout"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
@@ -340,12 +341,6 @@ func (m *ListModel) View() string {
 	extra := fmt.Sprintf("%s 共 %d 个计划", scopeInfo, len(m.plans))
 
 	// 包装在卡片中
-	cardContent := components.Card(styles.IconTasks+" 计划列表", listContent, m.frame.GetContentWidth()-4)
-
-	content := lipgloss.NewStyle().
-		Width(m.frame.GetContentWidth()).
-		Render(cardContent)
-
 	// 快捷键
 	scopeLabel := "Personal"
 	if m.showAllScope {
@@ -363,7 +358,14 @@ func (m *ListModel) View() string {
 		"esc 返回",
 	}
 
-	return m.frame.Render("计划管理 > 计划列表", content, keys, extra)
+	return layout.ListPage(
+		m.frame,
+		"计划管理 > 计划列表",
+		styles.IconTasks+" 计划列表",
+		listContent,
+		keys,
+		extra,
+	)
 }
 
 // renderPlanItem 渲染计划列表项

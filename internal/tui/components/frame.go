@@ -102,14 +102,10 @@ func (f *Frame) renderHeader(breadcrumb, extra string, width int) string {
 
 	content := left + strings.Repeat(" ", padding) + right
 
-	headerStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(styles.Border).
-		Foreground(styles.Text).
+	return styles.HeaderStyle.
+		Copy().
 		Width(width).
-		Padding(0, 1)
-
-	return headerStyle.Render(content)
+		Render(content)
 }
 
 // renderContent 渲染内容区域
@@ -136,14 +132,10 @@ func (f *Frame) renderFooter(keys []string, width int) string {
 	// 用分隔符连接快捷键
 	keysStr := strings.Join(keys, "  │  ")
 
-	footerStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(styles.Border).
-		Foreground(styles.Subtext0).
+	return styles.FooterStyle.
+		Copy().
 		Width(width).
-		Padding(0, 1)
-
-	return footerStyle.Render(keysStr)
+		Render(keysStr)
 }
 
 // RenderWithCard 渲染带卡片包装的框架

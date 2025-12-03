@@ -5,6 +5,7 @@ import (
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/layout"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
@@ -195,14 +196,8 @@ func (m *MenuModel) View() string {
 		statusBar,
 	)
 
-	// 居中显示
-	return lipgloss.Place(
-		m.width,
-		m.height,
-		lipgloss.Center,
-		lipgloss.Center,
-		content,
-	)
+	// 使用统一的菜单布局
+	return layout.MenuPage(m.width, m.height, content)
 }
 
 // SetSize 设置窗口大小

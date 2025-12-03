@@ -8,6 +8,7 @@ import (
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/layout"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
@@ -41,6 +42,7 @@ type ListModel struct {
 	selectedIndex int
 	width         int
 	height        int
+	frame         *components.Frame
 	loading       bool
 	err           error
 }
@@ -51,6 +53,7 @@ func NewListModel(bs *startup.Bootstrap) *ListModel {
 		bs:            bs,
 		loading:       true,
 		selectedIndex: 0,
+		frame:         components.NewFrame(80, 24),
 	}
 }
 
@@ -138,6 +141,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.frame.SetSize(msg.Width, msg.Height)
 
 	case groupsLoadedMsg:
 		m.loading = false
@@ -178,36 +182,51 @@ func (m *ListModel) deleteGroup(id int64) tea.Cmd {
 // View 渲染界面
 func (m *ListModel) View() string {
 	if m.loading {
-		loadingStyle := lipgloss.NewStyle().
+		content := lipgloss.NewStyle().
 			Foreground(styles.Info).
-			Align(lipgloss.Center)
-		content := loadingStyle.Render("加载中...")
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+			Render("加载中...")
+		return layout.ListPage(
+			m.frame,
+			"组管理 > 组列表",
+			styles.IconUsers+" 组管理",
+			content,
+			[]string{},
+			"",
+		)
 	}
 
 	if m.err != nil {
-		errorStyle := lipgloss.NewStyle().
+		content := lipgloss.NewStyle().
 			Foreground(styles.Error).
-			Align(lipgloss.Center)
-		content := errorStyle.Render("错误: " + m.err.Error())
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+			Render("错误: " + m.err.Error())
+		return layout.ListPage(
+			m.frame,
+			"组管理 > 组列表",
+			styles.IconUsers+" 组管理",
+			content,
+			[]string{},
+			"",
+		)
 	}
 
 	if len(m.groups) == 0 {
-		emptyStyle := lipgloss.NewStyle().
+		content := lipgloss.NewStyle().
 			Foreground(styles.Subtext0).
-			Align(lipgloss.Center)
-		content := emptyStyle.Render("暂无组~ 按 c 创建新组")
+			Render("暂无组~ 按 c 创建新组")
 
-		// 状态栏
 		keys := []string{
-			lipgloss.NewStyle().Foreground(styles.Primary).Render("c") + " 新建",
-			lipgloss.NewStyle().Foreground(styles.Primary).Render("esc") + " 返回",
+			styles.StatusKeyStyle.Render("c") + " " + styles.StatusValueStyle.Render("新建"),
+			styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("返回"),
 		}
-		statusBar := components.RenderKeysOnly(keys, m.width)
 
-		view := lipgloss.Place(m.width, m.height-3, lipgloss.Center, lipgloss.Center, content)
-		return lipgloss.JoinVertical(lipgloss.Left, view, statusBar)
+		return layout.ListPage(
+			m.frame,
+			"组管理 > 组列表",
+			styles.IconUsers+" 组管理",
+			content,
+			keys,
+			"",
+		)
 	}
 
 	// 构建列表内容
@@ -250,30 +269,23 @@ func (m *ListModel) View() string {
 		}
 	}
 
-	// 计算卡片宽度
-	cardWidth := m.width - 4
-	if cardWidth < 60 {
-		cardWidth = 60
-	}
-
-	// 使用卡片包装列表
-	titleWithCount := fmt.Sprintf("%s 组管理 %s", styles.IconUsers,
-		lipgloss.NewStyle().Foreground(styles.Subtext0).Render(fmt.Sprintf("(%d)", len(m.groups))))
-	card := components.Card(titleWithCount, listItems.String(), cardWidth)
-
 	// 状态栏
 	keys := []string{
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("↑/↓") + " 选择",
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("enter") + " 查看",
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("c") + " 新建",
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("d") + " 删除",
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("esc") + " 返回",
+		styles.StatusKeyStyle.Render("↑/↓") + " " + styles.StatusValueStyle.Render("选择"),
+		styles.StatusKeyStyle.Render("enter") + " " + styles.StatusValueStyle.Render("查看"),
+		styles.StatusKeyStyle.Render("c") + " " + styles.StatusValueStyle.Render("新建"),
+		styles.StatusKeyStyle.Render("d") + " " + styles.StatusValueStyle.Render("删除"),
+		styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("返回"),
 	}
-	statusBar := components.RenderKeysOnly(keys, m.width)
 
-	// 组合视图
-	contentHeight := m.height - 3
-	centeredCard := lipgloss.Place(m.width, contentHeight, lipgloss.Center, lipgloss.Center, card)
+	extra := fmt.Sprintf("共 %d 个组", len(m.groups))
 
-	return lipgloss.JoinVertical(lipgloss.Left, centeredCard, statusBar)
+	return layout.ListPage(
+		m.frame,
+		"组管理 > 组列表",
+		styles.IconUsers+" 组管理",
+		listItems.String(),
+		keys,
+		extra,
+	)
 }

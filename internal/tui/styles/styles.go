@@ -138,15 +138,17 @@ var (
 var (
 	StatusBarStyle = lipgloss.NewStyle().
 			Foreground(Subtext0).
-			Background(Surface0).
+			Background(Mantle).
 			Padding(0, 1)
 
 	StatusKeyStyle = lipgloss.NewStyle().
 			Foreground(Primary).
+			Background(Mantle).
 			Bold(true)
 
 	StatusValueStyle = lipgloss.NewStyle().
-				Foreground(Text)
+				Foreground(Text).
+				Background(Mantle)
 )
 
 // 对话框样式
