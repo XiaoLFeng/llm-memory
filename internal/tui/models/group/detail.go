@@ -27,6 +27,7 @@ type DetailModel struct {
 	height        int
 	loading       bool
 	err           error
+	frame         *components.Frame
 }
 
 // NewDetailModel 创建组详情模型
@@ -35,6 +36,7 @@ func NewDetailModel(bs *startup.Bootstrap, groupID int64) *DetailModel {
 		bs:      bs,
 		groupID: groupID,
 		loading: true,
+		frame:   components.NewFrame(80, 24),
 	}
 }
 
@@ -121,6 +123,7 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.frame.SetSize(msg.Width, msg.Height)
 
 	case groupDetailLoadedMsg:
 		m.loading = false
@@ -182,7 +185,14 @@ func (m *DetailModel) View() string {
 			Foreground(styles.Info).
 			Align(lipgloss.Center)
 		content := loadingStyle.Render("加载中...")
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+		centeredContent := lipgloss.Place(
+			m.frame.GetContentWidth(),
+			m.frame.GetContentHeight(),
+			lipgloss.Center,
+			lipgloss.Center,
+			content,
+		)
+		return m.frame.Render("组管理 > 组详情", centeredContent, []string{}, "")
 	}
 
 	if m.err != nil {
@@ -190,7 +200,14 @@ func (m *DetailModel) View() string {
 			Foreground(styles.Error).
 			Align(lipgloss.Center)
 		content := errorStyle.Render("错误: " + m.err.Error())
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+		centeredContent := lipgloss.Place(
+			m.frame.GetContentWidth(),
+			m.frame.GetContentHeight(),
+			lipgloss.Center,
+			lipgloss.Center,
+			content,
+		)
+		return m.frame.Render("组管理 > 组详情", centeredContent, []string{}, "")
 	}
 
 	if m.group == nil {
@@ -198,11 +215,21 @@ func (m *DetailModel) View() string {
 			Foreground(styles.Error).
 			Align(lipgloss.Center)
 		content := errorStyle.Render("组不存在")
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+		centeredContent := lipgloss.Place(
+			m.frame.GetContentWidth(),
+			m.frame.GetContentHeight(),
+			lipgloss.Center,
+			lipgloss.Center,
+			content,
+		)
+		return m.frame.Render("组管理 > 组详情", centeredContent, []string{}, "")
 	}
 
 	// 计算卡片宽度
-	cardWidth := m.width - 4
+	cardWidth := m.frame.GetContentWidth() - 4
+	if cardWidth > 80 {
+		cardWidth = 80
+	}
 	if cardWidth < 60 {
 		cardWidth = 60
 	}
@@ -232,7 +259,7 @@ func (m *DetailModel) View() string {
 			path := groupPath.Path
 			var line string
 			if i == m.selectedIndex {
-				indicator := lipgloss.NewStyle().Foreground(styles.Primary).Render("▸ ")
+				indicator := lipgloss.NewStyle().Foreground(styles.Primary).Render(styles.IconTriangle + " ")
 				pathStyle := lipgloss.NewStyle().Foreground(styles.Primary).Bold(true)
 				line = indicator + pathStyle.Render(path)
 			} else {
@@ -252,18 +279,25 @@ func (m *DetailModel) View() string {
 	// 组合卡片
 	cards := lipgloss.JoinVertical(lipgloss.Left, basicCard, "", pathsCard)
 
-	// 状态栏
+	// 居中显示
+	centeredContent := lipgloss.Place(
+		m.frame.GetContentWidth(),
+		m.frame.GetContentHeight(),
+		lipgloss.Center,
+		lipgloss.Center,
+		cards,
+	)
+
+	// 快捷键
 	keys := []string{
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("↑/↓") + " 选择路径",
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("a") + " 添加当前目录",
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("d") + " 移除路径",
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("esc") + " 返回",
+		styles.StatusKeyStyle.Render("↑/↓") + " " + styles.StatusValueStyle.Render("选择路径"),
+		styles.StatusKeyStyle.Render("a") + " " + styles.StatusValueStyle.Render("添加当前目录"),
+		styles.StatusKeyStyle.Render("d") + " " + styles.StatusValueStyle.Render("移除路径"),
+		styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("返回"),
 	}
-	statusBar := components.RenderKeysOnly(keys, m.width)
 
-	// 组合视图
-	contentHeight := m.height - 3
-	centeredCards := lipgloss.Place(m.width, contentHeight, lipgloss.Center, lipgloss.Center, cards)
+	// 面包屑
+	breadcrumb := "组管理 > " + m.group.Name
 
-	return lipgloss.JoinVertical(lipgloss.Left, centeredCards, statusBar)
+	return m.frame.Render(breadcrumb, centeredContent, keys, "")
 }

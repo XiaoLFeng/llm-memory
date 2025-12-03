@@ -7,6 +7,7 @@ import (
 
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
@@ -51,6 +52,7 @@ type SearchModel struct {
 	width     int
 	height    int
 	err       error
+	frame     *components.Frame
 }
 
 // NewSearchModel 创建记忆搜索模型
@@ -79,6 +81,7 @@ func NewSearchModel(bs *startup.Bootstrap) *SearchModel {
 		bs:    bs,
 		input: ti,
 		list:  l,
+		frame: components.NewFrame(80, 24),
 	}
 }
 
@@ -136,8 +139,9 @@ func (m *SearchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.input.Width = msg.Width - 10
-		m.list.SetSize(msg.Width-4, msg.Height-12)
+		m.frame.SetSize(msg.Width, msg.Height)
+		m.input.Width = m.frame.GetContentWidth() - 10
+		m.list.SetSize(m.frame.GetContentWidth()-4, m.frame.GetContentHeight()-12)
 
 	case searchResultsMsg:
 		m.searching = false
@@ -190,9 +194,6 @@ func (m *SearchModel) search(keyword string) tea.Cmd {
 func (m *SearchModel) View() string {
 	var b strings.Builder
 
-	b.WriteString(styles.TitleStyle.Render(styles.IconSearch + " 搜索记忆"))
-	b.WriteString("\n\n")
-
 	// 搜索框
 	b.WriteString(styles.LabelStyle.Render("关键词"))
 	b.WriteString("\n")
@@ -220,10 +221,14 @@ func (m *SearchModel) View() string {
 		b.WriteString(styles.MutedStyle.Render("未找到匹配的记忆"))
 	}
 
-	b.WriteString("\n")
-	b.WriteString(styles.HelpStyle.Render("enter 搜索/查看 | ↑/↓ 选择 | esc 返回"))
+	// 快捷键
+	keys := []string{
+		styles.StatusKeyStyle.Render("Enter") + " " + styles.StatusValueStyle.Render("搜索/查看"),
+		styles.StatusKeyStyle.Render("↑/↓") + " " + styles.StatusValueStyle.Render("选择"),
+		styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("返回"),
+	}
 
-	return b.String()
+	return m.frame.Render("记忆管理 > "+styles.IconSearch+" 搜索记忆", b.String(), keys, "")
 }
 
 // 引入 utils 进行格式化

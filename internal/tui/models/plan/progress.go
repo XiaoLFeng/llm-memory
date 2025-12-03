@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // ProgressModel 计划进度更新模型
@@ -24,6 +26,7 @@ type ProgressModel struct {
 	width    int
 	height   int
 	err      error
+	frame    *components.Frame
 }
 
 // NewProgressModel 创建计划进度更新模型
@@ -40,6 +43,7 @@ func NewProgressModel(bs *startup.Bootstrap, id int64, progress int) *ProgressMo
 		id:       id,
 		progress: progress,
 		input:    ti,
+		frame:    components.NewFrame(80, 24),
 	}
 }
 
@@ -84,6 +88,7 @@ func (m *ProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.frame.SetSize(msg.Width, msg.Height)
 
 	case progressUpdatedMsg:
 		return m, tea.Batch(
@@ -142,33 +147,50 @@ func (m *ProgressModel) save() tea.Cmd {
 
 // View 渲染界面
 func (m *ProgressModel) View() string {
-	var b strings.Builder
-
-	b.WriteString(styles.TitleStyle.Render(styles.IconChart + " 更新进度"))
-	b.WriteString("\n\n")
+	var formContent strings.Builder
 
 	// 当前进度
-	b.WriteString(styles.SubtitleStyle.Render("当前进度"))
-	b.WriteString("\n")
+	formContent.WriteString(styles.LabelStyle.Render("当前进度"))
+	formContent.WriteString("\n")
 	progress, _ := strconv.Atoi(m.input.Value())
-	b.WriteString(utils.FormatProgress(progress, 30))
-	b.WriteString("\n\n")
+	formContent.WriteString(utils.FormatProgress(progress, 30))
+	formContent.WriteString("\n\n")
 
 	// 输入框
-	b.WriteString(styles.LabelStyle.Render("新进度 (0-100)"))
-	b.WriteString("\n")
-	b.WriteString(m.input.View())
-	b.WriteString(" %")
-	b.WriteString("\n\n")
+	formContent.WriteString(styles.LabelStyle.Render("新进度 (0-100)"))
+	formContent.WriteString("\n")
+	formContent.WriteString(m.input.View())
+	formContent.WriteString(" %")
+	formContent.WriteString("\n")
 
 	// 错误信息
 	if m.err != nil {
-		b.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
-		b.WriteString("\n\n")
+		formContent.WriteString("\n")
+		formContent.WriteString(styles.ErrorStyle.Render("错误: " + m.err.Error()))
 	}
 
-	// 帮助信息
-	b.WriteString(styles.HelpStyle.Render("↑/↓ 调整 | enter 保存 | esc 取消"))
+	// 使用卡片包装表单
+	cardWidth := m.frame.GetContentWidth() - 4
+	if cardWidth > 60 {
+		cardWidth = 60
+	}
+	cardContent := components.Card(styles.IconChart+" 更新进度", formContent.String(), cardWidth)
 
-	return b.String()
+	// 居中显示
+	centeredContent := lipgloss.Place(
+		m.frame.GetContentWidth(),
+		m.frame.GetContentHeight(),
+		lipgloss.Center,
+		lipgloss.Center,
+		cardContent,
+	)
+
+	// 快捷键
+	keys := []string{
+		styles.StatusKeyStyle.Render("↑/↓") + " " + styles.StatusValueStyle.Render("调整"),
+		styles.StatusKeyStyle.Render("Enter") + " " + styles.StatusValueStyle.Render("保存"),
+		styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("取消"),
+	}
+
+	return m.frame.Render("计划管理 > "+styles.IconChart+" 更新进度", centeredContent, keys, "")
 }

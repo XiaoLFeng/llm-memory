@@ -25,6 +25,7 @@ type CreateModel struct {
 	width      int
 	height     int
 	err        error
+	frame      *components.Frame
 }
 
 // NewCreateModel 创建组创建模型
@@ -46,6 +47,7 @@ func NewCreateModel(bs *startup.Bootstrap) *CreateModel {
 		bs:        bs,
 		nameInput: ni,
 		descArea:  ta,
+		frame:     components.NewFrame(80, 24),
 	}
 }
 
@@ -91,6 +93,7 @@ func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.frame.SetSize(msg.Width, msg.Height)
 
 	case groupCreatedMsg:
 		return m, tea.Batch(
@@ -160,7 +163,10 @@ func (m *CreateModel) save() tea.Cmd {
 // View 渲染界面
 func (m *CreateModel) View() string {
 	// 计算卡片宽度
-	cardWidth := m.width - 4
+	cardWidth := m.frame.GetContentWidth() - 4
+	if cardWidth > 70 {
+		cardWidth = 70
+	}
 	if cardWidth < 60 {
 		cardWidth = 60
 	}
@@ -216,17 +222,21 @@ func (m *CreateModel) View() string {
 	// 使用卡片包装表单
 	card := components.Card(styles.IconUsers+" 创建新组", formContent.String(), cardWidth)
 
-	// 状态栏
+	// 居中显示
+	centeredContent := lipgloss.Place(
+		m.frame.GetContentWidth(),
+		m.frame.GetContentHeight(),
+		lipgloss.Center,
+		lipgloss.Center,
+		card,
+	)
+
+	// 快捷键
 	keys := []string{
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("tab") + " 切换",
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("ctrl+s") + " 保存",
-		lipgloss.NewStyle().Foreground(styles.Primary).Render("esc") + " 返回",
+		styles.StatusKeyStyle.Render("Tab") + " " + styles.StatusValueStyle.Render("切换"),
+		styles.StatusKeyStyle.Render("Ctrl+S") + " " + styles.StatusValueStyle.Render("保存"),
+		styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("返回"),
 	}
-	statusBar := components.RenderKeysOnly(keys, m.width)
 
-	// 组合视图
-	contentHeight := m.height - 3
-	centeredCard := lipgloss.Place(m.width, contentHeight, lipgloss.Center, lipgloss.Center, card)
-
-	return lipgloss.JoinVertical(lipgloss.Left, centeredCard, statusBar)
+	return m.frame.Render("组管理 > "+styles.IconUsers+" 创建组", centeredContent, keys, "")
 }

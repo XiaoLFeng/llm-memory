@@ -29,6 +29,7 @@ type CreateModel struct {
 	width         int
 	height        int
 	err           error
+	frame         *components.Frame
 }
 
 // NewCreateModel 创建待办创建模型
@@ -58,6 +59,7 @@ func NewCreateModel(bs *startup.Bootstrap) *CreateModel {
 		titleInput:    ti,
 		descArea:      ta,
 		priorityInput: pi,
+		frame:         components.NewFrame(80, 24),
 	}
 }
 
@@ -103,6 +105,7 @@ func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.frame.SetSize(msg.Width, msg.Height)
 
 	case todoCreatedMsg:
 		return m, tea.Batch(
@@ -232,29 +235,38 @@ func (m *CreateModel) View() string {
 	}
 
 	// 使用卡片包装表单
-	var b strings.Builder
-	cardContent := components.Card(styles.IconEdit+" 创建新待办", formContent.String(), m.width-4)
-	b.WriteString(cardContent)
-	b.WriteString("\n\n")
+	cardWidth := m.frame.GetContentWidth() - 4
+	if cardWidth > 70 {
+		cardWidth = 70
+	}
+	cardContent := components.Card(styles.IconEdit+" 创建新待办", formContent.String(), cardWidth)
 
-	// 底部快捷键状态栏
+	// 居中显示
+	centeredContent := lipgloss.Place(
+		m.frame.GetContentWidth(),
+		m.frame.GetContentHeight(),
+		lipgloss.Center,
+		lipgloss.Center,
+		cardContent,
+	)
+
+	// 快捷键
 	keys := []string{
-		styles.StatusKeyStyle.Render("tab") + " 切换",
-		styles.StatusKeyStyle.Render("ctrl+s") + " 保存",
-		styles.StatusKeyStyle.Render("esc") + " 取消",
+		styles.StatusKeyStyle.Render("Tab") + " " + styles.StatusValueStyle.Render("切换"),
+		styles.StatusKeyStyle.Render("Ctrl+S") + " " + styles.StatusValueStyle.Render("保存"),
+		styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("取消"),
 	}
-	b.WriteString(components.RenderKeysOnly(keys, m.width))
 
-	content := b.String()
-	if m.width > 0 && m.height > 0 {
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
-	}
-	return content
+	return m.frame.Render("待办管理 > "+styles.IconEdit+" 创建待办", centeredContent, keys, "")
 }
 
 // renderInput 渲染输入框（带聚焦样式）
 func (m *CreateModel) renderInput(index int) string {
 	focused := m.focusIndex == index
+	inputWidth := m.frame.GetContentWidth() - 16
+	if inputWidth > 60 {
+		inputWidth = 60
+	}
 
 	switch index {
 	case 0:
@@ -265,14 +277,14 @@ func (m *CreateModel) renderInput(index int) string {
 				BorderStyle(lipgloss.RoundedBorder()).
 				BorderForeground(styles.Primary).
 				Padding(0, 1).
-				Width(m.width - 12).
+				Width(inputWidth).
 				Render(inputView)
 		}
 		return lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(styles.Border).
 			Padding(0, 1).
-			Width(m.width - 12).
+			Width(inputWidth).
 			Render(inputView)
 
 	case 1:
@@ -283,14 +295,14 @@ func (m *CreateModel) renderInput(index int) string {
 				BorderStyle(lipgloss.RoundedBorder()).
 				BorderForeground(styles.Primary).
 				Padding(0, 1).
-				Width(m.width - 12).
+				Width(inputWidth).
 				Render(textView)
 		}
 		return lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(styles.Border).
 			Padding(0, 1).
-			Width(m.width - 12).
+			Width(inputWidth).
 			Render(textView)
 
 	case 2:

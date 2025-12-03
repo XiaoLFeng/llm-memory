@@ -53,6 +53,7 @@ const (
 	IconPause = "" // nf-fa-pause - 暂停
 	IconStop  = "" // nf-fa-stop - 停止
 	IconSave  = "" // nf-fa-save - 保存
+	IconWave  = "" // nf-fa-hand_paper_o - 挥手告别
 
 	// 指示器
 	IconDot      = "" // nf-fa-circle - 圆点
