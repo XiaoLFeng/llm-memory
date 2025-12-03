@@ -107,7 +107,7 @@ func (m *PlanModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs 
 	if len(conditions) > 0 {
 		query = query.Where(strings.Join(conditions, " OR "), args...)
 	} else {
-		return plans, nil
+		query = query.Where("path_id = 0")
 	}
 
 	err := query.Order("created_at DESC").Find(&plans).Error

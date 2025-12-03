@@ -43,12 +43,14 @@ func parseScope(scope string, scopeCtx *types.ScopeContext) (int64, []int64, boo
 		if scopeCtx != nil && scopeCtx.PathID > 0 {
 			return scopeCtx.PathID, nil, false
 		}
-		return 0, nil, false
+		// 没有上下文时，回退到全局可见
+		return 0, nil, true
 	case "group":
 		if scopeCtx != nil && len(scopeCtx.GroupPathIDs) > 0 {
 			return 0, scopeCtx.GroupPathIDs, false
 		}
-		return 0, nil, false
+		// 无组上下文则退回全局
+		return 0, nil, true
 	case "global":
 		return 0, nil, true
 	case "all":

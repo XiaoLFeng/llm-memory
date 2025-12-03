@@ -102,7 +102,7 @@ func (m *ToDoModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs 
 	if len(conditions) > 0 {
 		query = query.Where(strings.Join(conditions, " OR "), args...)
 	} else {
-		return todos, nil
+		query = query.Where("path_id = 0")
 	}
 
 	err := query.Order("priority DESC, created_at DESC").Find(&todos).Error

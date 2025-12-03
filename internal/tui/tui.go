@@ -1,16 +1,14 @@
 package tui
 
 import (
-	"github.com/XiaoLFeng/llm-memory/internal/tui/models"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/app"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Run 运行 TUI
-// 呀~ 启动终端用户界面！✨
+// Run 启动新 TUI
 func Run(bs *startup.Bootstrap) error {
-	app := models.NewAppModel(bs)
-	p := tea.NewProgram(app, tea.WithAltScreen())
-	_, err := p.Run()
+	prog := tea.NewProgram(app.New(bs), tea.WithAltScreen())
+	_, err := prog.Run()
 	return err
 }

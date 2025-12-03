@@ -99,8 +99,8 @@ func (m *MemoryModel) FindByScope(ctx context.Context, pathID int64, groupPathID
 	if len(conditions) > 0 {
 		query = query.Where(strings.Join(conditions, " OR "), args...)
 	} else {
-		// 无任何条件时，返回空结果
-		return memories, nil
+		// 无条件时默认返回全局数据（path_id = 0）以避免调用方因 scopeCtx 为空而取不到数据
+		query = query.Where("path_id = 0")
 	}
 
 	err := query.Order("created_at DESC").Find(&memories).Error
