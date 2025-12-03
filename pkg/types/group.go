@@ -7,20 +7,20 @@ import (
 // Group 组实体结构体
 // 嘿嘿~ 用于管理多个路径共享同一套记忆、计划、待办！📦
 type Group struct {
-	ID          int       `json:"id" storm:"id,increment"`  // 主键，自增
-	Name        string    `json:"name" storm:"unique"`      // 组名称，唯一
-	Description string    `json:"description"`              // 组描述
-	Paths       []string  `json:"paths"`                    // 关联的路径列表
-	CreatedAt   time.Time `json:"created_at" storm:"index"` // 创建时间
-	UpdatedAt   time.Time `json:"updated_at"`               // 更新时间
+	ID          int       `json:"id"`          // 主键，自增
+	Name        string    `json:"name"`        // 组名称，唯一
+	Description string    `json:"description"` // 组描述
+	Paths       []string  `json:"paths"`       // 关联的路径列表
+	CreatedAt   time.Time `json:"created_at"`  // 创建时间
+	UpdatedAt   time.Time `json:"updated_at"`  // 更新时间
 }
 
 // GroupPathMapping 路径到组的映射
 // 呀~ 用于快速查找路径属于哪个组呢！🔍
 type GroupPathMapping struct {
-	ID      int    `storm:"id,increment"` // 主键
-	Path    string `storm:"unique"`       // 路径（唯一索引）
-	GroupID int    `storm:"index"`        // 所属组ID
+	ID      int    `json:"id"`       // 主键
+	Path    string `json:"path"`     // 路径（唯一索引）
+	GroupID int    `json:"group_id"` // 所属组ID
 }
 
 // NewGroup 创建新的组实例

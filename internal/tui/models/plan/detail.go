@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -19,8 +19,8 @@ import (
 // 嘿嘿~ 查看计划的详细内容！📋
 type DetailModel struct {
 	bs       *startup.Bootstrap
-	id       int
-	plan     *types.Plan
+	id       uint
+	plan     *entity.Plan
 	viewport viewport.Model
 	ready    bool
 	width    int
@@ -31,7 +31,7 @@ type DetailModel struct {
 }
 
 // NewDetailModel 创建计划详情模型
-func NewDetailModel(bs *startup.Bootstrap, id int) *DetailModel {
+func NewDetailModel(bs *startup.Bootstrap, id uint) *DetailModel {
 	return &DetailModel{
 		bs:      bs,
 		id:      id,
@@ -70,7 +70,7 @@ func (m *DetailModel) loadPlan() tea.Cmd {
 }
 
 type planLoadedMsg struct {
-	plan *types.Plan
+	plan *entity.Plan
 }
 
 // Update 处理输入
@@ -85,13 +85,13 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case msg.String() == "s":
 			// 开始计划
-			if m.plan != nil && m.plan.Status == types.PlanStatusPending {
+			if m.plan != nil && m.plan.Status == entity.PlanStatusPending {
 				return m, m.startPlan()
 			}
 
 		case msg.String() == "f":
 			// 完成计划
-			if m.plan != nil && m.plan.Status == types.PlanStatusInProgress {
+			if m.plan != nil && m.plan.Status == entity.PlanStatusInProgress {
 				return m, m.completePlan()
 			}
 

@@ -6,11 +6,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,8 +21,8 @@ import (
 // 嘿嘿~ 查看组的详细信息和管理路径！📋
 type DetailModel struct {
 	bs            *startup.Bootstrap
-	groupID       int
-	group         *types.Group
+	groupID       uint
+	group         *entity.Group
 	selectedIndex int
 	width         int
 	height        int
@@ -31,7 +31,7 @@ type DetailModel struct {
 }
 
 // NewDetailModel 创建组详情模型
-func NewDetailModel(bs *startup.Bootstrap, groupID int) *DetailModel {
+func NewDetailModel(bs *startup.Bootstrap, groupID uint) *DetailModel {
 	return &DetailModel{
 		bs:      bs,
 		groupID: groupID,
@@ -69,7 +69,7 @@ func (m *DetailModel) loadGroup() tea.Cmd {
 }
 
 type groupDetailLoadedMsg struct {
-	group *types.Group
+	group *entity.Group
 }
 
 type groupDetailErrorMsg struct {
@@ -109,7 +109,7 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, common.KeyDelete):
 			// 删除选中的路径
 			if m.group != nil && len(m.group.Paths) > 0 && m.selectedIndex < len(m.group.Paths) {
-				path := m.group.Paths[m.selectedIndex]
+				path := m.group.Paths[m.selectedIndex].Path
 				return m, common.ShowConfirm(
 					"移除路径",
 					fmt.Sprintf("确定要从组中移除路径「%s」吗？", path),
@@ -229,7 +229,8 @@ func (m *DetailModel) View() string {
 			Foreground(styles.Subtext0).
 			Render("暂无关联路径~ 按 a 添加当前目录"))
 	} else {
-		for i, path := range m.group.Paths {
+		for i, groupPath := range m.group.Paths {
+			path := groupPath.Path
 			var line string
 			if i == m.selectedIndex {
 				indicator := lipgloss.NewStyle().Foreground(styles.Primary).Render("▸ ")

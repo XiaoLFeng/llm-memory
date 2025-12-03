@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,7 +18,7 @@ import (
 
 // groupItem 组列表项
 type groupItem struct {
-	group types.Group
+	group entity.Group
 }
 
 func (i groupItem) Title() string {
@@ -38,7 +38,7 @@ func (i groupItem) FilterValue() string {
 // 嘿嘿~ 展示所有组的列表！👥
 type ListModel struct {
 	bs            *startup.Bootstrap
-	groups        []types.Group
+	groups        []entity.Group
 	selectedIndex int
 	width         int
 	height        int
@@ -85,7 +85,7 @@ func (m *ListModel) loadGroups() tea.Cmd {
 }
 
 type groupsLoadedMsg struct {
-	groups []types.Group
+	groups []entity.Group
 }
 
 type groupsErrorMsg struct {
@@ -93,7 +93,7 @@ type groupsErrorMsg struct {
 }
 
 type groupDeletedMsg struct {
-	id int
+	id uint
 }
 
 // Update 处理输入
@@ -162,7 +162,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // deleteGroup 删除组
-func (m *ListModel) deleteGroup(id int) tea.Cmd {
+func (m *ListModel) deleteGroup(id uint) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.GroupService.DeleteGroup(context.Background(), id)
 		if err != nil {

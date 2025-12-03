@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,7 +20,7 @@ import (
 // 嘿嘿~ 展示所有计划的列表！📋
 type ListModel struct {
 	bs          *startup.Bootstrap
-	plans       []types.Plan
+	plans       []entity.Plan
 	cursor      int
 	width       int
 	height      int
@@ -69,7 +69,7 @@ func (m *ListModel) loadPlans() tea.Cmd {
 }
 
 type plansLoadedMsg struct {
-	plans []types.Plan
+	plans []entity.Plan
 }
 
 type plansErrorMsg struct {
@@ -77,15 +77,15 @@ type plansErrorMsg struct {
 }
 
 type planDeletedMsg struct {
-	id int
+	id uint
 }
 
 type planStartedMsg struct {
-	id int
+	id uint
 }
 
 type planCompletedMsg struct {
-	id int
+	id uint
 }
 
 // Update 处理输入
@@ -133,7 +133,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// 开始计划
 			if len(m.plans) > 0 && m.cursor < len(m.plans) {
 				plan := m.plans[m.cursor]
-				if plan.Status == types.PlanStatusPending {
+				if plan.Status == entity.PlanStatusPending {
 					return m, m.startPlan(plan.ID)
 				}
 			}
@@ -142,7 +142,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// 完成计划
 			if len(m.plans) > 0 && m.cursor < len(m.plans) {
 				plan := m.plans[m.cursor]
-				if plan.Status == types.PlanStatusInProgress {
+				if plan.Status == entity.PlanStatusInProgress {
 					return m, m.completePlan(plan.ID)
 				}
 			}
@@ -210,7 +210,7 @@ func (m *ListModel) updateScroll() {
 }
 
 // deletePlan 删除计划
-func (m *ListModel) deletePlan(id int) tea.Cmd {
+func (m *ListModel) deletePlan(id uint) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.PlanService.DeletePlan(context.Background(), id)
 		if err != nil {
@@ -221,7 +221,7 @@ func (m *ListModel) deletePlan(id int) tea.Cmd {
 }
 
 // startPlan 开始计划
-func (m *ListModel) startPlan(id int) tea.Cmd {
+func (m *ListModel) startPlan(id uint) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.PlanService.StartPlan(context.Background(), id)
 		if err != nil {
@@ -232,7 +232,7 @@ func (m *ListModel) startPlan(id int) tea.Cmd {
 }
 
 // completePlan 完成计划
-func (m *ListModel) completePlan(id int) tea.Cmd {
+func (m *ListModel) completePlan(id uint) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.PlanService.CompletePlan(context.Background(), id)
 		if err != nil {
@@ -326,7 +326,7 @@ func (m *ListModel) View() string {
 }
 
 // renderPlanItem 渲染计划列表项
-func (m *ListModel) renderPlanItem(plan types.Plan, selected bool) string {
+func (m *ListModel) renderPlanItem(plan entity.Plan, selected bool) string {
 	// 指示器
 	indicator := "  "
 	if selected {

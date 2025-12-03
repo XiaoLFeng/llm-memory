@@ -7,7 +7,8 @@ import (
 
 	"github.com/XiaoLFeng/llm-memory/internal/cli"
 	"github.com/XiaoLFeng/llm-memory/internal/cli/output"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
+	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/startup"
 )
 
@@ -57,7 +58,15 @@ func (h *MemoryHandler) Create(ctx context.Context, title, content, category str
 		category = "默认"
 	}
 
-	memory, err := h.bs.MemoryService.CreateMemory(ctx, title, content, category, tags, 2, types.GlobalGroupID, "")
+	createDTO := &dto.MemoryCreateDTO{
+		Title:    title,
+		Content:  content,
+		Category: category,
+		Tags:     tags,
+		Priority: 2,
+		Scope:    "global",
+	}
+	memory, err := h.bs.MemoryService.CreateMemory(ctx, createDTO, nil)
 	if err != nil {
 		return err
 	}
@@ -94,7 +103,7 @@ func (h *MemoryHandler) Search(ctx context.Context, keyword string) error {
 }
 
 // Delete 删除记忆
-func (h *MemoryHandler) Delete(ctx context.Context, id int) error {
+func (h *MemoryHandler) Delete(ctx context.Context, id uint) error {
 	if err := h.bs.MemoryService.DeleteMemory(ctx, id); err != nil {
 		return err
 	}
@@ -105,7 +114,7 @@ func (h *MemoryHandler) Delete(ctx context.Context, id int) error {
 
 // Get 获取单个记忆详情
 // 嗯嗯！查看记忆的详细内容！📝
-func (h *MemoryHandler) Get(ctx context.Context, id int) error {
+func (h *MemoryHandler) Get(ctx context.Context, id uint) error {
 	memory, err := h.bs.MemoryService.GetMemory(ctx, id)
 	if err != nil {
 		return err
@@ -116,7 +125,12 @@ func (h *MemoryHandler) Get(ctx context.Context, id int) error {
 	fmt.Printf("标题:     %s\n", memory.Title)
 	fmt.Printf("分类:     %s\n", memory.Category)
 	if len(memory.Tags) > 0 {
-		fmt.Printf("标签:     %s\n", strings.Join(memory.Tags, ", "))
+		tags := make([]string, len(memory.Tags))
+		for i := range memory.Tags {
+			var tag entity.MemoryTag = memory.Tags[i]
+			tags[i] = tag.Tag
+		}
+		fmt.Printf("标签:     %s\n", strings.Join(tags, ", "))
 	}
 	fmt.Printf("优先级:   %d\n", memory.Priority)
 	fmt.Printf("创建时间: %s\n", memory.CreatedAt.Format("2006-01-02 15:04:05"))

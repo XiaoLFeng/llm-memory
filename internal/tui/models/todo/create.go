@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -175,7 +175,13 @@ func (m *CreateModel) save() tea.Cmd {
 			priority = p
 		}
 
-		_, err := m.bs.TodoService.CreateTodo(context.Background(), title, description, types.Priority(priority), nil, types.GlobalGroupID, "")
+		createDTO := &dto.ToDoCreateDTO{
+			Title:       title,
+			Description: description,
+			Priority:    priority,
+			Scope:       "global",
+		}
+		_, err := m.bs.ToDoService.CreateToDo(context.Background(), createDTO, nil)
 		if err != nil {
 			return todosErrorMsg{err: err}
 		}

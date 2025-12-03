@@ -9,9 +9,9 @@ import (
 
 var Version = "0.0.1"
 
-// rootCmd 是应用的根命令
+// RootCmd 是应用的根命令
 // 呀~ 这是所有子命令的入口点！(´∀｀)💖
-var rootCmd = &cobra.Command{
+var RootCmd = &cobra.Command{
 	Use:   "llm-memory",
 	Short: "LLM-Memory - 大模型统一记忆系统",
 	Long: `LLM-Memory 是一个为大模型设计的统一记忆管理系统。
@@ -27,7 +27,7 @@ var rootCmd = &cobra.Command{
 // Execute 执行根命令
 // 这是程序的入口点~ 🚀
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := RootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -35,6 +35,6 @@ func Execute() {
 
 func init() {
 	// 添加版本标志
-	rootCmd.Version = Version
-	rootCmd.SetVersionTemplate("LLM-Memory 版本: {{.Version}}\n")
+	RootCmd.Version = Version
+	RootCmd.SetVersionTemplate("LLM-Memory 版本: {{.Version}}\n")
 }

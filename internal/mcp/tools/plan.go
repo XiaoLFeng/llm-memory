@@ -6,7 +6,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
+	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/startup"
 )
 
@@ -19,13 +20,14 @@ type PlanListInput struct {
 type PlanCreateInput struct {
 	Title       string `json:"title" jsonschema:"计划标题，简洁描述计划目标"`
 	Description string `json:"description,omitempty" jsonschema:"计划的详细描述，包含具体步骤和目标"`
+	Content     string `json:"content,omitempty" jsonschema:"计划的详细内容（新增），支持 Markdown 格式"`
 	Scope       string `json:"scope,omitempty" jsonschema:"保存到哪个作用域(personal/group/global)，默认global"`
 }
 
 // PlanUpdateProgressInput plan_update_progress 工具输入
 type PlanUpdateProgressInput struct {
-	ID       int `json:"id" jsonschema:"要更新的计划ID"`
-	Progress int `json:"progress" jsonschema:"完成进度(0-100)，系统会自动更新状态"`
+	ID       uint `json:"id" jsonschema:"要更新的计划ID"`
+	Progress int  `json:"progress" jsonschema:"完成进度(0-100)，系统会自动更新状态"`
 }
 
 // RegisterPlanTools 注册计划管理工具
@@ -56,9 +58,9 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 - all: 显示所有可见计划（默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
-		scope := buildScopeContext(input.Scope, bs)
+		scopeCtx := buildScopeContext(input.Scope, bs)
 
-		plans, err := bs.PlanService.ListPlansByScope(ctx, scope)
+		plans, err := bs.PlanService.ListPlansByScope(ctx, input.Scope, scopeCtx)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -67,7 +69,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := "计划列表:\n"
 		for _, p := range plans {
-			status := getStatusText(p.Status)
+			status := getPlanStatusText(p.Status)
 			scopeTag := getScopeTag(p.GroupID, p.Path)
 			result += fmt.Sprintf("- [%d] %s (%s, 进度: %d%%) %s\n", p.ID, p.Title, status, p.Progress, scopeTag)
 		}
@@ -90,25 +92,36 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 最佳实践：
 - 标题应明确表达计划目标
-- 描述中包含具体的里程碑或检查点
+- description 用于摘要展示
+- content 用于详细内容（支持 Markdown）
 - 创建后可通过 plan_update_progress 更新进度
 
 示例：
-- 标题："重构用户模块"，描述："1. 分析现有代码 2. 设计新架构 3. 实现核心功能 4. 编写测试 5. 代码审查"
+- 标题："重构用户模块"
+- 描述："分析、设计、实现、测试、审查"
+- 内容："## 阶段1: 分析\n- 分析现有代码\n- 识别问题点\n\n## 阶段2: 设计\n..."
 
 作用域说明：
 - personal: 保存到当前目录（只在此目录可见）
 - group: 保存到当前组（组内所有路径可见）
 - global: 保存为全局（任何地方可见，默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanCreateInput) (*mcp.CallToolResult, any, error) {
-		// 根据 scope 确定 groupID 和 path
-		groupID, path := resolveScopeForCreate(input.Scope, bs)
+		// 构建创建 DTO
+		createDTO := &dto.PlanCreateDTO{
+			Title:       input.Title,
+			Description: input.Description,
+			Content:     input.Content,
+			Scope:       input.Scope,
+		}
 
-		plan, err := bs.PlanService.CreatePlan(ctx, input.Title, input.Description, groupID, path)
+		// 构建作用域上下文
+		scopeCtx := buildScopeContext(input.Scope, bs)
+
+		plan, err := bs.PlanService.CreatePlan(ctx, createDTO, scopeCtx)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTag(groupID, path)
+		scopeTag := getScopeTag(plan.GroupID, plan.Path)
 		return NewTextResult(fmt.Sprintf("计划创建成功! ID: %d, 标题: %s %s", plan.ID, plan.Title, scopeTag)), nil, nil
 	})
 
@@ -141,16 +154,16 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 	})
 }
 
-// getStatusText 获取计划状态文本
-func getStatusText(status types.PlanStatus) string {
+// getPlanStatusText 获取计划状态文本
+func getPlanStatusText(status entity.PlanStatus) string {
 	switch status {
-	case types.PlanStatusPending:
+	case entity.PlanStatusPending:
 		return "待开始"
-	case types.PlanStatusInProgress:
+	case entity.PlanStatusInProgress:
 		return "进行中"
-	case types.PlanStatusCompleted:
+	case entity.PlanStatusCompleted:
 		return "已完成"
-	case types.PlanStatusCancelled:
+	case entity.PlanStatusCancelled:
 		return "已取消"
 	default:
 		return "未知"

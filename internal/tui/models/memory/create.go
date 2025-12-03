@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -209,7 +209,16 @@ func (m *CreateModel) save() tea.Cmd {
 			}
 		}
 
-		_, err := m.bs.MemoryService.CreateMemory(context.Background(), title, content, category, tags, 2, types.GlobalGroupID, "")
+		// 使用 DTO 创建记忆
+		createDTO := &dto.MemoryCreateDTO{
+			Title:    title,
+			Content:  content,
+			Category: category,
+			Tags:     tags,
+			Priority: 2,
+			Scope:    "global",
+		}
+		_, err := m.bs.MemoryService.CreateMemory(context.Background(), createDTO, nil)
 		if err != nil {
 			return memoriesErrorMsg{err: err}
 		}

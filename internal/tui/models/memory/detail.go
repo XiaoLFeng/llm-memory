@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -20,8 +20,8 @@ import (
 // 嘿嘿~ 查看记忆的详细内容！📝
 type DetailModel struct {
 	bs       *startup.Bootstrap
-	id       int
-	memory   *types.Memory
+	id       uint
+	memory   *entity.Memory
 	viewport viewport.Model
 	frame    *components.Frame
 	ready    bool
@@ -35,7 +35,7 @@ type DetailModel struct {
 func NewDetailModel(bs *startup.Bootstrap, id int) *DetailModel {
 	return &DetailModel{
 		bs:      bs,
-		id:      id,
+		id:      uint(id),
 		frame:   components.NewFrame(80, 24),
 		loading: true,
 	}
@@ -71,7 +71,7 @@ func (m *DetailModel) loadMemory() tea.Cmd {
 }
 
 type memoryLoadedMsg struct {
-	memory *types.Memory
+	memory *entity.Memory
 }
 
 // Update 处理输入
@@ -152,7 +152,12 @@ func (m *DetailModel) renderContent() string {
 	basicInfo.WriteString(components.InfoRow("作用域", components.ScopeBadgeFromGroupIDPath(m.memory.GroupID, m.memory.Path)))
 	basicInfo.WriteString("\n")
 	if len(m.memory.Tags) > 0 {
-		basicInfo.WriteString(components.InfoRow("标签", components.TagsBadge(m.memory.Tags)))
+		// 转换 []entity.MemoryTag 为 []string
+		tags := make([]string, len(m.memory.Tags))
+		for i, t := range m.memory.Tags {
+			tags[i] = t.Tag
+		}
+		basicInfo.WriteString(components.InfoRow("标签", components.TagsBadge(tags)))
 		basicInfo.WriteString("\n")
 	}
 	basicInfo.WriteString(components.InfoRow("创建时间", utils.FormatTime(m.memory.CreatedAt)))

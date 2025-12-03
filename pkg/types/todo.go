@@ -1,9 +1,8 @@
 package types
 
 import (
+	"errors"
 	"time"
-
-	"github.com/asdine/storm/v3"
 )
 
 // Priority 表示 Todo 的优先级
@@ -60,18 +59,18 @@ func (s TodoStatus) String() string {
 
 // Todo 表示一个待办事项实体
 type Todo struct {
-	ID          int        `storm:"id,increment"` // 主键，自增
-	GroupID     int        `storm:"index"`        // 所属组ID（0=Global）
-	Path        string     `storm:"index"`        // 精确路径（Personal作用域）
-	Title       string     `storm:"index"`        // 标题，带索引
-	Description string     `storm:""`             // 描述
-	Priority    Priority   `storm:"index"`        // 优先级，带索引
-	Status      TodoStatus `storm:"index"`        // 状态，带索引
-	DueDate     *time.Time `storm:""`             // 截止日期
-	Tags        []string   `storm:""`             // 标签
-	CreatedAt   time.Time  `storm:"index"`        // 创建时间，带索引
-	UpdatedAt   time.Time  `storm:""`             // 更新时间
-	CompletedAt *time.Time `storm:""`             // 完成时间
+	ID          int        `json:"id"`           // 主键，自增
+	GroupID     int        `json:"group_id"`     // 所属组ID（0=Global）
+	Path        string     `json:"path"`         // 精确路径（Personal作用域）
+	Title       string     `json:"title"`        // 标题
+	Description string     `json:"description"`  // 描述
+	Priority    Priority   `json:"priority"`     // 优先级
+	Status      TodoStatus `json:"status"`       // 状态
+	DueDate     *time.Time `json:"due_date"`     // 截止日期
+	Tags        []string   `json:"tags"`         // 标签
+	CreatedAt   time.Time  `json:"created_at"`   // 创建时间
+	UpdatedAt   time.Time  `json:"updated_at"`   // 更新时间
+	CompletedAt *time.Time `json:"completed_at"` // 完成时间
 }
 
 // NewTodo 创建一个新的 Todo 实例
@@ -184,7 +183,7 @@ func (t *Todo) RemoveTag(tag string) {
 // Validate 验证 Todo 数据的有效性
 func (t *Todo) Validate() error {
 	if t.Title == "" {
-		return storm.ErrAlreadyExists
+		return errors.New("标题不能为空")
 	}
 	return nil
 }

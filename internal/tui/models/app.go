@@ -192,11 +192,11 @@ func (m *AppModel) createPage(pageType common.PageType, params map[string]any) c
 		return plan.NewCreateModel(m.bs)
 	case common.PagePlanDetail:
 		id := getIntParam(params, "id")
-		return plan.NewDetailModel(m.bs, id)
+		return plan.NewDetailModel(m.bs, uint(id))
 	case common.PagePlanProgress:
 		id := getIntParam(params, "id")
 		progress := getIntParam(params, "progress")
-		return plan.NewProgressModel(m.bs, id, progress)
+		return plan.NewProgressModel(m.bs, uint(id), progress)
 	case common.PageTodoList:
 		return todo.NewListModel(m.bs)
 	case common.PageTodoToday:
@@ -205,14 +205,14 @@ func (m *AppModel) createPage(pageType common.PageType, params map[string]any) c
 		return todo.NewCreateModel(m.bs)
 	case common.PageTodoDetail:
 		id := getIntParam(params, "id")
-		return todo.NewDetailModel(m.bs, id)
+		return todo.NewDetailModel(m.bs, uint(id))
 	case common.PageGroupList:
 		return group.NewListModel(m.bs)
 	case common.PageGroupCreate:
 		return group.NewCreateModel(m.bs)
 	case common.PageGroupDetail:
 		id := getIntParam(params, "id")
-		return group.NewDetailModel(m.bs, id)
+		return group.NewDetailModel(m.bs, uint(id))
 	default:
 		return NewMenuModel(m.bs)
 	}

@@ -8,9 +8,11 @@ import (
 
 	"github.com/XiaoLFeng/llm-memory/internal/app"
 	"github.com/XiaoLFeng/llm-memory/internal/database"
-	"github.com/XiaoLFeng/llm-memory/internal/repository"
+	"github.com/XiaoLFeng/llm-memory/internal/models"
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/service"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
+	"gorm.io/gorm"
 )
 
 // 错误定义
@@ -30,14 +32,14 @@ type Bootstrap struct {
 	config  *app.Config
 	options *Options
 
-	// 数据库路径（不再持有长连接）
-	dbPath string
+	// 数据库
+	db *gorm.DB
 
 	// Service 层（公开，供外部使用）
 	MemoryService *service.MemoryService
 	PlanService   *service.PlanService
-	TodoService   *service.TodoService
-	GroupService  *service.GroupService // 新增：组服务
+	ToDoService   *service.ToDoService  // 注意：类型名使用 ToDo
+	GroupService  *service.GroupService // 组服务
 
 	// 当前作用域上下文
 	// 嘿嘿~ 启动时自动解析当前目录的作用域！✨
@@ -65,7 +67,7 @@ func New(opts ...Option) *Bootstrap {
 
 // Initialize 初始化应用
 // 嘿嘿~ 按照正确的顺序初始化所有组件！💫
-// 顺序：Context -> Config -> Database -> Repository -> Service
+// 顺序：Context -> Config -> Database -> Model -> Service
 func (b *Bootstrap) Initialize(ctx context.Context) error {
 	if b.initialized {
 		return ErrAlreadyInitialized
@@ -80,29 +82,46 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 		return fmt.Errorf("加载配置失败: %w", err)
 	}
 	b.config = config
-	b.dbPath = config.DBPath
 
-	// 3. 初始化数据库（仅用于确保索引创建，立即关闭）
-	// 嘿嘿~ 每次操作都会自己打开关闭连接，这里只是确保表结构！💖
-	db, err := database.Open(config.DBPath)
+	// 3. 初始化 GORM 数据库
+	// 嘿嘿~ 使用 SQLite + WAL 模式支持并发读写！💖
+	gormDB, err := database.OpenSQLite(&database.SQLiteConfig{
+		DBPath: config.DBPath,
+		Debug:  config.Debug,
+	})
 	if err != nil {
 		return fmt.Errorf("初始化数据库失败: %w", err)
 	}
-	db.Close() // 立即关闭，不保持长连接
+	b.db = gormDB
 
-	// 4. 创建 Repository 实例（传入 dbPath）
-	memoryRepo := repository.NewMemoryRepo(config.DBPath)
-	planRepo := repository.NewPlanRepo(config.DBPath)
-	todoRepo := repository.NewTodoRepo(config.DBPath)
-	groupRepo := repository.NewGroupRepo(config.DBPath) // 新增：组仓储
+	// 4. 自动迁移表结构
+	// 呀~ 确保数据库表结构是最新的！✨
+	if err := database.AutoMigrateSQLite(gormDB,
+		&entity.Memory{},
+		&entity.MemoryTag{},
+		&entity.Plan{},
+		&entity.SubTask{},
+		&entity.ToDo{},
+		&entity.ToDoTag{},
+		&entity.Group{},
+		&entity.GroupPath{},
+	); err != nil {
+		return fmt.Errorf("迁移数据库表结构失败: %w", err)
+	}
 
-	// 5. 创建 Service 实例
-	b.MemoryService = service.NewMemoryService(memoryRepo)
-	b.PlanService = service.NewPlanService(planRepo)
-	b.TodoService = service.NewTodoService(todoRepo)
-	b.GroupService = service.NewGroupService(groupRepo) // 新增：组服务
+	// 5. 创建 Model 实例
+	memoryModel := models.NewMemoryModel(gormDB)
+	planModel := models.NewPlanModel(gormDB)
+	todoModel := models.NewToDoModel(gormDB)
+	groupModel := models.NewGroupModel(gormDB)
 
-	// 6. 解析当前作用域
+	// 6. 创建 Service 实例
+	b.MemoryService = service.NewMemoryService(memoryModel)
+	b.PlanService = service.NewPlanService(planModel)
+	b.ToDoService = service.NewToDoService(todoModel)
+	b.GroupService = service.NewGroupService(groupModel)
+
+	// 7. 解析当前作用域
 	// 嘿嘿~ 启动时自动获取当前目录的作用域上下文！💖
 	scope, err := b.GroupService.GetCurrentScope(b.appCtx.Context())
 	if err != nil {
@@ -111,7 +130,7 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 	}
 	b.CurrentScope = scope
 
-	// 7. 启动信号处理
+	// 8. 启动信号处理
 	if b.options.EnableSignalHandler {
 		b.signalHandler = NewSignalHandler()
 		b.signalHandler.Start(func(sig os.Signal) {
@@ -149,10 +168,10 @@ func (b *Bootstrap) Config() *app.Config {
 	return b.config
 }
 
-// DBPath 获取数据库路径
-// 嘿嘿~ 现在不再持有长连接，只提供路径！💖
-func (b *Bootstrap) DBPath() string {
-	return b.dbPath
+// DB 获取 GORM 数据库实例
+// 嘿嘿~ 现在使用 GORM 管理数据库连接！💖
+func (b *Bootstrap) DB() *gorm.DB {
+	return b.db
 }
 
 // Shutdown 优雅关闭
@@ -174,7 +193,10 @@ func (b *Bootstrap) Shutdown() error {
 		}
 	}
 
-	// 数据库连接现在由每次操作自己管理，不需要在这里关闭
+	// 关闭数据库连接
+	if err := database.CloseSQLite(); err != nil {
+		fmt.Printf("关闭数据库连接失败: %v\n", err)
+	}
 
 	b.initialized = false
 	return nil

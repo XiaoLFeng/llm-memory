@@ -29,7 +29,7 @@ MCP 服务支持以下功能：
 }
 
 func init() {
-	rootCmd.AddCommand(mcpCmd)
+	RootCmd.AddCommand(mcpCmd)
 }
 
 // runMCP 运行 MCP 服务

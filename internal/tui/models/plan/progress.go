@@ -19,7 +19,7 @@ import (
 // 呀~ 更新计划进度！📊
 type ProgressModel struct {
 	bs       *startup.Bootstrap
-	id       int
+	id       uint
 	progress int
 	input    textinput.Model
 	width    int
@@ -28,7 +28,7 @@ type ProgressModel struct {
 }
 
 // NewProgressModel 创建计划进度更新模型
-func NewProgressModel(bs *startup.Bootstrap, id, progress int) *ProgressModel {
+func NewProgressModel(bs *startup.Bootstrap, id uint, progress int) *ProgressModel {
 	ti := textinput.New()
 	ti.Placeholder = "0-100"
 	ti.Focus()

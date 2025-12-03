@@ -7,7 +7,8 @@ import (
 
 	"github.com/XiaoLFeng/llm-memory/internal/cli"
 	"github.com/XiaoLFeng/llm-memory/internal/cli/output"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
+	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/startup"
 )
 
@@ -25,7 +26,7 @@ func NewTodoHandler(bs *startup.Bootstrap) *TodoHandler {
 // List 列出所有待办
 // 呀~ 展示所有待办事项！✨
 func (h *TodoHandler) List(ctx context.Context) error {
-	todos, err := h.bs.TodoService.ListTodos(ctx)
+	todos, err := h.bs.ToDoService.ListToDos(ctx)
 	if err != nil {
 		return err
 	}
@@ -41,8 +42,8 @@ func (h *TodoHandler) List(ctx context.Context) error {
 		table.AddRow(
 			fmt.Sprintf("%d", t.ID),
 			t.Title,
-			getTodoStatusText(t.Status),
-			getPriorityText(t.Priority),
+			getToDoStatusText(t.Status),
+			getToDoStatusPriorityText(t.Priority),
 		)
 	}
 	table.Print()
@@ -53,7 +54,7 @@ func (h *TodoHandler) List(ctx context.Context) error {
 // Today 获取今日待办
 // 嘿嘿~ 查看今天要做的事！📅
 func (h *TodoHandler) Today(ctx context.Context) error {
-	todos, err := h.bs.TodoService.ListToday(ctx)
+	todos, err := h.bs.ToDoService.ListToday(ctx)
 	if err != nil {
 		return err
 	}
@@ -69,8 +70,8 @@ func (h *TodoHandler) Today(ctx context.Context) error {
 		table.AddRow(
 			fmt.Sprintf("%d", t.ID),
 			t.Title,
-			getTodoStatusText(t.Status),
-			getPriorityText(t.Priority),
+			getToDoStatusText(t.Status),
+			getToDoStatusPriorityText(t.Priority),
 		)
 	}
 	table.Print()
@@ -81,12 +82,18 @@ func (h *TodoHandler) Today(ctx context.Context) error {
 // Create 创建待办
 // 呀~ 创建新的待办事项！💫
 func (h *TodoHandler) Create(ctx context.Context, title, description string, priority int) error {
-	p := types.Priority(priority)
-	if p == 0 {
-		p = types.TodoPriorityMedium
+	if priority == 0 {
+		priority = int(entity.ToDoPriorityMedium)
 	}
 
-	todo, err := h.bs.TodoService.CreateTodo(ctx, title, description, p, nil, types.GlobalGroupID, "")
+	createDTO := &dto.ToDoCreateDTO{
+		Title:       title,
+		Description: description,
+		Priority:    priority,
+		Scope:       "global",
+	}
+
+	todo, err := h.bs.ToDoService.CreateToDo(ctx, createDTO, nil)
 	if err != nil {
 		return err
 	}
@@ -96,8 +103,8 @@ func (h *TodoHandler) Create(ctx context.Context, title, description string, pri
 }
 
 // Complete 完成待办
-func (h *TodoHandler) Complete(ctx context.Context, id int) error {
-	if err := h.bs.TodoService.CompleteTodo(ctx, id); err != nil {
+func (h *TodoHandler) Complete(ctx context.Context, id uint) error {
+	if err := h.bs.ToDoService.CompleteToDo(ctx, id); err != nil {
 		return err
 	}
 
@@ -106,8 +113,8 @@ func (h *TodoHandler) Complete(ctx context.Context, id int) error {
 }
 
 // Start 开始待办
-func (h *TodoHandler) Start(ctx context.Context, id int) error {
-	if err := h.bs.TodoService.StartTodo(ctx, id); err != nil {
+func (h *TodoHandler) Start(ctx context.Context, id uint) error {
+	if err := h.bs.ToDoService.StartToDo(ctx, id); err != nil {
 		return err
 	}
 
@@ -116,8 +123,8 @@ func (h *TodoHandler) Start(ctx context.Context, id int) error {
 }
 
 // Delete 删除待办
-func (h *TodoHandler) Delete(ctx context.Context, id int) error {
-	if err := h.bs.TodoService.DeleteTodo(ctx, id); err != nil {
+func (h *TodoHandler) Delete(ctx context.Context, id uint) error {
+	if err := h.bs.ToDoService.DeleteToDo(ctx, id); err != nil {
 		return err
 	}
 
@@ -127,8 +134,8 @@ func (h *TodoHandler) Delete(ctx context.Context, id int) error {
 
 // Get 获取待办详情
 // 嗯嗯！查看待办的详细信息！📝
-func (h *TodoHandler) Get(ctx context.Context, id int) error {
-	todo, err := h.bs.TodoService.GetTodo(ctx, id)
+func (h *TodoHandler) Get(ctx context.Context, id uint) error {
+	todo, err := h.bs.ToDoService.GetToDo(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -136,8 +143,8 @@ func (h *TodoHandler) Get(ctx context.Context, id int) error {
 	cli.PrintTitle("✅ 待办详情")
 	fmt.Printf("ID:       %d\n", todo.ID)
 	fmt.Printf("标题:     %s\n", todo.Title)
-	fmt.Printf("状态:     %s\n", getTodoStatusText(todo.Status))
-	fmt.Printf("优先级:   %s\n", getPriorityText(todo.Priority))
+	fmt.Printf("状态:     %s\n", getToDoStatusText(todo.Status))
+	fmt.Printf("优先级:   %s\n", getToDoStatusPriorityText(todo.Priority))
 	if todo.DueDate != nil {
 		fmt.Printf("截止日期: %s\n", todo.DueDate.Format("2006-01-02"))
 	}
@@ -153,32 +160,32 @@ func (h *TodoHandler) Get(ctx context.Context, id int) error {
 	return nil
 }
 
-// getTodoStatusText 获取待办状态文本
-func getTodoStatusText(status types.TodoStatus) string {
+// getToDoStatusText 获取待办状态文本
+func getToDoStatusText(status entity.ToDoStatus) string {
 	switch status {
-	case types.TodoStatusPending:
+	case entity.ToDoStatusPending:
 		return "待处理"
-	case types.TodoStatusInProgress:
+	case entity.ToDoStatusInProgress:
 		return "进行中"
-	case types.TodoStatusCompleted:
+	case entity.ToDoStatusCompleted:
 		return "已完成"
-	case types.TodoStatusCancelled:
+	case entity.ToDoStatusCancelled:
 		return "已取消"
 	default:
 		return "未知"
 	}
 }
 
-// getPriorityText 获取优先级文本
-func getPriorityText(priority types.Priority) string {
+// getToDoStatusPriorityText 获取优先级文本
+func getToDoStatusPriorityText(priority entity.ToDoPriority) string {
 	switch priority {
-	case types.TodoPriorityLow:
+	case entity.ToDoPriorityLow:
 		return "低"
-	case types.TodoPriorityMedium:
+	case entity.ToDoPriorityMedium:
 		return "中"
-	case types.TodoPriorityHigh:
+	case entity.ToDoPriorityHigh:
 		return "高"
-	case types.TodoPriorityUrgent:
+	case entity.ToDoPriorityUrgent:
 		return "紧急"
 	default:
 		return "未知"

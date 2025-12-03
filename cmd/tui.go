@@ -22,7 +22,7 @@ var tuiCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(tuiCmd)
+	RootCmd.AddCommand(tuiCmd)
 }
 
 // runTUI 运行终端用户界面

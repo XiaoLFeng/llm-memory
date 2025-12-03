@@ -7,18 +7,18 @@ import (
 // Plan 计划实体结构体 - 用于管理项目计划和任务
 // 嘿嘿~ 这是一个完整的计划管理结构呢！📋
 type Plan struct {
-	ID          int        `storm:"id,increment"` // 主键，自增
-	GroupID     int        `storm:"index"`        // 所属组ID（0=Global）
-	Path        string     `storm:"index"`        // 精确路径（Personal作用域）
-	Title       string     `storm:"index"`        // 标题，带索引以便快速查询
-	Description string     `storm:""`             // 描述，详细内容
-	Status      PlanStatus `storm:"index"`        // 状态，带索引用于状态筛选
-	StartDate   *time.Time `storm:""`             // 开始日期，可为空
-	EndDate     *time.Time `storm:""`             // 结束日期，可为空
-	Progress    int        `storm:""`             // 进度 0-100，表示完成百分比
-	SubTasks    []SubTask  `storm:"inline"`       // 子任务列表，使用inline存储
-	CreatedAt   time.Time  `storm:"index"`        // 创建时间，带索引
-	UpdatedAt   time.Time  `storm:"index"`        // 更新时间，带索引
+	ID          int        `json:"id"`          // 主键，自增
+	GroupID     int        `json:"group_id"`    // 所属组ID（0=Global）
+	Path        string     `json:"path"`        // 精确路径（Personal作用域）
+	Title       string     `json:"title"`       // 标题
+	Description string     `json:"description"` // 描述，详细内容
+	Status      PlanStatus `json:"status"`      // 状态
+	StartDate   *time.Time `json:"start_date"`  // 开始日期，可为空
+	EndDate     *time.Time `json:"end_date"`    // 结束日期，可为空
+	Progress    int        `json:"progress"`    // 进度 0-100，表示完成百分比
+	SubTasks    []SubTask  `json:"sub_tasks"`   // 子任务列表
+	CreatedAt   time.Time  `json:"created_at"`  // 创建时间
+	UpdatedAt   time.Time  `json:"updated_at"`  // 更新时间
 }
 
 // PlanStatus 计划状态类型
@@ -37,13 +37,13 @@ const (
 // SubTask 子任务结构体
 // 每个大计划都需要拆分成小任务来管理哦~ ✨
 type SubTask struct {
-	ID          int        `storm:"id,increment"` // 子任务ID，自增
-	Title       string     `storm:""`             // 子任务标题
-	Description string     `storm:""`             // 子任务描述
-	Status      PlanStatus `storm:""`             // 子任务状态
-	Progress    int        `storm:""`             // 子任务进度 0-100
-	CreatedAt   time.Time  `storm:""`             // 创建时间
-	UpdatedAt   time.Time  `storm:""`             // 更新时间
+	ID          int        `json:"id"`          // 子任务ID，自增
+	Title       string     `json:"title"`       // 子任务标题
+	Description string     `json:"description"` // 子任务描述
+	Status      PlanStatus `json:"status"`      // 子任务状态
+	Progress    int        `json:"progress"`    // 子任务进度 0-100
+	CreatedAt   time.Time  `json:"created_at"`  // 创建时间
+	UpdatedAt   time.Time  `json:"updated_at"`  // 更新时间
 }
 
 // NewPlan 创建新的计划实例

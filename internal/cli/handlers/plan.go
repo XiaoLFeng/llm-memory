@@ -6,7 +6,8 @@ import (
 
 	"github.com/XiaoLFeng/llm-memory/internal/cli"
 	"github.com/XiaoLFeng/llm-memory/internal/cli/output"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
+	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/startup"
 )
 
@@ -52,7 +53,12 @@ func (h *PlanHandler) List(ctx context.Context) error {
 // Create 创建计划
 // 嘿嘿~ 创建新计划！💫
 func (h *PlanHandler) Create(ctx context.Context, title, description string) error {
-	plan, err := h.bs.PlanService.CreatePlan(ctx, title, description, types.GlobalGroupID, "")
+	createDTO := &dto.PlanCreateDTO{
+		Title:       title,
+		Description: description,
+		Scope:       "global",
+	}
+	plan, err := h.bs.PlanService.CreatePlan(ctx, createDTO, nil)
 	if err != nil {
 		return err
 	}
@@ -63,7 +69,7 @@ func (h *PlanHandler) Create(ctx context.Context, title, description string) err
 
 // UpdateProgress 更新计划进度
 // 呀~ 更新计划的完成进度！📊
-func (h *PlanHandler) UpdateProgress(ctx context.Context, id, progress int) error {
+func (h *PlanHandler) UpdateProgress(ctx context.Context, id uint, progress int) error {
 	if err := h.bs.PlanService.UpdateProgress(ctx, id, progress); err != nil {
 		return err
 	}
@@ -73,7 +79,7 @@ func (h *PlanHandler) UpdateProgress(ctx context.Context, id, progress int) erro
 }
 
 // Start 开始计划
-func (h *PlanHandler) Start(ctx context.Context, id int) error {
+func (h *PlanHandler) Start(ctx context.Context, id uint) error {
 	if err := h.bs.PlanService.StartPlan(ctx, id); err != nil {
 		return err
 	}
@@ -83,7 +89,7 @@ func (h *PlanHandler) Start(ctx context.Context, id int) error {
 }
 
 // Complete 完成计划
-func (h *PlanHandler) Complete(ctx context.Context, id int) error {
+func (h *PlanHandler) Complete(ctx context.Context, id uint) error {
 	if err := h.bs.PlanService.CompletePlan(ctx, id); err != nil {
 		return err
 	}
@@ -93,7 +99,7 @@ func (h *PlanHandler) Complete(ctx context.Context, id int) error {
 }
 
 // Delete 删除计划
-func (h *PlanHandler) Delete(ctx context.Context, id int) error {
+func (h *PlanHandler) Delete(ctx context.Context, id uint) error {
 	if err := h.bs.PlanService.DeletePlan(ctx, id); err != nil {
 		return err
 	}
@@ -104,7 +110,7 @@ func (h *PlanHandler) Delete(ctx context.Context, id int) error {
 
 // Get 获取计划详情
 // 嗯嗯！查看计划的详细信息！📝
-func (h *PlanHandler) Get(ctx context.Context, id int) error {
+func (h *PlanHandler) Get(ctx context.Context, id uint) error {
 	plan, err := h.bs.PlanService.GetPlan(ctx, id)
 	if err != nil {
 		return err
@@ -131,15 +137,15 @@ func (h *PlanHandler) Get(ctx context.Context, id int) error {
 }
 
 // getPlanStatusText 获取计划状态文本
-func getPlanStatusText(status types.PlanStatus) string {
+func getPlanStatusText(status entity.PlanStatus) string {
 	switch status {
-	case types.PlanStatusPending:
+	case entity.PlanStatusPending:
 		return "待开始"
-	case types.PlanStatusInProgress:
+	case entity.PlanStatusInProgress:
 		return "进行中"
-	case types.PlanStatusCompleted:
+	case entity.PlanStatusCompleted:
 		return "已完成"
-	case types.PlanStatusCancelled:
+	case entity.PlanStatusCancelled:
 		return "已取消"
 	default:
 		return "未知"

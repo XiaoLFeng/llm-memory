@@ -7,7 +7,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
+	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/startup"
 )
 
@@ -26,7 +27,7 @@ type TodoCreateInput struct {
 
 // TodoCompleteInput todo_complete 工具输入
 type TodoCompleteInput struct {
-	ID int `json:"id" jsonschema:"要完成的待办事项ID"`
+	ID uint `json:"id" jsonschema:"要完成的待办事项ID"`
 }
 
 // TodoTodayInput todo_today 工具输入
@@ -36,6 +37,7 @@ type TodoTodayInput struct {
 
 // RegisterTodoTools 注册 TODO 管理工具
 // 嗯嗯！待办事项相关的 MCP 工具都在这里！🎮
+// 注意：MCP 工具名保持 todo_*，内部类型使用 ToDo
 func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// todo_list - 列出所有待办
 	mcp.AddTool(server, &mcp.Tool{
@@ -68,9 +70,9 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 - all: 显示所有可见待办（默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
-		scope := buildScopeContext(input.Scope, bs)
+		scopeCtx := buildScopeContext(input.Scope, bs)
 
-		todos, err := bs.TodoService.ListTodosByScope(ctx, scope)
+		todos, err := bs.ToDoService.ListToDosByScope(ctx, input.Scope, scopeCtx)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -79,8 +81,8 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := "待办事项列表:\n"
 		for _, t := range todos {
-			status := getTodoStatusText(t.Status)
-			priority := getPriorityText(t.Priority)
+			status := getToDoStatusText(t.Status)
+			priority := getToDoPriorityText(t.Priority)
 			scopeTag := getScopeTag(t.GroupID, t.Path)
 			result += fmt.Sprintf("- [%d] %s (%s, %s) %s\n", t.ID, t.Title, status, priority, scopeTag)
 		}
@@ -116,19 +118,28 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 - group: 保存到当前组（组内所有路径可见）
 - global: 保存为全局（任何地方可见，默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoCreateInput) (*mcp.CallToolResult, any, error) {
-		priority := types.Priority(input.Priority)
+		// 默认优先级
+		priority := input.Priority
 		if priority == 0 {
-			priority = types.TodoPriorityMedium
+			priority = 2 // 默认中等优先级
 		}
 
-		// 根据 scope 确定 groupID 和 path
-		groupID, path := resolveScopeForCreate(input.Scope, bs)
+		// 构建创建 DTO
+		createDTO := &dto.ToDoCreateDTO{
+			Title:       input.Title,
+			Description: input.Description,
+			Priority:    priority,
+			Scope:       input.Scope,
+		}
 
-		todo, err := bs.TodoService.CreateTodo(ctx, input.Title, input.Description, priority, nil, groupID, path)
+		// 构建作用域上下文
+		scopeCtx := buildScopeContext(input.Scope, bs)
+
+		todo, err := bs.ToDoService.CreateToDo(ctx, createDTO, scopeCtx)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTag(groupID, path)
+		scopeTag := getScopeTag(todo.GroupID, todo.Path)
 		return NewTextResult(fmt.Sprintf("待办事项创建成功! ID: %d, 标题: %s %s", todo.ID, todo.Title, scopeTag)), nil, nil
 	})
 
@@ -149,7 +160,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 建议：在用户明确表示任务完成后使用此工具，可以先通过 todo_list 或 todo_today 确认待办ID`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoCompleteInput) (*mcp.CallToolResult, any, error) {
-		if err := bs.TodoService.CompleteTodo(ctx, input.ID); err != nil {
+		if err := bs.ToDoService.CompleteToDo(ctx, input.ID); err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
 		return NewTextResult(fmt.Sprintf("待办事项 %d 已标记为完成", input.ID)), nil, nil
@@ -181,9 +192,9 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 - all: 显示所有可见今天的待办（默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoTodayInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
-		scope := buildScopeContext(input.Scope, bs)
+		scopeCtx := buildScopeContext(input.Scope, bs)
 
-		todos, err := bs.TodoService.ListTodayByScope(ctx, scope)
+		todos, err := bs.ToDoService.ListTodayByScope(ctx, input.Scope, scopeCtx)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -192,7 +203,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := fmt.Sprintf("今日待办事项 (%s):\n", time.Now().Format("2006-01-02"))
 		for _, t := range todos {
-			status := getTodoStatusText(t.Status)
+			status := getToDoStatusText(t.Status)
 			scopeTag := getScopeTag(t.GroupID, t.Path)
 			result += fmt.Sprintf("- [%d] %s (%s) %s\n", t.ID, t.Title, status, scopeTag)
 		}
@@ -200,32 +211,32 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 	})
 }
 
-// getTodoStatusText 获取待办状态文本
-func getTodoStatusText(status types.TodoStatus) string {
+// getToDoStatusText 获取待办状态文本
+func getToDoStatusText(status entity.ToDoStatus) string {
 	switch status {
-	case types.TodoStatusPending:
+	case entity.ToDoStatusPending:
 		return "待处理"
-	case types.TodoStatusInProgress:
+	case entity.ToDoStatusInProgress:
 		return "进行中"
-	case types.TodoStatusCompleted:
+	case entity.ToDoStatusCompleted:
 		return "已完成"
-	case types.TodoStatusCancelled:
+	case entity.ToDoStatusCancelled:
 		return "已取消"
 	default:
 		return "未知"
 	}
 }
 
-// getPriorityText 获取优先级文本
-func getPriorityText(priority types.Priority) string {
+// getToDoPriorityText 获取优先级文本
+func getToDoPriorityText(priority entity.ToDoPriority) string {
 	switch priority {
-	case types.TodoPriorityLow:
+	case entity.ToDoPriorityLow:
 		return "低"
-	case types.TodoPriorityMedium:
+	case entity.ToDoPriorityMedium:
 		return "中"
-	case types.TodoPriorityHigh:
+	case entity.ToDoPriorityHigh:
 		return "高"
-	case types.TodoPriorityUrgent:
+	case entity.ToDoPriorityUrgent:
 		return "紧急"
 	default:
 		return "未知"

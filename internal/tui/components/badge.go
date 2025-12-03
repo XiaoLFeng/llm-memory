@@ -38,7 +38,7 @@ func ScopeBadge(scope string) string {
 }
 
 // ScopeBadgeFromGroupIDPath 根据 GroupID 和 Path 生成作用域徽章
-func ScopeBadgeFromGroupIDPath(groupID int, path string) string {
+func ScopeBadgeFromGroupIDPath(groupID uint, path string) string {
 	if path != "" {
 		return ScopeBadge("Personal")
 	}

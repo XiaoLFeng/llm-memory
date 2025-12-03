@@ -3,10 +3,11 @@ package tools
 import (
 	"context"
 	"fmt"
-	"os"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 )
@@ -27,7 +28,7 @@ type MemoryCreateInput struct {
 
 // MemoryDeleteInput memory_delete 工具输入
 type MemoryDeleteInput struct {
-	ID int `json:"id" jsonschema:"要删除的记忆ID"`
+	ID uint `json:"id" jsonschema:"要删除的记忆ID"`
 }
 
 // MemorySearchInput memory_search 工具输入
@@ -38,12 +39,12 @@ type MemorySearchInput struct {
 
 // MemoryGetInput memory_get 工具输入
 type MemoryGetInput struct {
-	ID int `json:"id" jsonschema:"要获取的记忆ID"`
+	ID uint `json:"id" jsonschema:"要获取的记忆ID"`
 }
 
 // MemoryUpdateInput memory_update 工具输入
 type MemoryUpdateInput struct {
-	ID       int      `json:"id" jsonschema:"要更新的记忆ID"`
+	ID       uint     `json:"id" jsonschema:"要更新的记忆ID"`
 	Title    string   `json:"title,omitempty" jsonschema:"新标题（可选）"`
 	Content  string   `json:"content,omitempty" jsonschema:"新内容（可选）"`
 	Category string   `json:"category,omitempty" jsonschema:"新分类（可选）"`
@@ -75,9 +76,9 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 - all: 显示所有可见记忆（默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
-		scope := buildScopeContext(input.Scope, bs)
+		scopeCtx := buildScopeContext(input.Scope, bs)
 
-		memories, err := bs.MemoryService.ListMemoriesByScope(ctx, scope)
+		memories, err := bs.MemoryService.ListMemoriesByScope(ctx, input.Scope, scopeCtx)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -116,19 +117,24 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 - group: 保存到当前组（组内所有路径可见）
 - global: 保存为全局（任何地方可见，默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryCreateInput) (*mcp.CallToolResult, any, error) {
-		category := input.Category
-		if category == "" {
-			category = "默认"
+		// 构建创建 DTO
+		createDTO := &dto.MemoryCreateDTO{
+			Title:    input.Title,
+			Content:  input.Content,
+			Category: input.Category,
+			Tags:     input.Tags,
+			Priority: 1, // 默认优先级
+			Scope:    input.Scope,
 		}
 
-		// 根据 scope 确定 groupID 和 path
-		groupID, path := resolveScopeForCreate(input.Scope, bs)
+		// 构建作用域上下文
+		scopeCtx := buildScopeContext(input.Scope, bs)
 
-		memory, err := bs.MemoryService.CreateMemory(ctx, input.Title, input.Content, category, input.Tags, 1, groupID, path)
+		memory, err := bs.MemoryService.CreateMemory(ctx, createDTO, scopeCtx)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTag(groupID, path)
+		scopeTag := getScopeTag(memory.GroupID, memory.Path)
 		return NewTextResult(fmt.Sprintf("记忆创建成功! ID: %d, 标题: %s %s", memory.ID, memory.Title, scopeTag)), nil, nil
 	})
 
@@ -177,9 +183,9 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 - all: 搜索所有可见记忆（默认）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemorySearchInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
-		scope := buildScopeContext(input.Scope, bs)
+		scopeCtx := buildScopeContext(input.Scope, bs)
 
-		memories, err := bs.MemoryService.SearchMemoriesByScope(ctx, scope, input.Keyword)
+		memories, err := bs.MemoryService.SearchMemoriesByScope(ctx, input.Keyword, input.Scope, scopeCtx)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -212,6 +218,12 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 			return NewErrorResult(err.Error()), nil, nil
 		}
 
+		// 转换标签
+		tags := make([]string, 0, len(memory.Tags))
+		for _, t := range memory.Tags {
+			tags = append(tags, t.Tag)
+		}
+
 		scopeTag := getScopeTag(memory.GroupID, memory.Path)
 		result := fmt.Sprintf(`记忆详情:
 ID: %d
@@ -229,7 +241,7 @@ ID: %d
 			memory.Title,
 			memory.Category,
 			memory.Priority,
-			memory.Tags,
+			tags,
 			scopeTag,
 			memory.CreatedAt.Format("2006-01-02 15:04:05"),
 			memory.UpdatedAt.Format("2006-01-02 15:04:05"),
@@ -254,41 +266,35 @@ ID: %d
 - 至少需要提供一个要更新的字段
 - 可以通过 memory_get 先查看当前内容`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryUpdateInput) (*mcp.CallToolResult, any, error) {
-		// 先获取现有记忆
-		memory, err := bs.MemoryService.GetMemory(ctx, input.ID)
-		if err != nil {
-			return NewErrorResult(err.Error()), nil, nil
+		// 构建更新 DTO
+		updateDTO := &dto.MemoryUpdateDTO{
+			ID: input.ID,
 		}
 
-		// 更新字段
-		updated := false
+		// 只设置提供了的字段
 		if input.Title != "" {
-			memory.Title = input.Title
-			updated = true
+			updateDTO.Title = &input.Title
 		}
 		if input.Content != "" {
-			memory.Content = input.Content
-			updated = true
+			updateDTO.Content = &input.Content
 		}
 		if input.Category != "" {
-			memory.Category = input.Category
-			updated = true
+			updateDTO.Category = &input.Category
 		}
 		if len(input.Tags) > 0 {
-			memory.Tags = input.Tags
-			updated = true
+			updateDTO.Tags = &input.Tags
 		}
 		if input.Priority > 0 && input.Priority <= 4 {
-			memory.Priority = input.Priority
-			updated = true
+			updateDTO.Priority = &input.Priority
 		}
 
-		if !updated {
+		// 检查是否有更新
+		if updateDTO.Title == nil && updateDTO.Content == nil && updateDTO.Category == nil && updateDTO.Tags == nil && updateDTO.Priority == nil {
 			return NewErrorResult("没有提供要更新的字段"), nil, nil
 		}
 
-		// 保存更新
-		if err := bs.MemoryService.UpdateMemory(ctx, memory); err != nil {
+		// 执行更新
+		if err := bs.MemoryService.UpdateMemory(ctx, updateDTO); err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
 
@@ -305,7 +311,7 @@ func buildScopeContext(scope string, bs *startup.Bootstrap) *types.ScopeContext 
 		currentScope = types.NewGlobalOnlyScope()
 	}
 
-	switch scope {
+	switch strings.ToLower(scope) {
 	case "personal":
 		return &types.ScopeContext{
 			CurrentPath:     currentScope.CurrentPath,
@@ -336,36 +342,25 @@ func buildScopeContext(scope string, bs *startup.Bootstrap) *types.ScopeContext 
 	}
 }
 
-// resolveScopeForCreate 解析创建时的作用域
-// 返回 groupID 和 path
-func resolveScopeForCreate(scope string, bs *startup.Bootstrap) (int, string) {
-	currentScope := bs.CurrentScope
-	if currentScope == nil {
-		return types.GlobalGroupID, ""
-	}
-
-	switch scope {
-	case "personal":
-		pwd, _ := os.Getwd()
-		return types.GlobalGroupID, pwd
-	case "group":
-		if currentScope.GroupID != types.GlobalGroupID {
-			return currentScope.GroupID, ""
-		}
-		// 如果不属于任何组，回退到 global
-		return types.GlobalGroupID, ""
-	default: // "global" 或空字符串
-		return types.GlobalGroupID, ""
-	}
-}
-
 // getScopeTag 获取作用域标签
-func getScopeTag(groupID int, path string) string {
+func getScopeTag(groupID uint, path string) string {
 	if path != "" {
 		return "[Personal]"
 	}
-	if groupID != types.GlobalGroupID {
+	if groupID > 0 {
 		return "[Group]"
 	}
 	return "[Global]"
+}
+
+// tagsToStringSlice 将 MemoryTag 切片转换为字符串切片
+func tagsToStringSlice(tags interface{}) []string {
+	result := []string{}
+	// 处理不同类型的 tags
+	switch t := tags.(type) {
+	case []string:
+		return t
+	default:
+		return result
+	}
 }

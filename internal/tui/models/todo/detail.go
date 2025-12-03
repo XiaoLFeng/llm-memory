@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -20,8 +20,8 @@ import (
 // 嘿嘿~ 查看待办的详细内容！✅
 type DetailModel struct {
 	bs       *startup.Bootstrap
-	id       int
-	todo     *types.Todo
+	id       uint
+	todo     *entity.ToDo
 	viewport viewport.Model
 	frame    *components.Frame // 添加 Frame 支持
 	ready    bool
@@ -32,7 +32,7 @@ type DetailModel struct {
 }
 
 // NewDetailModel 创建待办详情模型
-func NewDetailModel(bs *startup.Bootstrap, id int) *DetailModel {
+func NewDetailModel(bs *startup.Bootstrap, id uint) *DetailModel {
 	return &DetailModel{
 		bs:      bs,
 		id:      id,
@@ -62,7 +62,7 @@ func (m *DetailModel) Init() tea.Cmd {
 // loadTodo 加载待办详情
 func (m *DetailModel) loadTodo() tea.Cmd {
 	return func() tea.Msg {
-		todo, err := m.bs.TodoService.GetTodo(context.Background(), m.id)
+		todo, err := m.bs.ToDoService.GetToDo(context.Background(), m.id)
 		if err != nil {
 			return todosErrorMsg{err}
 		}
@@ -71,7 +71,7 @@ func (m *DetailModel) loadTodo() tea.Cmd {
 }
 
 type todoLoadedMsg struct {
-	todo *types.Todo
+	todo *entity.ToDo
 }
 
 // Update 处理输入
@@ -86,13 +86,13 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case msg.String() == "s":
 			// 开始待办
-			if m.todo != nil && m.todo.Status == types.TodoStatusPending {
+			if m.todo != nil && m.todo.Status == entity.ToDoStatusPending {
 				return m, m.startTodo()
 			}
 
 		case msg.String() == "f":
 			// 完成待办
-			if m.todo != nil && m.todo.Status == types.TodoStatusInProgress {
+			if m.todo != nil && m.todo.Status == entity.ToDoStatusInProgress {
 				return m, m.completeTodo()
 			}
 		}
@@ -154,7 +154,7 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // startTodo 开始待办
 func (m *DetailModel) startTodo() tea.Cmd {
 	return func() tea.Msg {
-		err := m.bs.TodoService.StartTodo(context.Background(), m.id)
+		err := m.bs.ToDoService.StartToDo(context.Background(), m.id)
 		if err != nil {
 			return todosErrorMsg{err}
 		}
@@ -165,7 +165,7 @@ func (m *DetailModel) startTodo() tea.Cmd {
 // completeTodo 完成待办
 func (m *DetailModel) completeTodo() tea.Cmd {
 	return func() tea.Msg {
-		err := m.bs.TodoService.CompleteTodo(context.Background(), m.id)
+		err := m.bs.ToDoService.CompleteToDo(context.Background(), m.id)
 		if err != nil {
 			return todosErrorMsg{err}
 		}
@@ -236,11 +236,17 @@ func (m *DetailModel) renderDetailInfo() string {
 	lines = append(lines, components.InfoRow("描述", description))
 
 	// 标签
-	tags := utils.JoinTags(m.todo.Tags)
 	if len(m.todo.Tags) > 0 {
-		tags = components.TagsBadge(m.todo.Tags)
+		// 转换 []entity.ToDoTag 为 []string
+		tags := make([]string, len(m.todo.Tags))
+		for i, t := range m.todo.Tags {
+			tags[i] = t.Tag
+		}
+		tagsBadge := components.TagsBadge(tags)
+		lines = append(lines, components.InfoRow("标签", tagsBadge))
+	} else {
+		lines = append(lines, components.InfoRow("标签", lipgloss.NewStyle().Foreground(styles.Overlay0).Render("-")))
 	}
-	lines = append(lines, components.InfoRow("标签", tags))
 
 	return strings.Join(lines, "\n")
 }

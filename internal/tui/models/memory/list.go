@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,7 +20,7 @@ import (
 // 嘿嘿~ 展示所有记忆的列表！📚
 type ListModel struct {
 	bs       *startup.Bootstrap
-	memories []types.Memory
+	memories []entity.Memory
 	selected int
 	frame    *components.Frame
 	width    int
@@ -68,7 +68,7 @@ func (m *ListModel) loadMemories() tea.Cmd {
 }
 
 type memoriesLoadedMsg struct {
-	memories []types.Memory
+	memories []entity.Memory
 }
 
 type memoriesErrorMsg struct {
@@ -76,7 +76,7 @@ type memoriesErrorMsg struct {
 }
 
 type memoryDeletedMsg struct {
-	id int
+	id uint
 }
 
 // Update 处理输入
@@ -154,7 +154,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // deleteMemory 删除记忆
-func (m *ListModel) deleteMemory(id int) tea.Cmd {
+func (m *ListModel) deleteMemory(id uint) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.MemoryService.DeleteMemory(context.Background(), id)
 		if err != nil {
@@ -229,7 +229,12 @@ func (m *ListModel) View() string {
 
 		// 标签
 		if len(memory.Tags) > 0 {
-			tagsBadge := components.TagsBadge(memory.Tags)
+			// 转换 []entity.MemoryTag 为 []string
+			tags := make([]string, len(memory.Tags))
+			for i, t := range memory.Tags {
+				tags[i] = t.Tag
+			}
+			tagsBadge := components.TagsBadge(tags)
 			meta = append(meta, tagsBadge)
 		}
 

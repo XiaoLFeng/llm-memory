@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -18,7 +18,7 @@ import (
 
 // memoryItem 记忆列表项
 type memoryItem struct {
-	memory types.Memory
+	memory entity.Memory
 }
 
 func (i memoryItem) Title() string {
@@ -46,7 +46,7 @@ type SearchModel struct {
 	bs        *startup.Bootstrap
 	input     textinput.Model
 	list      list.Model
-	results   []types.Memory
+	results   []entity.Memory
 	searching bool
 	width     int
 	height    int
@@ -172,7 +172,7 @@ func (m *SearchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 type searchResultsMsg struct {
-	memories []types.Memory
+	memories []entity.Memory
 }
 
 // search 搜索记忆

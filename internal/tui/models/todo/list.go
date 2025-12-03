@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -19,7 +19,7 @@ import (
 
 // todoItem 待办列表项
 type todoItem struct {
-	todo types.Todo
+	todo entity.ToDo
 }
 
 func (i todoItem) Title() string {
@@ -41,7 +41,7 @@ func (i todoItem) FilterValue() string {
 type ListModel struct {
 	bs      *startup.Bootstrap
 	list    list.Model
-	todos   []types.Todo
+	todos   []entity.ToDo
 	width   int
 	height  int
 	loading bool
@@ -91,7 +91,7 @@ func (m *ListModel) Init() tea.Cmd {
 // loadTodos 加载待办列表
 func (m *ListModel) loadTodos() tea.Cmd {
 	return func() tea.Msg {
-		todos, err := m.bs.TodoService.ListTodos(context.Background())
+		todos, err := m.bs.ToDoService.ListToDos(context.Background())
 		if err != nil {
 			return todosErrorMsg{err}
 		}
@@ -100,7 +100,7 @@ func (m *ListModel) loadTodos() tea.Cmd {
 }
 
 type todosLoadedMsg struct {
-	todos []types.Todo
+	todos []entity.ToDo
 }
 
 type todosErrorMsg struct {
@@ -108,15 +108,15 @@ type todosErrorMsg struct {
 }
 
 type todoDeletedMsg struct {
-	id int
+	id uint
 }
 
 type todoStartedMsg struct {
-	id int
+	id uint
 }
 
 type todoCompletedMsg struct {
-	id int
+	id uint
 }
 
 // Update 处理输入
@@ -155,7 +155,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.String() == "s":
 			// 开始待办
 			if item, ok := m.list.SelectedItem().(todoItem); ok {
-				if item.todo.Status == types.TodoStatusPending {
+				if item.todo.Status == entity.ToDoStatusPending {
 					return m, m.startTodo(item.todo.ID)
 				}
 			}
@@ -163,7 +163,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.String() == "f":
 			// 完成待办
 			if item, ok := m.list.SelectedItem().(todoItem); ok {
-				if item.todo.Status == types.TodoStatusInProgress {
+				if item.todo.Status == entity.ToDoStatusInProgress {
 					return m, m.completeTodo(item.todo.ID)
 				}
 			}
@@ -219,9 +219,9 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // deleteTodo 删除待办
-func (m *ListModel) deleteTodo(id int) tea.Cmd {
+func (m *ListModel) deleteTodo(id uint) tea.Cmd {
 	return func() tea.Msg {
-		err := m.bs.TodoService.DeleteTodo(context.Background(), id)
+		err := m.bs.ToDoService.DeleteToDo(context.Background(), id)
 		if err != nil {
 			return todosErrorMsg{err}
 		}
@@ -230,9 +230,9 @@ func (m *ListModel) deleteTodo(id int) tea.Cmd {
 }
 
 // startTodo 开始待办
-func (m *ListModel) startTodo(id int) tea.Cmd {
+func (m *ListModel) startTodo(id uint) tea.Cmd {
 	return func() tea.Msg {
-		err := m.bs.TodoService.StartTodo(context.Background(), id)
+		err := m.bs.ToDoService.StartToDo(context.Background(), id)
 		if err != nil {
 			return todosErrorMsg{err}
 		}
@@ -241,9 +241,9 @@ func (m *ListModel) startTodo(id int) tea.Cmd {
 }
 
 // completeTodo 完成待办
-func (m *ListModel) completeTodo(id int) tea.Cmd {
+func (m *ListModel) completeTodo(id uint) tea.Cmd {
 	return func() tea.Msg {
-		err := m.bs.TodoService.CompleteTodo(context.Background(), id)
+		err := m.bs.ToDoService.CompleteToDo(context.Background(), id)
 		if err != nil {
 			return todosErrorMsg{err}
 		}
@@ -343,7 +343,7 @@ func (m *ListModel) renderList() string {
 }
 
 // renderTodoItem 渲染单个待办项
-func (m *ListModel) renderTodoItem(todo types.Todo, selected bool) string {
+func (m *ListModel) renderTodoItem(todo entity.ToDo, selected bool) string {
 	// 指示器
 	indicator := " "
 	if selected {
