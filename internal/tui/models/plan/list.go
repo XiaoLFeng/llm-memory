@@ -17,26 +17,35 @@ import (
 )
 
 // ListModel 计划列表模型
-// 嘿嘿~ 展示所有计划的列表！📋
 type ListModel struct {
-	bs          *startup.Bootstrap
-	plans       []entity.Plan
-	cursor      int
-	width       int
-	height      int
-	loading     bool
-	err         error
-	frame       *components.Frame
-	scrollStart int
+	bs           *startup.Bootstrap
+	plans        []entity.Plan
+	cursor       int
+	width        int
+	height       int
+	loading      bool
+	err          error
+	frame        *components.Frame
+	scrollStart  int
+	showAllScope bool   // false = personal, true = all
+	currentPath  string // 当前路径
+	groupName    string // 当前组名
 }
 
 // NewListModel 创建计划列表模型
 func NewListModel(bs *startup.Bootstrap) *ListModel {
-	return &ListModel{
-		bs:      bs,
-		loading: true,
-		frame:   components.NewFrame(80, 24),
+	m := &ListModel{
+		bs:           bs,
+		loading:      true,
+		frame:        components.NewFrame(80, 24),
+		showAllScope: false, // 默认显示 Personal
 	}
+	// 从 Bootstrap 获取当前作用域信息
+	if bs.CurrentScope != nil {
+		m.currentPath = bs.CurrentScope.CurrentPath
+		m.groupName = bs.CurrentScope.GroupName
+	}
+	return m
 }
 
 // Title 返回页面标题
@@ -54,13 +63,23 @@ func (m *ListModel) ShortHelp() []key.Binding {
 
 // Init 初始化
 func (m *ListModel) Init() tea.Cmd {
-	return m.loadPlans()
+	return tea.Batch(m.loadPlans(), common.StartAutoRefresh())
 }
 
 // loadPlans 加载计划列表
 func (m *ListModel) loadPlans() tea.Cmd {
 	return func() tea.Msg {
-		plans, err := m.bs.PlanService.ListPlans(context.Background())
+		var plans []entity.Plan
+		var err error
+
+		if m.showAllScope {
+			// 显示所有可见数据
+			plans, err = m.bs.PlanService.ListPlansByScope(context.Background(), "all", m.bs.CurrentScope)
+		} else {
+			// 只显示 Personal 数据
+			plans, err = m.bs.PlanService.ListPlansByScope(context.Background(), "personal", m.bs.CurrentScope)
+		}
+
 		if err != nil {
 			return plansErrorMsg{err}
 		}
@@ -77,15 +96,15 @@ type plansErrorMsg struct {
 }
 
 type planDeletedMsg struct {
-	id uint
+	id int64
 }
 
 type planStartedMsg struct {
-	id uint
+	id int64
 }
 
 type planCompletedMsg struct {
-	id uint
+	id int64
 }
 
 // Update 处理输入
@@ -156,6 +175,14 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					"progress": plan.Progress,
 				})
 			}
+
+		case key.Matches(msg, common.KeyTab):
+			// Tab 键切换作用域：Personal <-> All
+			m.showAllScope = !m.showAllScope
+			m.loading = true
+			m.cursor = 0
+			m.scrollStart = 0
+			return m, m.loadPlans()
 		}
 
 	case tea.WindowSizeMsg:
@@ -193,6 +220,10 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case common.RefreshMsg:
 		m.loading = true
 		cmds = append(cmds, m.loadPlans())
+
+	case common.AutoRefreshMsg:
+		// 自动刷新：静默加载数据
+		cmds = append(cmds, m.loadPlans())
 	}
 
 	return m, tea.Batch(cmds...)
@@ -210,7 +241,7 @@ func (m *ListModel) updateScroll() {
 }
 
 // deletePlan 删除计划
-func (m *ListModel) deletePlan(id uint) tea.Cmd {
+func (m *ListModel) deletePlan(id int64) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.PlanService.DeletePlan(context.Background(), id)
 		if err != nil {
@@ -221,7 +252,7 @@ func (m *ListModel) deletePlan(id uint) tea.Cmd {
 }
 
 // startPlan 开始计划
-func (m *ListModel) startPlan(id uint) tea.Cmd {
+func (m *ListModel) startPlan(id int64) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.PlanService.StartPlan(context.Background(), id)
 		if err != nil {
@@ -232,7 +263,7 @@ func (m *ListModel) startPlan(id uint) tea.Cmd {
 }
 
 // completePlan 完成计划
-func (m *ListModel) completePlan(id uint) tea.Cmd {
+func (m *ListModel) completePlan(id int64) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.PlanService.CompletePlan(context.Background(), id)
 		if err != nil {
@@ -280,7 +311,7 @@ func (m *ListModel) View() string {
 			m.frame.GetContentHeight(),
 			lipgloss.Center,
 			lipgloss.Center,
-			components.Card("📋 计划列表", emptyText, 60),
+			components.Card(styles.IconTasks+" 计划列表", emptyText, 60),
 		)
 		keys := []string{"c 新建", "esc 返回"}
 		return m.frame.Render("计划管理 > 计划列表", content, keys, "")
@@ -301,16 +332,25 @@ func (m *ListModel) View() string {
 
 	listContent := strings.Join(listItems, "\n")
 
-	// 统计信息
-	extra := fmt.Sprintf("共 %d 个计划", len(m.plans))
+	// 统计信息：作用域 + 总数
+	scopeInfo := "[Personal]"
+	if m.showAllScope {
+		scopeInfo = "[All]"
+	}
+	extra := fmt.Sprintf("%s 共 %d 个计划", scopeInfo, len(m.plans))
 
 	// 包装在卡片中
-	cardContent := components.Card("📋 计划列表", listContent, m.frame.GetContentWidth()-4)
+	cardContent := components.Card(styles.IconTasks+" 计划列表", listContent, m.frame.GetContentWidth()-4)
 
 	content := lipgloss.NewStyle().
 		Width(m.frame.GetContentWidth()).
 		Render(cardContent)
 
+	// 快捷键
+	scopeLabel := "Personal"
+	if m.showAllScope {
+		scopeLabel = "All"
+	}
 	keys := []string{
 		"↑/↓ 选择",
 		"enter 查看",
@@ -319,6 +359,7 @@ func (m *ListModel) View() string {
 		"f 完成",
 		"p 进度",
 		"d 删除",
+		"Tab " + scopeLabel,
 		"esc 返回",
 	}
 

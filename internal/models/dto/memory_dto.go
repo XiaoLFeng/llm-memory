@@ -3,7 +3,6 @@ package dto
 import "time"
 
 // MemoryCreateDTO 创建记忆请求
-// 嘿嘿~ 用于创建新记忆的数据传输对象！💖
 type MemoryCreateDTO struct {
 	Title    string   `json:"title"`
 	Content  string   `json:"content"`
@@ -14,9 +13,8 @@ type MemoryCreateDTO struct {
 }
 
 // MemoryUpdateDTO 更新记忆请求
-// 呀~ 用于更新已有记忆的数据传输对象！✨
 type MemoryUpdateDTO struct {
-	ID       uint      `json:"id"`
+	ID       int64     `json:"id"`
 	Title    *string   `json:"title,omitempty"`
 	Content  *string   `json:"content,omitempty"`
 	Category *string   `json:"category,omitempty"`
@@ -25,9 +23,8 @@ type MemoryUpdateDTO struct {
 }
 
 // MemoryResponseDTO 记忆响应
-// 嘿嘿~ 用于返回记忆详情的数据传输对象！💖
 type MemoryResponseDTO struct {
-	ID         uint      `json:"id"`
+	ID         int64     `json:"id"`
 	Title      string    `json:"title"`
 	Content    string    `json:"content"`
 	Category   string    `json:"category"`
@@ -40,9 +37,8 @@ type MemoryResponseDTO struct {
 }
 
 // MemoryListDTO 记忆列表项
-// 呀~ 用于列表展示的简化记忆数据！✨
 type MemoryListDTO struct {
-	ID         uint   `json:"id"`
+	ID         int64  `json:"id"`
 	Title      string `json:"title"`
 	Category   string `json:"category"`
 	Priority   int    `json:"priority"`

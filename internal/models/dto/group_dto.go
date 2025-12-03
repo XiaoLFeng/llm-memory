@@ -10,9 +10,8 @@ type GroupCreateDTO struct {
 }
 
 // GroupUpdateDTO 更新组请求
-// 呀~ 用于更新已有组的数据传输对象！✨
 type GroupUpdateDTO struct {
-	ID          uint    `json:"id"`
+	ID          int64   `json:"id"`
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 }
@@ -30,9 +29,8 @@ type GroupRemovePathDTO struct {
 }
 
 // GroupResponseDTO 组响应
-// 嘿嘿~ 用于返回组详情的数据传输对象！💖
 type GroupResponseDTO struct {
-	ID          uint      `json:"id"`
+	ID          int64     `json:"id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Paths       []string  `json:"paths"`
@@ -42,19 +40,17 @@ type GroupResponseDTO struct {
 }
 
 // GroupListDTO 组列表项
-// 呀~ 用于列表展示的简化组数据！✨
 type GroupListDTO struct {
-	ID          uint   `json:"id"`
+	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	PathCount   int    `json:"path_count"`
 }
 
 // ScopeInfoDTO 当前作用域信息
-// 嘿嘿~ 用于返回当前目录的作用域上下文！🎮
 type ScopeInfoDTO struct {
 	CurrentPath string `json:"current_path"`
-	GroupID     uint   `json:"group_id"`
+	GroupID     int64  `json:"group_id"`
 	GroupName   string `json:"group_name"`
 	IsInGroup   bool   `json:"is_in_group"`
 }

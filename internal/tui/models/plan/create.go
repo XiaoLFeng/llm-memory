@@ -18,7 +18,7 @@ import (
 )
 
 // CreateModel 计划创建模型
-// 呀~ 创建新计划的表单！📝
+// 呀~ 创建新计划的表单！
 type CreateModel struct {
 	bs         *startup.Bootstrap
 	focusIndex int
@@ -209,7 +209,7 @@ func (m *CreateModel) View() string {
 	hint := lipgloss.NewStyle().
 		Foreground(styles.Overlay1).
 		Italic(true).
-		Render("💡 提示：按 tab 切换输入框，ctrl+s 保存")
+		Render(styles.IconBulb + " 提示：按 tab 切换输入框，ctrl+s 保存")
 	formParts = append(formParts, hint)
 
 	// 错误信息
@@ -221,7 +221,7 @@ func (m *CreateModel) View() string {
 	formContent := strings.Join(formParts, "\n\n")
 
 	// 用卡片包装表单
-	cardContent := components.Card("📝 创建新计划", formContent, m.frame.GetContentWidth()-4)
+	cardContent := components.Card(styles.IconEdit+" 创建新计划", formContent, m.frame.GetContentWidth()-4)
 
 	// 居中显示
 	content := lipgloss.Place(

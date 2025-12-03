@@ -13,7 +13,6 @@ import (
 var planDeleteID int
 
 // planDeleteCmd 删除计划
-// 嘿嘿~ 删除指定的计划！🗑️
 var planDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "删除计划",
@@ -30,7 +29,7 @@ var planDeleteCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewPlanHandler(bs)
-		if err := handler.Delete(bs.Context(), uint(planDeleteID)); err != nil {
+		if err := handler.Delete(bs.Context(), int64(planDeleteID)); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}

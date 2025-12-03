@@ -14,7 +14,6 @@ import (
 )
 
 // AppModel 根应用模型
-// 嘿嘿~ 这是整个 TUI 的根模型，管理页面栈和全局状态！💖
 type AppModel struct {
 	bs          *startup.Bootstrap
 	pageStack   []common.Page       // 页面栈
@@ -42,7 +41,7 @@ func NewAppModel(bs *startup.Bootstrap) *AppModel {
 
 // Init 初始化
 func (m *AppModel) Init() tea.Cmd {
-	return m.currentPage.Init()
+	return tea.Batch(m.currentPage.Init(), tea.WindowSize())
 }
 
 // Update 处理输入
@@ -118,6 +117,11 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case common.CloseConfirmMsg:
 		// 关闭确认对话框
 		m.confirm.Hide()
+
+	case common.AutoRefreshMsg:
+		// 自动刷新消息，转发给当前页面处理
+		// 同时启动下一轮自动刷新
+		cmds = append(cmds, common.StartAutoRefresh())
 	}
 
 	// 更新当前页面
@@ -172,7 +176,6 @@ func (m *AppModel) View() string {
 }
 
 // createPage 创建页面
-// 呀~ 根据页面类型创建对应的页面模型！✨
 func (m *AppModel) createPage(pageType common.PageType, params map[string]any) common.Page {
 	switch pageType {
 	case common.PageMainMenu:
@@ -192,27 +195,25 @@ func (m *AppModel) createPage(pageType common.PageType, params map[string]any) c
 		return plan.NewCreateModel(m.bs)
 	case common.PagePlanDetail:
 		id := getIntParam(params, "id")
-		return plan.NewDetailModel(m.bs, uint(id))
+		return plan.NewDetailModel(m.bs, int64(id))
 	case common.PagePlanProgress:
 		id := getIntParam(params, "id")
 		progress := getIntParam(params, "progress")
-		return plan.NewProgressModel(m.bs, uint(id), progress)
+		return plan.NewProgressModel(m.bs, int64(id), progress)
 	case common.PageTodoList:
 		return todo.NewListModel(m.bs)
-	case common.PageTodoToday:
-		return todo.NewTodayModel(m.bs)
 	case common.PageTodoCreate:
 		return todo.NewCreateModel(m.bs)
 	case common.PageTodoDetail:
 		id := getIntParam(params, "id")
-		return todo.NewDetailModel(m.bs, uint(id))
+		return todo.NewDetailModel(m.bs, int64(id))
 	case common.PageGroupList:
 		return group.NewListModel(m.bs)
 	case common.PageGroupCreate:
 		return group.NewCreateModel(m.bs)
 	case common.PageGroupDetail:
 		id := getIntParam(params, "id")
-		return group.NewDetailModel(m.bs, uint(id))
+		return group.NewDetailModel(m.bs, int64(id))
 	default:
 		return NewMenuModel(m.bs)
 	}

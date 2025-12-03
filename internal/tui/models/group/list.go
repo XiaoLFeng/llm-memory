@@ -27,7 +27,7 @@ func (i groupItem) Title() string {
 
 func (i groupItem) Description() string {
 	pathCount := len(i.group.Paths)
-	return fmt.Sprintf("📂 %d 个路径 | %s", pathCount, utils.FormatRelativeTime(i.group.CreatedAt))
+	return fmt.Sprintf("%s %d 个路径 | %s", styles.IconFolder, pathCount, utils.FormatRelativeTime(i.group.CreatedAt))
 }
 
 func (i groupItem) FilterValue() string {
@@ -35,7 +35,6 @@ func (i groupItem) FilterValue() string {
 }
 
 // ListModel 组列表模型
-// 嘿嘿~ 展示所有组的列表！👥
 type ListModel struct {
 	bs            *startup.Bootstrap
 	groups        []entity.Group
@@ -70,7 +69,7 @@ func (m *ListModel) ShortHelp() []key.Binding {
 
 // Init 初始化
 func (m *ListModel) Init() tea.Cmd {
-	return m.loadGroups()
+	return tea.Batch(m.loadGroups(), common.StartAutoRefresh())
 }
 
 // loadGroups 加载组列表
@@ -93,7 +92,7 @@ type groupsErrorMsg struct {
 }
 
 type groupDeletedMsg struct {
-	id uint
+	id int64
 }
 
 // Update 处理输入
@@ -156,13 +155,17 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case common.RefreshMsg:
 		m.loading = true
 		cmds = append(cmds, m.loadGroups())
+
+	case common.AutoRefreshMsg:
+		// 自动刷新：静默加载数据
+		cmds = append(cmds, m.loadGroups())
 	}
 
 	return m, tea.Batch(cmds...)
 }
 
 // deleteGroup 删除组
-func (m *ListModel) deleteGroup(id uint) tea.Cmd {
+func (m *ListModel) deleteGroup(id int64) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.GroupService.DeleteGroup(context.Background(), id)
 		if err != nil {
@@ -254,7 +257,7 @@ func (m *ListModel) View() string {
 	}
 
 	// 使用卡片包装列表
-	titleWithCount := fmt.Sprintf("👥 组管理 %s",
+	titleWithCount := fmt.Sprintf("%s 组管理 %s", styles.IconUsers,
 		lipgloss.NewStyle().Foreground(styles.Subtext0).Render(fmt.Sprintf("(%d)", len(m.groups))))
 	card := components.Card(titleWithCount, listItems.String(), cardWidth)
 

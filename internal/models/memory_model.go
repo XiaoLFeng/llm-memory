@@ -4,12 +4,12 @@ import (
 	"context"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/database"
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"gorm.io/gorm"
 )
 
 // MemoryModel 记忆数据访问层
-// 嘿嘿~ 这是记忆的数据访问模型！💖
 type MemoryModel struct {
 	db *gorm.DB
 }
@@ -21,6 +21,7 @@ func NewMemoryModel(db *gorm.DB) *MemoryModel {
 
 // Create 创建记忆
 func (m *MemoryModel) Create(ctx context.Context, memory *entity.Memory) error {
+	memory.ID = database.GenerateID()
 	return m.db.WithContext(ctx).Create(memory).Error
 }
 
@@ -30,12 +31,12 @@ func (m *MemoryModel) Update(ctx context.Context, memory *entity.Memory) error {
 }
 
 // Delete 删除记忆（软删除）
-func (m *MemoryModel) Delete(ctx context.Context, id uint) error {
+func (m *MemoryModel) Delete(ctx context.Context, id int64) error {
 	return m.db.WithContext(ctx).Delete(&entity.Memory{}, id).Error
 }
 
 // FindByID 根据 ID 查找记忆
-func (m *MemoryModel) FindByID(ctx context.Context, id uint) (*entity.Memory, error) {
+func (m *MemoryModel) FindByID(ctx context.Context, id int64) (*entity.Memory, error) {
 	var memory entity.Memory
 	err := m.db.WithContext(ctx).Preload("Tags").First(&memory, id).Error
 	if err != nil {
@@ -59,8 +60,8 @@ func (m *MemoryModel) FindByCategory(ctx context.Context, category string) ([]en
 }
 
 // FindByScope 根据作用域查找记忆
-// 呀~ 支持 Personal/Group/Global 三层作用域过滤！✨
-func (m *MemoryModel) FindByScope(ctx context.Context, groupID uint, path string, includeGlobal bool) ([]entity.Memory, error) {
+// 支持 Personal/Group/Global 三层作用域过滤
+func (m *MemoryModel) FindByScope(ctx context.Context, groupID int64, path string, includeGlobal bool) ([]entity.Memory, error) {
 	var memories []entity.Memory
 	query := m.db.WithContext(ctx).Preload("Tags")
 
@@ -100,7 +101,7 @@ func (m *MemoryModel) Search(ctx context.Context, keyword string) ([]entity.Memo
 }
 
 // SearchByScope 在指定作用域内搜索记忆
-func (m *MemoryModel) SearchByScope(ctx context.Context, keyword string, groupID uint, path string, includeGlobal bool) ([]entity.Memory, error) {
+func (m *MemoryModel) SearchByScope(ctx context.Context, keyword string, groupID int64, path string, includeGlobal bool) ([]entity.Memory, error) {
 	var memories []entity.Memory
 	pattern := "%" + keyword + "%"
 	query := m.db.WithContext(ctx).Preload("Tags").
@@ -131,18 +132,18 @@ func (m *MemoryModel) SearchByScope(ctx context.Context, keyword string, groupID
 }
 
 // Archive 归档记忆
-func (m *MemoryModel) Archive(ctx context.Context, id uint) error {
+func (m *MemoryModel) Archive(ctx context.Context, id int64) error {
 	return m.db.WithContext(ctx).Model(&entity.Memory{}).Where("id = ?", id).Update("is_archived", true).Error
 }
 
 // Unarchive 取消归档记忆
-func (m *MemoryModel) Unarchive(ctx context.Context, id uint) error {
+func (m *MemoryModel) Unarchive(ctx context.Context, id int64) error {
 	return m.db.WithContext(ctx).Model(&entity.Memory{}).Where("id = ?", id).Update("is_archived", false).Error
 }
 
 // UpdateTags 更新记忆标签
-// 嘿嘿~ 先删除旧标签再添加新标签！💖
-func (m *MemoryModel) UpdateTags(ctx context.Context, memoryID uint, tags []string) error {
+// 先删除旧标签再添加新标签
+func (m *MemoryModel) UpdateTags(ctx context.Context, memoryID int64, tags []string) error {
 	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 删除旧标签
 		if err := tx.Where("memory_id = ?", memoryID).Delete(&entity.MemoryTag{}).Error; err != nil {
@@ -151,6 +152,7 @@ func (m *MemoryModel) UpdateTags(ctx context.Context, memoryID uint, tags []stri
 		// 添加新标签
 		for _, tag := range tags {
 			memoryTag := entity.MemoryTag{
+				ID:       database.GenerateID(),
 				MemoryID: memoryID,
 				Tag:      tag,
 			}

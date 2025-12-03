@@ -13,7 +13,6 @@ import (
 var memoryGetID int
 
 // memoryGetCmd 获取记忆详情
-// 呀~ 查看记忆的详细内容！📝
 var memoryGetCmd = &cobra.Command{
 	Use:   "get",
 	Short: "获取记忆详情",
@@ -30,7 +29,7 @@ var memoryGetCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewMemoryHandler(bs)
-		if err := handler.Get(bs.Context(), uint(memoryGetID)); err != nil {
+		if err := handler.Get(bs.Context(), int64(memoryGetID)); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}

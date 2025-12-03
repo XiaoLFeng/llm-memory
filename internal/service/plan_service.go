@@ -13,13 +13,11 @@ import (
 )
 
 // PlanService 计划服务层结构体
-// 嘿嘿~ 这是计划管理的业务逻辑核心呢！📋✨
 type PlanService struct {
 	model *models.PlanModel
 }
 
 // NewPlanService 创建新的计划服务实例
-// 构造函数模式，优雅地初始化服务~ 💖
 func NewPlanService(model *models.PlanModel) *PlanService {
 	return &PlanService{
 		model: model,
@@ -27,16 +25,14 @@ func NewPlanService(model *models.PlanModel) *PlanService {
 }
 
 // CreatePlan 创建新计划
-// 嘿嘿~ 创建计划前会先验证数据的完整性呢！💫
-// 现在支持 Content 字段啦（详细内容）~
 func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, scopeCtx *types.ScopeContext) (*entity.Plan, error) {
-	// 参数验证 - 标题不能为空哦！
+	// 参数验证 - 标题不能为空
 	if strings.TrimSpace(input.Title) == "" {
-		return nil, errors.New("计划标题不能为空哦~ 📝")
+		return nil, errors.New("计划标题不能为空")
 	}
 
 	// 解析作用域
-	var groupID uint
+	var groupID int64
 	var path string
 
 	scope := strings.ToLower(input.Scope)
@@ -47,7 +43,7 @@ func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, 
 		}
 	case "group":
 		if scopeCtx != nil && scopeCtx.GroupID > 0 {
-			groupID = uint(scopeCtx.GroupID)
+			groupID = scopeCtx.GroupID
 		}
 	case "global":
 		// groupID 和 path 都为空即为 global
@@ -67,7 +63,7 @@ func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, 
 		Progress:    0,
 	}
 
-	// 保存到数据库~ ✨
+	// 保存到数据库
 	if err := s.model.Create(ctx, plan); err != nil {
 		return nil, err
 	}
@@ -76,8 +72,6 @@ func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, 
 }
 
 // UpdatePlan 更新计划
-// 业务逻辑：验证并更新计划信息~ 🎮
-// 现在支持 Content 字段啦~
 func (s *PlanService) UpdatePlan(ctx context.Context, input *dto.PlanUpdateDTO) error {
 	// 参数验证
 	if input.ID == 0 {
@@ -125,13 +119,12 @@ func (s *PlanService) UpdatePlan(ctx context.Context, input *dto.PlanUpdateDTO) 
 		plan.EndDate = input.EndDate
 	}
 
-	// 执行更新操作~ ＼(^o^)／
+	// 执行更新操作
 	return s.model.Update(ctx, plan)
 }
 
 // DeletePlan 删除计划
-// 业务逻辑：验证并删除指定计划~ 🍫
-func (s *PlanService) DeletePlan(ctx context.Context, id uint) error {
+func (s *PlanService) DeletePlan(ctx context.Context, id int64) error {
 	// 参数验证
 	if id == 0 {
 		return errors.New("无效的计划ID")
@@ -143,13 +136,12 @@ func (s *PlanService) DeletePlan(ctx context.Context, id uint) error {
 		return errors.New("计划不存在")
 	}
 
-	// 执行删除操作~ (´∀｀)
+	// 执行删除操作
 	return s.model.Delete(ctx, id)
 }
 
 // GetPlan 获取单个计划
-// 业务逻辑：根据ID查询计划~ 🎯
-func (s *PlanService) GetPlan(ctx context.Context, id uint) (*entity.Plan, error) {
+func (s *PlanService) GetPlan(ctx context.Context, id int64) (*entity.Plan, error) {
 	// 参数验证
 	if id == 0 {
 		return nil, errors.New("无效的计划ID")
@@ -168,7 +160,6 @@ func (s *PlanService) GetPlan(ctx context.Context, id uint) (*entity.Plan, error
 }
 
 // ListPlans 获取所有计划列表
-// 业务逻辑：查询全部计划~ ＼(^o^)／
 func (s *PlanService) ListPlans(ctx context.Context) ([]entity.Plan, error) {
 	plans, err := s.model.FindAll(ctx)
 	if err != nil {
@@ -184,9 +175,8 @@ func (s *PlanService) ListPlans(ctx context.Context) ([]entity.Plan, error) {
 }
 
 // ListPlansByScope 根据作用域列出计划
-// 嘿嘿~ 支持 Personal/Group/Global 三层作用域过滤！💖
 func (s *PlanService) ListPlansByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.Plan, error) {
-	var groupID uint
+	var groupID int64
 	var path string
 	var includeGlobal bool
 
@@ -198,7 +188,7 @@ func (s *PlanService) ListPlansByScope(ctx context.Context, scope string, scopeC
 		includeGlobal = false
 	case "group":
 		if scopeCtx != nil && scopeCtx.GroupID > 0 {
-			groupID = uint(scopeCtx.GroupID)
+			groupID = scopeCtx.GroupID
 		}
 		includeGlobal = false
 	case "global":
@@ -209,7 +199,7 @@ func (s *PlanService) ListPlansByScope(ctx context.Context, scope string, scopeC
 				path = scopeCtx.CurrentPath
 			}
 			if scopeCtx.GroupID > 0 {
-				groupID = uint(scopeCtx.GroupID)
+				groupID = scopeCtx.GroupID
 			}
 		}
 		includeGlobal = true
@@ -230,7 +220,6 @@ func (s *PlanService) ListPlansByScope(ctx context.Context, scope string, scopeC
 }
 
 // ListByStatus 根据状态获取计划列表
-// 业务逻辑：按状态筛选计划~ 💖
 func (s *PlanService) ListByStatus(ctx context.Context, status entity.PlanStatus) ([]entity.Plan, error) {
 	// 验证状态值是否有效
 	if !isValidPlanStatus(status) {
@@ -251,8 +240,7 @@ func (s *PlanService) ListByStatus(ctx context.Context, status entity.PlanStatus
 }
 
 // StartPlan 开始计划
-// 业务逻辑：将计划状态改为进行中~ ✨
-func (s *PlanService) StartPlan(ctx context.Context, id uint) error {
+func (s *PlanService) StartPlan(ctx context.Context, id int64) error {
 	// 参数验证
 	if id == 0 {
 		return errors.New("无效的计划ID")
@@ -275,13 +263,12 @@ func (s *PlanService) StartPlan(ctx context.Context, id uint) error {
 	// 执行开始
 	plan.Start()
 
-	// 保存更新~ 🎮
+	// 保存更新
 	return s.model.Update(ctx, plan)
 }
 
 // CompletePlan 完成计划
-// 业务逻辑：将计划状态改为已完成~ (´∀｀)
-func (s *PlanService) CompletePlan(ctx context.Context, id uint) error {
+func (s *PlanService) CompletePlan(ctx context.Context, id int64) error {
 	// 参数验证
 	if id == 0 {
 		return errors.New("无效的计划ID")
@@ -301,12 +288,12 @@ func (s *PlanService) CompletePlan(ctx context.Context, id uint) error {
 	// 执行完成
 	plan.Complete()
 
-	// 保存更新~ 🍫
+	// 保存更新
 	return s.model.Update(ctx, plan)
 }
 
 // CancelPlan 取消计划
-func (s *PlanService) CancelPlan(ctx context.Context, id uint) error {
+func (s *PlanService) CancelPlan(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.New("无效的计划ID")
 	}
@@ -325,8 +312,7 @@ func (s *PlanService) CancelPlan(ctx context.Context, id uint) error {
 }
 
 // UpdateProgress 更新计划进度
-// 业务逻辑：更新进度并自动调整状态~ ＼(^o^)／
-func (s *PlanService) UpdateProgress(ctx context.Context, id uint, progress int) error {
+func (s *PlanService) UpdateProgress(ctx context.Context, id int64, progress int) error {
 	// 参数验证
 	if id == 0 {
 		return errors.New("无效的计划ID")
@@ -355,12 +341,12 @@ func (s *PlanService) UpdateProgress(ctx context.Context, id uint, progress int)
 		plan.EndDate = &now
 	}
 
-	// 保存更新~ ✨
+	// 保存更新
 	return s.model.Update(ctx, plan)
 }
 
 // AddSubTask 添加子任务
-func (s *PlanService) AddSubTask(ctx context.Context, planID uint, title, description string) (*entity.SubTask, error) {
+func (s *PlanService) AddSubTask(ctx context.Context, planID int64, title, description string) (*entity.SubTask, error) {
 	if planID == 0 {
 		return nil, errors.New("无效的计划ID")
 	}
@@ -413,7 +399,7 @@ func (s *PlanService) UpdateSubTask(ctx context.Context, input *dto.SubTaskUpdat
 }
 
 // DeleteSubTask 删除子任务
-func (s *PlanService) DeleteSubTask(ctx context.Context, subTaskID uint) error {
+func (s *PlanService) DeleteSubTask(ctx context.Context, subTaskID int64) error {
 	if subTaskID == 0 {
 		return errors.New("无效的子任务ID")
 	}
@@ -421,7 +407,6 @@ func (s *PlanService) DeleteSubTask(ctx context.Context, subTaskID uint) error {
 }
 
 // isValidPlanStatus 验证计划状态是否有效
-// 辅助函数：检查状态值是否在允许的范围内~ 🎯
 func isValidPlanStatus(status entity.PlanStatus) bool {
 	validStatuses := []entity.PlanStatus{
 		entity.PlanStatusPending,
@@ -440,7 +425,6 @@ func isValidPlanStatus(status entity.PlanStatus) bool {
 }
 
 // ToPlanResponseDTO 将 Plan entity 转换为 ResponseDTO
-// 嘿嘿~ 数据转换小助手！💖
 func ToPlanResponseDTO(plan *entity.Plan, currentPath string) *dto.PlanResponseDTO {
 	if plan == nil {
 		return nil

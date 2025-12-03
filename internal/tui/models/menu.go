@@ -33,10 +33,10 @@ type MenuModel struct {
 // NewMenuModel 创建主菜单模型
 func NewMenuModel(bs *startup.Bootstrap) *MenuModel {
 	items := []MenuItem{
-		{Title: "记忆管理", Description: "查看和管理记忆内容", Icon: "📝", Page: common.PageMemoryList},
-		{Title: "计划管理", Description: "管理你的计划", Icon: "📋", Page: common.PagePlanList},
-		{Title: "待办管理", Description: "管理待办事项", Icon: "✅", Page: common.PageTodoList},
-		{Title: "组管理", Description: "管理路径组，组内共享数据", Icon: "👥", Page: common.PageGroupList},
+		{Title: "记忆管理", Description: "查看和管理记忆内容", Icon: styles.IconBrain, Page: common.PageMemoryList},
+		{Title: "计划管理", Description: "管理你的计划", Icon: styles.IconTasks, Page: common.PagePlanList},
+		{Title: "待办管理", Description: "管理待办事项", Icon: styles.IconTodo, Page: common.PageTodoList},
+		{Title: "组管理", Description: "管理路径组，组内共享数据", Icon: styles.IconUsers, Page: common.PageGroupList},
 	}
 
 	return &MenuModel{
@@ -122,7 +122,7 @@ func (m *MenuModel) View() string {
 		Align(lipgloss.Center).
 		Width(contentWidth)
 
-	logo := logoStyle.Render("🧠 LLM-Memory")
+	logo := logoStyle.Render(styles.IconLogo + " LLM-Memory")
 	subtitle := subtitleStyle.Render("AI 记忆管理系统 v1.0")
 
 	// Logo 卡片

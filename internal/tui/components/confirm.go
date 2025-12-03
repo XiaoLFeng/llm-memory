@@ -8,7 +8,6 @@ import (
 )
 
 // Confirm 确认对话框组件
-// 呀~ 现代化的确认对话框，带图标和居中显示！⚠️
 type Confirm struct {
 	title     string
 	message   string
@@ -120,7 +119,7 @@ func (c *Confirm) View() string {
 	iconStyle := lipgloss.NewStyle().
 		Foreground(styles.Warning).
 		Bold(true)
-	icon := iconStyle.Render("⚠️")
+	icon := iconStyle.Render("!")
 
 	// 标题样式
 	titleStyle := lipgloss.NewStyle().

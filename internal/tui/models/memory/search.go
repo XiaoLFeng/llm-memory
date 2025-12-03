@@ -33,7 +33,7 @@ func (i memoryItem) Description() string {
 	} else if i.memory.GroupID != 0 {
 		scope = "Group"
 	}
-	return fmt.Sprintf("📂 %s | %s", scope, utils.FormatRelativeTime(i.memory.CreatedAt))
+	return fmt.Sprintf("%s %s | %s", styles.IconFolder, scope, utils.FormatRelativeTime(i.memory.CreatedAt))
 }
 
 func (i memoryItem) FilterValue() string {
@@ -41,7 +41,7 @@ func (i memoryItem) FilterValue() string {
 }
 
 // SearchModel 记忆搜索模型
-// 呀~ 搜索记忆的界面！🔍
+// 呀~ 搜索记忆的界面！
 type SearchModel struct {
 	bs        *startup.Bootstrap
 	input     textinput.Model
@@ -70,7 +70,7 @@ func NewSearchModel(bs *startup.Bootstrap) *SearchModel {
 	delegate.Styles.NormalDesc = styles.ListDescStyle
 
 	l := list.New([]list.Item{}, delegate, 80, 15)
-	l.Title = "🔍 搜索结果"
+	l.Title = styles.IconSearch + " 搜索结果"
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(false)
 	l.Styles.Title = styles.ListTitleStyle
@@ -190,7 +190,7 @@ func (m *SearchModel) search(keyword string) tea.Cmd {
 func (m *SearchModel) View() string {
 	var b strings.Builder
 
-	b.WriteString(styles.TitleStyle.Render("🔍 搜索记忆"))
+	b.WriteString(styles.TitleStyle.Render(styles.IconSearch + " 搜索记忆"))
 	b.WriteString("\n\n")
 
 	// 搜索框

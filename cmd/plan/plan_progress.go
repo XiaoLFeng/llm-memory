@@ -16,7 +16,6 @@ var (
 )
 
 // planProgressCmd 更新计划进度
-// 呀~ 更新计划的完成进度！📊
 var planProgressCmd = &cobra.Command{
 	Use:   "progress",
 	Short: "更新计划进度",
@@ -37,7 +36,7 @@ var planProgressCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewPlanHandler(bs)
-		if err := handler.UpdateProgress(bs.Context(), uint(planProgressID), planProgressValue); err != nil {
+		if err := handler.UpdateProgress(bs.Context(), int64(planProgressID), planProgressValue); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}

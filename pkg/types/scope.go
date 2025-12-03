@@ -31,10 +31,10 @@ func (s Scope) IsValid() bool {
 const GlobalGroupID = 0
 
 // ScopeContext 作用域上下文
-// 呀~ 用于在请求链路中传递当前作用域信息！💖
+// 用于在请求链路中传递当前作用域信息
 type ScopeContext struct {
 	CurrentPath     string // 当前工作目录
-	GroupID         int    // 所属组 ID（0 表示无组）
+	GroupID         int64  // 所属组 ID（0 表示无组）
 	GroupName       string // 组名称（方便显示）
 	IncludePersonal bool   // 查询时是否包含 Personal 数据
 	IncludeGroup    bool   // 查询时是否包含 Group 数据
@@ -79,7 +79,7 @@ func NewPersonalOnlyScope(currentPath string) *ScopeContext {
 }
 
 // NewGroupOnlyScope 创建只包含组数据的作用域
-func NewGroupOnlyScope(groupID int, groupName string) *ScopeContext {
+func NewGroupOnlyScope(groupID int64, groupName string) *ScopeContext {
 	return &ScopeContext{
 		CurrentPath:     "",
 		GroupID:         groupID,
@@ -91,7 +91,7 @@ func NewGroupOnlyScope(groupID int, groupName string) *ScopeContext {
 }
 
 // WithGroup 设置组信息
-func (sc *ScopeContext) WithGroup(groupID int, groupName string) *ScopeContext {
+func (sc *ScopeContext) WithGroup(groupID int64, groupName string) *ScopeContext {
 	sc.GroupID = groupID
 	sc.GroupName = groupName
 	return sc
@@ -127,7 +127,7 @@ func (sc *ScopeContext) HasGroup() bool {
 }
 
 // GetScope 根据数据的 GroupID 和 Path 判断其作用域
-func GetScope(groupID int, path, currentPath string) Scope {
+func GetScope(groupID int64, path, currentPath string) Scope {
 	if groupID == GlobalGroupID && path == "" {
 		return ScopeGlobal
 	}

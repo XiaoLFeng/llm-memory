@@ -13,7 +13,6 @@ import (
 var memoryDeleteID int
 
 // memoryDeleteCmd 删除记忆
-// 嘿嘿~ 删除指定的记忆！🗑️
 var memoryDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "删除记忆",
@@ -30,7 +29,7 @@ var memoryDeleteCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewMemoryHandler(bs)
-		if err := handler.Delete(bs.Context(), uint(memoryDeleteID)); err != nil {
+		if err := handler.Delete(bs.Context(), int64(memoryDeleteID)); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}

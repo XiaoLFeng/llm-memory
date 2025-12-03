@@ -7,10 +7,10 @@ import (
 )
 
 // Memory 记忆实体（数据表结构）
-// 嘿嘿~ 这是用于持久化存储的记忆实体！💖
+// 记忆条目，用于持久化存储重要信息
 type Memory struct {
-	ID         uint           `gorm:"primaryKey;autoIncrement"`
-	GroupID    uint           `gorm:"index;default:0;comment:所属组ID（0=Global）"`
+	ID         int64          `gorm:"primaryKey"`                              // 雪花算法生成
+	GroupID    int64          `gorm:"index;default:0;comment:所属组ID（0=Global）"` // 关联组ID
 	Path       string         `gorm:"index;size:1024;comment:精确路径（Personal作用域）"`
 	Title      string         `gorm:"index;size:255;not null;comment:标题"`
 	Content    string         `gorm:"type:text;not null;comment:内容"`
@@ -31,10 +31,10 @@ func (Memory) TableName() string {
 }
 
 // MemoryTag 记忆标签关联表
-// 呀~ 用于存储记忆的标签关联！✨
+// 存储记忆的标签关联
 type MemoryTag struct {
-	ID       uint   `gorm:"primaryKey;autoIncrement"`
-	MemoryID uint   `gorm:"index;not null"`
+	ID       int64  `gorm:"primaryKey"`     // 雪花算法生成
+	MemoryID int64  `gorm:"index;not null"` // 关联记忆ID
 	Tag      string `gorm:"index;size:100;not null"`
 }
 
@@ -44,7 +44,7 @@ func (MemoryTag) TableName() string {
 }
 
 // MemoryPriority 记忆优先级常量
-// 嘿嘿~ 统一的优先级定义！🎮
+// 统一的优先级定义
 const (
 	MemoryPriorityLow    = 1 // 低优先级
 	MemoryPriorityMedium = 2 // 中优先级

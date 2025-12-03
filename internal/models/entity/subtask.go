@@ -5,10 +5,10 @@ import (
 )
 
 // SubTask 子任务实体（独立表）
-// 嘿嘿~ 每个大计划都需要拆分成小任务来管理哦~ ✨
+// 每个大计划都需要拆分成小任务来管理
 type SubTask struct {
-	ID          uint       `gorm:"primaryKey;autoIncrement"`
-	PlanID      uint       `gorm:"index;not null;comment:所属计划ID"`
+	ID          int64      `gorm:"primaryKey"`                    // 雪花算法生成
+	PlanID      int64      `gorm:"index;not null;comment:所属计划ID"` // 关联计划ID
 	Title       string     `gorm:"size:255;not null"`
 	Description string     `gorm:"type:text"`
 	Status      PlanStatus `gorm:"size:20;default:'pending'"`

@@ -1,6 +1,8 @@
 package common
 
 import (
+	"time"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -20,7 +22,6 @@ const (
 	PagePlanDetail
 	PagePlanProgress
 	PageTodoList
-	PageTodoToday
 	PageTodoCreate
 	PageTodoDetail
 	PageGroupList   // 组列表
@@ -90,6 +91,12 @@ type CloseConfirmMsg struct{}
 
 // CloseToastMsg 关闭提示消息
 type CloseToastMsg struct{}
+
+// AutoRefreshMsg 自动刷新消息
+type AutoRefreshMsg struct{}
+
+// AutoRefreshInterval 自动刷新间隔 (30秒)
+const AutoRefreshInterval = 30 * time.Second
 
 // WindowSizeMsg 窗口大小消息
 type WindowSizeMsg struct {
@@ -197,6 +204,13 @@ func ShowConfirm(title, message string, onConfirm, onCancel tea.Cmd) tea.Cmd {
 			OnCancel:  onCancel,
 		}
 	}
+}
+
+// StartAutoRefresh 启动自动刷新计时器
+func StartAutoRefresh() tea.Cmd {
+	return tea.Tick(AutoRefreshInterval, func(t time.Time) tea.Msg {
+		return AutoRefreshMsg{}
+	})
 }
 
 // 额外的快捷键定义

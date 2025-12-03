@@ -8,7 +8,6 @@ import (
 )
 
 // Frame 页面框架组件
-// 嘿嘿~ 这是统一的页面框架，所有页面都用它！💖
 type Frame struct {
 	width  int
 	height int
@@ -35,7 +34,6 @@ func (f *Frame) GetContentHeight() int {
 }
 
 // GetContentWidth 获取内容区域宽度
-// 嘿嘿~ 这里只减去左右边框各 1 = 2，保持和 renderContent 一致！
 func (f *Frame) GetContentWidth() int {
 	return f.width - 2
 }

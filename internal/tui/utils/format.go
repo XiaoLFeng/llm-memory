@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 )
 
 // FormatTime 格式化时间
@@ -97,15 +99,15 @@ func FormatPriority(priority int) string {
 func FormatPriorityIcon(priority int) string {
 	switch priority {
 	case 1:
-		return "⬇️"
+		return styles.IconArrowDown
 	case 2:
-		return "➡️"
+		return styles.IconMinus
 	case 3:
-		return "⬆️"
+		return styles.IconArrowUp
 	case 4:
-		return "🔥"
+		return styles.IconWarning
 	default:
-		return "❓"
+		return styles.IconInfo
 	}
 }
 
@@ -129,15 +131,15 @@ func FormatStatus(status string) string {
 func FormatStatusIcon(status string) string {
 	switch status {
 	case "pending":
-		return "⏳"
+		return styles.IconClock
 	case "in_progress":
-		return "🔄"
+		return styles.IconSpinner
 	case "completed":
-		return "✅"
+		return styles.IconCheck
 	case "cancelled":
-		return "❌"
+		return styles.IconCancel
 	default:
-		return "❓"
+		return styles.IconInfo
 	}
 }
 
@@ -161,15 +163,15 @@ func FormatTodoStatus(status int) string {
 func FormatTodoStatusIcon(status int) string {
 	switch status {
 	case 0:
-		return "📋"
+		return styles.IconPending
 	case 1:
-		return "🔄"
+		return styles.IconSpinner
 	case 2:
-		return "✅"
+		return styles.IconCheck
 	case 3:
-		return "❌"
+		return styles.IconCancel
 	default:
-		return "❓"
+		return styles.IconInfo
 	}
 }
 

@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/XiaoLFeng/llm-memory/internal/database"
 	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"gorm.io/gorm"
 )
 
 // ToDoModel 待办数据访问层
-// 嘿嘿~ 这是待办的数据访问模型，包含批量操作！💖
 type ToDoModel struct {
 	db *gorm.DB
 }
@@ -24,6 +24,7 @@ func NewToDoModel(db *gorm.DB) *ToDoModel {
 
 // Create 创建待办
 func (m *ToDoModel) Create(ctx context.Context, todo *entity.ToDo) error {
+	todo.ID = database.GenerateID()
 	return m.db.WithContext(ctx).Create(todo).Error
 }
 
@@ -33,12 +34,12 @@ func (m *ToDoModel) Update(ctx context.Context, todo *entity.ToDo) error {
 }
 
 // Delete 删除待办（软删除）
-func (m *ToDoModel) Delete(ctx context.Context, id uint) error {
+func (m *ToDoModel) Delete(ctx context.Context, id int64) error {
 	return m.db.WithContext(ctx).Delete(&entity.ToDo{}, id).Error
 }
 
 // FindByID 根据 ID 查找待办
-func (m *ToDoModel) FindByID(ctx context.Context, id uint) (*entity.ToDo, error) {
+func (m *ToDoModel) FindByID(ctx context.Context, id int64) (*entity.ToDo, error) {
 	var todo entity.ToDo
 	err := m.db.WithContext(ctx).Preload("Tags").First(&todo, id).Error
 	if err != nil {
@@ -62,8 +63,8 @@ func (m *ToDoModel) FindByStatus(ctx context.Context, status entity.ToDoStatus) 
 }
 
 // FindByScope 根据作用域查找待办
-// 呀~ 支持 Personal/Group/Global 三层作用域过滤！✨
-func (m *ToDoModel) FindByScope(ctx context.Context, groupID uint, path string, includeGlobal bool) ([]entity.ToDo, error) {
+// 支持 Personal/Group/Global 三层作用域过滤
+func (m *ToDoModel) FindByScope(ctx context.Context, groupID int64, path string, includeGlobal bool) ([]entity.ToDo, error) {
 	var todos []entity.ToDo
 	query := m.db.WithContext(ctx).Preload("Tags")
 
@@ -91,56 +92,8 @@ func (m *ToDoModel) FindByScope(ctx context.Context, groupID uint, path string, 
 	return todos, err
 }
 
-// FindToday 查找今日待办
-func (m *ToDoModel) FindToday(ctx context.Context) ([]entity.ToDo, error) {
-	var todos []entity.ToDo
-	now := time.Now()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	endOfDay := startOfDay.Add(24 * time.Hour)
-
-	err := m.db.WithContext(ctx).Preload("Tags").
-		Where("due_date >= ? AND due_date < ?", startOfDay, endOfDay).
-		Order("priority DESC, due_date ASC").
-		Find(&todos).Error
-	return todos, err
-}
-
-// FindTodayByScope 在指定作用域内查找今日待办
-func (m *ToDoModel) FindTodayByScope(ctx context.Context, groupID uint, path string, includeGlobal bool) ([]entity.ToDo, error) {
-	var todos []entity.ToDo
-	now := time.Now()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	endOfDay := startOfDay.Add(24 * time.Hour)
-
-	query := m.db.WithContext(ctx).Preload("Tags").
-		Where("due_date >= ? AND due_date < ?", startOfDay, endOfDay)
-
-	// 构建作用域条件
-	var conditions []string
-	var args []interface{}
-
-	if path != "" {
-		conditions = append(conditions, "(path = ?)")
-		args = append(args, path)
-	}
-	if groupID > 0 {
-		conditions = append(conditions, "(group_id = ? AND path = '')")
-		args = append(args, groupID)
-	}
-	if includeGlobal {
-		conditions = append(conditions, "(group_id = 0 AND path = '')")
-	}
-
-	if len(conditions) > 0 {
-		query = query.Where(strings.Join(conditions, " OR "), args...)
-	}
-
-	err := query.Order("priority DESC, due_date ASC").Find(&todos).Error
-	return todos, err
-}
-
 // Complete 完成待办
-func (m *ToDoModel) Complete(ctx context.Context, id uint) error {
+func (m *ToDoModel) Complete(ctx context.Context, id int64) error {
 	now := time.Now()
 	return m.db.WithContext(ctx).Model(&entity.ToDo{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":       entity.ToDoStatusCompleted,
@@ -149,18 +102,18 @@ func (m *ToDoModel) Complete(ctx context.Context, id uint) error {
 }
 
 // Start 开始待办
-func (m *ToDoModel) Start(ctx context.Context, id uint) error {
+func (m *ToDoModel) Start(ctx context.Context, id int64) error {
 	return m.db.WithContext(ctx).Model(&entity.ToDo{}).Where("id = ?", id).Update("status", entity.ToDoStatusInProgress).Error
 }
 
 // Cancel 取消待办
-func (m *ToDoModel) Cancel(ctx context.Context, id uint) error {
+func (m *ToDoModel) Cancel(ctx context.Context, id int64) error {
 	return m.db.WithContext(ctx).Model(&entity.ToDo{}).Where("id = ?", id).Update("status", entity.ToDoStatusCancelled).Error
 }
 
 // UpdateTags 更新待办标签
-// 嘿嘿~ 先删除旧标签再添加新标签！💖
-func (m *ToDoModel) UpdateTags(ctx context.Context, todoID uint, tags []string) error {
+// 删除旧标签并添加新标签
+func (m *ToDoModel) UpdateTags(ctx context.Context, todoID int64, tags []string) error {
 	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 删除旧标签
 		if err := tx.Where("to_do_id = ?", todoID).Delete(&entity.ToDoTag{}).Error; err != nil {
@@ -169,6 +122,7 @@ func (m *ToDoModel) UpdateTags(ctx context.Context, todoID uint, tags []string) 
 		// 添加新标签
 		for _, tag := range tags {
 			todoTag := entity.ToDoTag{
+				ID:     database.GenerateID(),
 				ToDoID: todoID,
 				Tag:    tag,
 			}
@@ -180,10 +134,7 @@ func (m *ToDoModel) UpdateTags(ctx context.Context, todoID uint, tags []string) 
 	})
 }
 
-// ========== 批量操作方法 ==========
-
 // BatchCreate 批量创建待办
-// 嘿嘿~ 一次性创建多个待办！🎮
 func (m *ToDoModel) BatchCreate(ctx context.Context, todos []entity.ToDo) (*dto.ToDoBatchResultDTO, error) {
 	result := &dto.ToDoBatchResultDTO{
 		Total:  len(todos),
@@ -193,6 +144,7 @@ func (m *ToDoModel) BatchCreate(ctx context.Context, todos []entity.ToDo) (*dto.
 	// 使用事务批量插入
 	err := m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for i := range todos {
+			todos[i].ID = database.GenerateID()
 			if err := tx.Create(&todos[i]).Error; err != nil {
 				result.Failed++
 				result.Errors = append(result.Errors,
@@ -208,7 +160,6 @@ func (m *ToDoModel) BatchCreate(ctx context.Context, todos []entity.ToDo) (*dto.
 }
 
 // BatchUpdate 批量更新待办
-// 呀~ 一次性更新多个待办！✨
 func (m *ToDoModel) BatchUpdate(ctx context.Context, updates []dto.ToDoUpdateDTO) (*dto.ToDoBatchResultDTO, error) {
 	result := &dto.ToDoBatchResultDTO{
 		Total:  len(updates),
@@ -261,8 +212,7 @@ func (m *ToDoModel) BatchUpdate(ctx context.Context, updates []dto.ToDoUpdateDTO
 }
 
 // BatchComplete 批量完成待办
-// 嘿嘿~ 一次性完成多个待办！💖
-func (m *ToDoModel) BatchComplete(ctx context.Context, ids []uint) (*dto.ToDoBatchResultDTO, error) {
+func (m *ToDoModel) BatchComplete(ctx context.Context, ids []int64) (*dto.ToDoBatchResultDTO, error) {
 	result := &dto.ToDoBatchResultDTO{
 		Total:  len(ids),
 		Errors: make([]string, 0),
@@ -298,8 +248,7 @@ func (m *ToDoModel) BatchComplete(ctx context.Context, ids []uint) (*dto.ToDoBat
 }
 
 // BatchDelete 批量删除待办
-// 呀~ 一次性删除多个待办！⚠️
-func (m *ToDoModel) BatchDelete(ctx context.Context, ids []uint) (*dto.ToDoBatchResultDTO, error) {
+func (m *ToDoModel) BatchDelete(ctx context.Context, ids []int64) (*dto.ToDoBatchResultDTO, error) {
 	result := &dto.ToDoBatchResultDTO{
 		Total:  len(ids),
 		Errors: make([]string, 0),
@@ -325,7 +274,7 @@ func (m *ToDoModel) BatchDelete(ctx context.Context, ids []uint) (*dto.ToDoBatch
 }
 
 // BatchUpdateStatus 批量更新状态
-func (m *ToDoModel) BatchUpdateStatus(ctx context.Context, ids []uint, status entity.ToDoStatus) (*dto.ToDoBatchResultDTO, error) {
+func (m *ToDoModel) BatchUpdateStatus(ctx context.Context, ids []int64, status entity.ToDoStatus) (*dto.ToDoBatchResultDTO, error) {
 	result := &dto.ToDoBatchResultDTO{
 		Total:  len(ids),
 		Errors: make([]string, 0),

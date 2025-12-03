@@ -13,7 +13,6 @@ import (
 var todoDeleteID int
 
 // todoDeleteCmd 删除待办
-// 嘿嘿~ 删除指定的待办事项！🗑️
 var todoDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "删除待办事项",
@@ -30,7 +29,7 @@ var todoDeleteCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewTodoHandler(bs)
-		if err := handler.Delete(bs.Context(), uint(todoDeleteID)); err != nil {
+		if err := handler.Delete(bs.Context(), int64(todoDeleteID)); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}

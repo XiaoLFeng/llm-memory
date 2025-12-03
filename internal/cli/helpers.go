@@ -36,24 +36,24 @@ var (
 )
 
 // PrintSuccess 打印成功消息
-// 呀~ 操作成功时使用这个！✨
+// 呀~ 操作成功时使用这个！
 func PrintSuccess(message string) {
-	fmt.Println(SuccessStyle.Render("✓ " + message))
+	fmt.Println(SuccessStyle.Render(IconCheck + " " + message))
 }
 
 // PrintError 打印错误消息
 func PrintError(message string) {
-	fmt.Println(ErrorStyle.Render("✗ " + message))
+	fmt.Println(ErrorStyle.Render(IconTimes + " " + message))
 }
 
 // PrintWarning 打印警告消息
 func PrintWarning(message string) {
-	fmt.Println(WarningStyle.Render("⚠ " + message))
+	fmt.Println(WarningStyle.Render(IconWarning + " " + message))
 }
 
 // PrintInfo 打印信息消息
 func PrintInfo(message string) {
-	fmt.Println(InfoStyle.Render("ℹ " + message))
+	fmt.Println(InfoStyle.Render(IconInfo + " " + message))
 }
 
 // PrintTitle 打印标题

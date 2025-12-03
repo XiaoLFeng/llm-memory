@@ -19,7 +19,6 @@ const (
 )
 
 // Toast 提示消息组件
-// 嘿嘿~ 现代化的 Toast 组件，带边框和图标！💬
 type Toast struct {
 	message   string
 	toastType ToastType
@@ -96,16 +95,16 @@ func (t *Toast) View() string {
 	switch t.toastType {
 	case ToastSuccess:
 		borderColor = styles.Success
-		icon = "✓"
+		icon = "+"
 	case ToastError:
 		borderColor = styles.Error
-		icon = "✗"
+		icon = "x"
 	case ToastWarning:
 		borderColor = styles.Warning
-		icon = "⚠"
+		icon = "!"
 	case ToastInfo:
 		borderColor = styles.Info
-		icon = "ℹ"
+		icon = "i"
 	}
 
 	// 创建 Toast 样式 - 带边框

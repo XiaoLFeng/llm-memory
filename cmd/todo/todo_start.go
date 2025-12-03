@@ -13,7 +13,6 @@ import (
 var todoStartID int
 
 // todoStartCmd 开始待办
-// 呀~ 开始处理待办事项！🚀
 var todoStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "开始待办事项",
@@ -30,7 +29,7 @@ var todoStartCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewTodoHandler(bs)
-		if err := handler.Start(bs.Context(), uint(todoStartID)); err != nil {
+		if err := handler.Start(bs.Context(), int64(todoStartID)); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}

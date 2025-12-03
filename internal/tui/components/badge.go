@@ -6,7 +6,6 @@ import (
 )
 
 // Badge 标签徽章组件
-// 嘿嘿~ 用于显示状态、优先级、作用域等标签！🏷️
 
 // ScopeBadge 作用域徽章
 func ScopeBadge(scope string) string {
@@ -26,7 +25,7 @@ func ScopeBadge(scope string) string {
 		text = "[Group]"
 	case "personal", "Personal":
 		style = lipgloss.NewStyle().
-			Foreground(styles.Pink).
+			Foreground(styles.Emerald).
 			Bold(true)
 		text = "[Personal]"
 	default:
@@ -38,7 +37,7 @@ func ScopeBadge(scope string) string {
 }
 
 // ScopeBadgeFromGroupIDPath 根据 GroupID 和 Path 生成作用域徽章
-func ScopeBadgeFromGroupIDPath(groupID uint, path string) string {
+func ScopeBadgeFromGroupIDPath(groupID int64, path string) string {
 	if path != "" {
 		return ScopeBadge("Personal")
 	}
@@ -56,20 +55,20 @@ func PriorityBadge(priority int) string {
 	switch priority {
 	case 1:
 		style = lipgloss.NewStyle().Foreground(styles.Overlay0)
-		text = "⬇️低"
+		text = "低"
 	case 2:
 		style = lipgloss.NewStyle().Foreground(styles.Accent)
-		text = "➡️中"
+		text = "中"
 	case 3:
 		style = lipgloss.NewStyle().
 			Foreground(styles.Warning).
 			Bold(true)
-		text = "⬆️高"
+		text = "高"
 	case 4:
 		style = lipgloss.NewStyle().
 			Foreground(styles.Error).
 			Bold(true)
-		text = "🔥紧急"
+		text = "紧急"
 	default:
 		style = lipgloss.NewStyle().Foreground(styles.Overlay0)
 		text = "未知"
@@ -82,13 +81,13 @@ func PriorityBadge(priority int) string {
 func PriorityBadgeSimple(priority int) string {
 	switch priority {
 	case 1:
-		return "⬇️"
+		return "L"
 	case 2:
-		return "➡️"
+		return "M"
 	case 3:
-		return "⬆️"
+		return "H"
 	case 4:
-		return "🔥"
+		return "!"
 	default:
 		return "•"
 	}
@@ -102,16 +101,16 @@ func StatusBadge(status string) string {
 	switch status {
 	case "pending", "待开始", "待处理":
 		style = lipgloss.NewStyle().Foreground(styles.Overlay0)
-		text = "⏳待处理"
+		text = "待处理"
 	case "in_progress", "进行中":
 		style = lipgloss.NewStyle().Foreground(styles.Info)
-		text = "🔄进行中"
+		text = "进行中"
 	case "completed", "已完成":
 		style = lipgloss.NewStyle().Foreground(styles.Success)
-		text = "✅已完成"
+		text = "已完成"
 	case "cancelled", "已取消":
 		style = lipgloss.NewStyle().Foreground(styles.Error)
-		text = "❌已取消"
+		text = "已取消"
 	default:
 		style = lipgloss.NewStyle().Foreground(styles.Overlay0)
 		text = "未知"
@@ -124,13 +123,13 @@ func StatusBadge(status string) string {
 func StatusBadgeSimple(status string) string {
 	switch status {
 	case "pending", "待开始", "待处理":
-		return "⏳"
+		return "P"
 	case "in_progress", "进行中":
-		return "🔄"
+		return "I"
 	case "completed", "已完成":
-		return "✅"
+		return "C"
 	case "cancelled", "已取消":
-		return "❌"
+		return "X"
 	default:
 		return "•"
 	}

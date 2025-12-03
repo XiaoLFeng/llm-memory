@@ -4,12 +4,12 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/XiaoLFeng/llm-memory/internal/database"
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"gorm.io/gorm"
 )
 
 // GroupModel 组数据访问层
-// 嘿嘿~ 这是组的数据访问模型！💖
 type GroupModel struct {
 	db *gorm.DB
 }
@@ -21,6 +21,7 @@ func NewGroupModel(db *gorm.DB) *GroupModel {
 
 // Create 创建组
 func (m *GroupModel) Create(ctx context.Context, group *entity.Group) error {
+	group.ID = database.GenerateID()
 	return m.db.WithContext(ctx).Create(group).Error
 }
 
@@ -30,7 +31,7 @@ func (m *GroupModel) Update(ctx context.Context, group *entity.Group) error {
 }
 
 // Delete 删除组（软删除）
-func (m *GroupModel) Delete(ctx context.Context, id uint) error {
+func (m *GroupModel) Delete(ctx context.Context, id int64) error {
 	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 先删除路径映射
 		if err := tx.Where("group_id = ?", id).Delete(&entity.GroupPath{}).Error; err != nil {
@@ -42,7 +43,7 @@ func (m *GroupModel) Delete(ctx context.Context, id uint) error {
 }
 
 // FindByID 根据 ID 查找组
-func (m *GroupModel) FindByID(ctx context.Context, id uint) (*entity.Group, error) {
+func (m *GroupModel) FindByID(ctx context.Context, id int64) (*entity.Group, error) {
 	var group entity.Group
 	err := m.db.WithContext(ctx).Preload("Paths").First(&group, id).Error
 	if err != nil {
@@ -62,7 +63,6 @@ func (m *GroupModel) FindByName(ctx context.Context, name string) (*entity.Group
 }
 
 // FindByPath 根据路径查找所属组
-// 呀~ 通过路径映射表快速查找组！✨
 func (m *GroupModel) FindByPath(ctx context.Context, path string) (*entity.Group, error) {
 	// 规范化路径
 	absPath, err := filepath.Abs(path)
@@ -87,8 +87,7 @@ func (m *GroupModel) FindAll(ctx context.Context) ([]entity.Group, error) {
 }
 
 // AddPath 添加路径到组
-// 嘿嘿~ 先检查路径是否被其他组占用！💖
-func (m *GroupModel) AddPath(ctx context.Context, groupID uint, path string) error {
+func (m *GroupModel) AddPath(ctx context.Context, groupID int64, path string) error {
 	// 规范化路径
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -112,6 +111,7 @@ func (m *GroupModel) AddPath(ctx context.Context, groupID uint, path string) err
 
 		// 创建路径映射
 		groupPath := entity.GroupPath{
+			ID:      database.GenerateID(),
 			GroupID: groupID,
 			Path:    absPath,
 		}
@@ -120,7 +120,7 @@ func (m *GroupModel) AddPath(ctx context.Context, groupID uint, path string) err
 }
 
 // RemovePath 从组移除路径
-func (m *GroupModel) RemovePath(ctx context.Context, groupID uint, path string) error {
+func (m *GroupModel) RemovePath(ctx context.Context, groupID int64, path string) error {
 	// 规范化路径
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -146,8 +146,7 @@ func (m *GroupModel) PathExists(ctx context.Context, path string) (bool, error) 
 }
 
 // GetGroupIDByPath 获取路径所属的组 ID
-// 呀~ 快速获取组 ID，不加载完整的组信息！✨
-func (m *GroupModel) GetGroupIDByPath(ctx context.Context, path string) (uint, error) {
+func (m *GroupModel) GetGroupIDByPath(ctx context.Context, path string) (int64, error) {
 	// 规范化路径
 	absPath, err := filepath.Abs(path)
 	if err != nil {

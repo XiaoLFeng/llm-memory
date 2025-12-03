@@ -31,24 +31,24 @@ var groupListCmd = &cobra.Command{
 		}
 
 		if len(groups) == 0 {
-			fmt.Println("📭 暂无任何组，使用 'llm-memory group create <name>' 创建一个吧~")
+			fmt.Println(iconInbox + " 暂无任何组，使用 'llm-memory group create <name>' 创建一个吧~")
 			return
 		}
 
-		fmt.Println("📦 组列表:")
+		fmt.Println(iconPackage + " 组列表:")
 		fmt.Println("─────────────────────────────────────")
 		for _, group := range groups {
-			fmt.Printf("\n🏷️  [%d] %s\n", group.ID, group.Name)
+			fmt.Printf("\n"+iconTag+"  [%d] %s\n", group.ID, group.Name)
 			if group.Description != "" {
-				fmt.Printf("   📝 描述: %s\n", group.Description)
+				fmt.Printf("   "+iconEdit+" 描述: %s\n", group.Description)
 			}
 			if len(group.Paths) > 0 {
-				fmt.Printf("   📂 路径 (%d):\n", len(group.Paths))
+				fmt.Printf("   "+iconFolder+" 路径 (%d):\n", len(group.Paths))
 				for _, path := range group.Paths {
 					fmt.Printf("      - %s\n", path)
 				}
 			} else {
-				fmt.Println("   📂 暂无关联路径")
+				fmt.Println("   " + iconFolder + " 暂无关联路径")
 			}
 		}
 		fmt.Println("\n─────────────────────────────────────")

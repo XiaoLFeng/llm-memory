@@ -13,7 +13,6 @@ import (
 var planStartID int
 
 // planStartCmd 开始计划
-// 嘿嘿~ 开始执行计划！🚀
 var planStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "开始计划",
@@ -30,7 +29,7 @@ var planStartCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewPlanHandler(bs)
-		if err := handler.Start(bs.Context(), uint(planStartID)); err != nil {
+		if err := handler.Start(bs.Context(), int64(planStartID)); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}

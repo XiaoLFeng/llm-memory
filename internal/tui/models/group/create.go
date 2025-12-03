@@ -17,7 +17,6 @@ import (
 )
 
 // CreateModel 组创建模型
-// 呀~ 创建新组的表单！📝
 type CreateModel struct {
 	bs         *startup.Bootstrap
 	focusIndex int
@@ -215,7 +214,7 @@ func (m *CreateModel) View() string {
 	}
 
 	// 使用卡片包装表单
-	card := components.Card("👥 创建新组", formContent.String(), cardWidth)
+	card := components.Card(styles.IconUsers+" 创建新组", formContent.String(), cardWidth)
 
 	// 状态栏
 	keys := []string{

@@ -10,7 +10,6 @@ import (
 )
 
 // StatusBar 状态栏组件
-// 嘿嘿~ 现代化的状态栏，带边框和分隔符！📍
 type StatusBar struct {
 	breadcrumb string
 	keys       []key.Binding

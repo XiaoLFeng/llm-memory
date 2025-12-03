@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -27,47 +26,15 @@ type TodoCreateInput struct {
 
 // TodoCompleteInput todo_complete 工具输入
 type TodoCompleteInput struct {
-	ID uint `json:"id" jsonschema:"要完成的待办事项ID"`
-}
-
-// TodoTodayInput todo_today 工具输入
-type TodoTodayInput struct {
-	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤(personal/group/global/all)，默认all显示全部"`
+	ID int64 `json:"id" jsonschema:"要完成的待办事项ID"`
 }
 
 // RegisterTodoTools 注册 TODO 管理工具
-// 嗯嗯！待办事项相关的 MCP 工具都在这里！🎮
-// 注意：MCP 工具名保持 todo_*，内部类型使用 ToDo
 func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// todo_list - 列出所有待办
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "todo_list",
-		Description: `列出用户的所有待办事项，包含状态和优先级信息。
-
-使用场景：
-- 查看所有待办事项的整体情况
-- 了解各任务的状态和优先级
-- 获取待办ID用于标记完成
-
-返回信息：待办ID、标题、状态、优先级
-
-状态说明：
-- 待处理：新创建，尚未开始
-- 进行中：已开始处理
-- 已完成：任务完成
-- 已取消：任务取消
-
-优先级说明：
-- 低：可延后处理的任务
-- 中：正常优先级（默认）
-- 高：需要优先处理
-- 紧急：需要立即处理
-
-作用域说明：
-- personal: 只显示当前目录的待办
-- group: 只显示当前组的待办
-- global: 只显示全局待办
-- all: 显示所有可见待办（默认）`,
+		Name:        "todo_list",
+		Description: `列出所有待办及状态。scope参数: personal/group/global/all(默认)。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -91,32 +58,8 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 	// todo_create - 创建待办
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "todo_create",
-		Description: `创建一个新的待办事项，用于记录需要完成的短期任务。
-
-使用场景：
-- 用户提出需要完成的具体任务
-- 记录会话中发现的待处理事项
-- 分解复杂任务为多个待办
-
-待办事项 vs 计划：
-- 待办事项：短期、具体、一次性完成的任务（如"修复Bug"、"回复邮件"）
-- 计划：长期、复杂、需要跟踪进度的目标（如"完成项目重构"）
-
-优先级选择指南：
-- 1（低）：不紧急且不重要，可以延后
-- 2（中）：正常任务，按顺序处理（默认）
-- 3（高）：重要任务，需要优先安排
-- 4（紧急）：紧急任务，需要立即处理
-
-示例：
-- 标题："修复用户登录失败问题"，优先级：4（紧急）
-- 标题："更新项目文档"，优先级：2（中）
-
-作用域说明：
-- personal: 保存到当前目录（只在此目录可见）
-- group: 保存到当前组（组内所有路径可见）
-- global: 保存为全局（任何地方可见，默认）`,
+		Name:        "todo_create",
+		Description: `创建待办。必填: title。可选: description、priority(1低/2中/3高/4紧急，默认2)、scope(作用域)。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoCreateInput) (*mcp.CallToolResult, any, error) {
 		// 默认优先级
 		priority := input.Priority
@@ -145,69 +88,13 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 	// todo_complete - 完成待办
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "todo_complete",
-		Description: `将指定的待办事项标记为已完成。
-
-使用场景：
-- 用户确认任务已完成
-- 任务目标已达成
-- 需要关闭某个待办事项
-
-注意事项：
-- 已完成的待办无法再次标记为完成
-- 已取消的待办无法标记为完成
-- 完成后会记录完成时间
-
-建议：在用户明确表示任务完成后使用此工具，可以先通过 todo_list 或 todo_today 确认待办ID`,
+		Name:        "todo_complete",
+		Description: `标记待办为已完成。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoCompleteInput) (*mcp.CallToolResult, any, error) {
 		if err := bs.ToDoService.CompleteToDo(ctx, input.ID); err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
 		return NewTextResult(fmt.Sprintf("待办事项 %d 已标记为完成", input.ID)), nil, nil
-	})
-
-	// todo_today - 获取今日待办
-	mcp.AddTool(server, &mcp.Tool{
-		Name: "todo_today",
-		Description: `获取今日的待办事项列表，帮助用户聚焦当天任务。
-
-使用场景：
-- 每日工作开始时查看今天的任务
-- 用户询问"今天有什么任务"
-- 快速了解当天需要处理的事项
-
-返回信息：待办ID、标题、状态
-
-使用建议：
-- 每天开始工作时先查看今日待办
-- 根据优先级安排处理顺序
-- 完成后及时使用 todo_complete 标记
-
-提示：如果需要查看所有待办（不仅是今天的），请使用 todo_list
-
-作用域说明：
-- personal: 只显示当前目录今天的待办
-- group: 只显示当前组今天的待办
-- global: 只显示全局今天的待办
-- all: 显示所有可见今天的待办（默认）`,
-	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoTodayInput) (*mcp.CallToolResult, any, error) {
-		// 构建作用域上下文
-		scopeCtx := buildScopeContext(input.Scope, bs)
-
-		todos, err := bs.ToDoService.ListTodayByScope(ctx, input.Scope, scopeCtx)
-		if err != nil {
-			return NewErrorResult(err.Error()), nil, nil
-		}
-		if len(todos) == 0 {
-			return NewTextResult("今日暂无待办事项"), nil, nil
-		}
-		result := fmt.Sprintf("今日待办事项 (%s):\n", time.Now().Format("2006-01-02"))
-		for _, t := range todos {
-			status := getToDoStatusText(t.Status)
-			scopeTag := getScopeTag(t.GroupID, t.Path)
-			result += fmt.Sprintf("- [%d] %s (%s) %s\n", t.ID, t.Title, status, scopeTag)
-		}
-		return NewTextResult(result), nil, nil
 	})
 }
 

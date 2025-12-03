@@ -13,14 +13,12 @@ import (
 )
 
 // ToDoService 待办事项服务
-// 嘿嘿~ 这是处理待办事项业务逻辑的服务层哦！💖
 // 注意：类型名使用 ToDo，MCP 工具名保持 todo_*
 type ToDoService struct {
 	model *models.ToDoModel
 }
 
 // NewToDoService 创建新的待办事项服务实例
-// 呀~ 构造函数来啦！(´∀｀)
 func NewToDoService(model *models.ToDoModel) *ToDoService {
 	return &ToDoService{
 		model: model,
@@ -28,11 +26,11 @@ func NewToDoService(model *models.ToDoModel) *ToDoService {
 }
 
 // CreateToDo 创建新的待办事项
-// 嘿嘿~ 创建待办前会先验证数据的完整性呢！💫
+// 创建待办前会先验证数据的完整性
 func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, scopeCtx *types.ScopeContext) (*entity.ToDo, error) {
 	// 验证标题不能为空
 	if strings.TrimSpace(input.Title) == "" {
-		return nil, errors.New("标题不能为空哦~ 📝")
+		return nil, errors.New("标题不能为空")
 	}
 
 	// 默认优先级
@@ -42,7 +40,7 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 	}
 
 	// 解析作用域
-	var groupID uint
+	var groupID int64
 	var path string
 
 	scope := strings.ToLower(input.Scope)
@@ -53,7 +51,7 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 		}
 	case "group":
 		if scopeCtx != nil && scopeCtx.GroupID > 0 {
-			groupID = uint(scopeCtx.GroupID)
+			groupID = int64(scopeCtx.GroupID)
 		}
 	case "global":
 		// groupID 和 path 都为空即为 global
@@ -149,7 +147,7 @@ func (s *ToDoService) UpdateToDo(ctx context.Context, input *dto.ToDoUpdateDTO) 
 }
 
 // DeleteToDo 删除待办事项
-func (s *ToDoService) DeleteToDo(ctx context.Context, id uint) error {
+func (s *ToDoService) DeleteToDo(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.New("无效的待办事项ID")
 	}
@@ -164,7 +162,7 @@ func (s *ToDoService) DeleteToDo(ctx context.Context, id uint) error {
 }
 
 // GetToDo 获取指定ID的待办事项
-func (s *ToDoService) GetToDo(ctx context.Context, id uint) (*entity.ToDo, error) {
+func (s *ToDoService) GetToDo(ctx context.Context, id int64) (*entity.ToDo, error) {
 	if id == 0 {
 		return nil, errors.New("无效的待办事项ID")
 	}
@@ -178,9 +176,9 @@ func (s *ToDoService) ListToDos(ctx context.Context) ([]entity.ToDo, error) {
 }
 
 // ListToDosByScope 根据作用域列出待办事项
-// 嘿嘿~ 支持 Personal/Group/Global 三层作用域过滤！💖
+// 支持 Personal/Group/Global 三层作用域过滤
 func (s *ToDoService) ListToDosByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.ToDo, error) {
-	var groupID uint
+	var groupID int64
 	var path string
 	var includeGlobal bool
 
@@ -192,7 +190,7 @@ func (s *ToDoService) ListToDosByScope(ctx context.Context, scope string, scopeC
 		includeGlobal = false
 	case "group":
 		if scopeCtx != nil && scopeCtx.GroupID > 0 {
-			groupID = uint(scopeCtx.GroupID)
+			groupID = int64(scopeCtx.GroupID)
 		}
 		includeGlobal = false
 	case "global":
@@ -203,7 +201,7 @@ func (s *ToDoService) ListToDosByScope(ctx context.Context, scope string, scopeC
 				path = scopeCtx.CurrentPath
 			}
 			if scopeCtx.GroupID > 0 {
-				groupID = uint(scopeCtx.GroupID)
+				groupID = int64(scopeCtx.GroupID)
 			}
 		}
 		includeGlobal = true
@@ -219,49 +217,8 @@ func (s *ToDoService) ListByStatus(ctx context.Context, status entity.ToDoStatus
 	return s.model.FindByStatus(ctx, status)
 }
 
-// ListToday 获取今天的待办事项
-func (s *ToDoService) ListToday(ctx context.Context) ([]entity.ToDo, error) {
-	return s.model.FindToday(ctx)
-}
-
-// ListTodayByScope 根据作用域获取今天的待办事项
-func (s *ToDoService) ListTodayByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.ToDo, error) {
-	var groupID uint
-	var path string
-	var includeGlobal bool
-
-	switch strings.ToLower(scope) {
-	case "personal":
-		if scopeCtx != nil && scopeCtx.CurrentPath != "" {
-			path = scopeCtx.CurrentPath
-		}
-		includeGlobal = false
-	case "group":
-		if scopeCtx != nil && scopeCtx.GroupID > 0 {
-			groupID = uint(scopeCtx.GroupID)
-		}
-		includeGlobal = false
-	case "global":
-		includeGlobal = true
-	case "all", "":
-		if scopeCtx != nil {
-			if scopeCtx.CurrentPath != "" {
-				path = scopeCtx.CurrentPath
-			}
-			if scopeCtx.GroupID > 0 {
-				groupID = uint(scopeCtx.GroupID)
-			}
-		}
-		includeGlobal = true
-	default:
-		includeGlobal = true
-	}
-
-	return s.model.FindTodayByScope(ctx, groupID, path, includeGlobal)
-}
-
 // CompleteToDo 标记待办事项为已完成
-func (s *ToDoService) CompleteToDo(ctx context.Context, id uint) error {
+func (s *ToDoService) CompleteToDo(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.New("无效的待办事项ID")
 	}
@@ -282,7 +239,7 @@ func (s *ToDoService) CompleteToDo(ctx context.Context, id uint) error {
 }
 
 // StartToDo 标记待办事项为进行中
-func (s *ToDoService) StartToDo(ctx context.Context, id uint) error {
+func (s *ToDoService) StartToDo(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.New("无效的待办事项ID")
 	}
@@ -303,7 +260,7 @@ func (s *ToDoService) StartToDo(ctx context.Context, id uint) error {
 }
 
 // CancelToDo 取消待办事项
-func (s *ToDoService) CancelToDo(ctx context.Context, id uint) error {
+func (s *ToDoService) CancelToDo(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.New("无效的待办事项ID")
 	}
@@ -320,10 +277,7 @@ func (s *ToDoService) CancelToDo(ctx context.Context, id uint) error {
 	return s.model.Cancel(ctx, id)
 }
 
-// ========== 批量操作方法 ==========
-
 // BatchCreateToDos 批量创建待办事项
-// 嘿嘿~ 一次性创建多个待办！🎮
 func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatchCreateDTO, scopeCtx *types.ScopeContext) (*dto.ToDoBatchResultDTO, error) {
 	// 验证数量限制
 	if len(input.Items) == 0 {
@@ -341,7 +295,7 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 		}
 
 		// 解析作用域
-		var groupID uint
+		var groupID int64
 		var path string
 
 		scope := strings.ToLower(item.Scope)
@@ -352,7 +306,7 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 			}
 		case "group":
 			if scopeCtx != nil && scopeCtx.GroupID > 0 {
-				groupID = uint(scopeCtx.GroupID)
+				groupID = scopeCtx.GroupID
 			}
 		case "global":
 			// 留空
@@ -385,7 +339,6 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 }
 
 // BatchUpdateToDos 批量更新待办事项
-// 呀~ 一次性更新多个待办！✨
 func (s *ToDoService) BatchUpdateToDos(ctx context.Context, input *dto.ToDoBatchUpdateDTO) (*dto.ToDoBatchResultDTO, error) {
 	if len(input.Items) == 0 {
 		return nil, errors.New("没有待更新的项目")
@@ -398,7 +351,6 @@ func (s *ToDoService) BatchUpdateToDos(ctx context.Context, input *dto.ToDoBatch
 }
 
 // BatchCompleteToDos 批量完成待办事项
-// 嘿嘿~ 一次性完成多个待办！💖
 func (s *ToDoService) BatchCompleteToDos(ctx context.Context, input *dto.ToDoBatchCompleteDTO) (*dto.ToDoBatchResultDTO, error) {
 	if len(input.IDs) == 0 {
 		return nil, errors.New("没有待完成的项目")
@@ -411,7 +363,6 @@ func (s *ToDoService) BatchCompleteToDos(ctx context.Context, input *dto.ToDoBat
 }
 
 // BatchDeleteToDos 批量删除待办事项
-// 呀~ 一次性删除多个待办！⚠️
 func (s *ToDoService) BatchDeleteToDos(ctx context.Context, input *dto.ToDoBatchDeleteDTO) (*dto.ToDoBatchResultDTO, error) {
 	if len(input.IDs) == 0 {
 		return nil, errors.New("没有待删除的项目")
@@ -424,7 +375,7 @@ func (s *ToDoService) BatchDeleteToDos(ctx context.Context, input *dto.ToDoBatch
 }
 
 // BatchUpdateStatus 批量更新状态
-func (s *ToDoService) BatchUpdateStatus(ctx context.Context, ids []uint, status entity.ToDoStatus) (*dto.ToDoBatchResultDTO, error) {
+func (s *ToDoService) BatchUpdateStatus(ctx context.Context, ids []int64, status entity.ToDoStatus) (*dto.ToDoBatchResultDTO, error) {
 	if len(ids) == 0 {
 		return nil, errors.New("没有待更新的项目")
 	}
@@ -436,7 +387,6 @@ func (s *ToDoService) BatchUpdateStatus(ctx context.Context, ids []uint, status 
 }
 
 // ToToDoResponseDTO 将 ToDo entity 转换为 ResponseDTO
-// 嘿嘿~ 数据转换小助手！💖
 func ToToDoResponseDTO(todo *entity.ToDo, currentPath string) *dto.ToDoResponseDTO {
 	if todo == nil {
 		return nil

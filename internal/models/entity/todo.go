@@ -7,7 +7,7 @@ import (
 )
 
 // ToDoStatus 待办状态类型
-// 呀~ 用整数类型方便数据库存储！🎯
+// 用整数类型方便数据库存储
 type ToDoStatus int
 
 // 待办状态常量定义
@@ -51,7 +51,7 @@ func ToDoStatusFromString(s string) ToDoStatus {
 }
 
 // ToDoPriority 待办优先级类型
-// 嘿嘿~ 优先级从 1 开始！💖
+// 优先级从 1 开始
 type ToDoPriority int
 
 // 待办优先级常量定义
@@ -96,10 +96,10 @@ func ToDoPriorityFromString(s string) ToDoPriority {
 
 // ToDo 待办事项实体（数据表结构）
 // 注意：类型名使用 ToDo（不是 Todo），避免 IDE 命名规范问题
-// 嘿嘿~ 这是用于管理短期任务的待办实体！💖
+// 用于管理短期任务的待办实体
 type ToDo struct {
-	ID          uint           `gorm:"primaryKey;autoIncrement"`
-	GroupID     uint           `gorm:"index;default:0;comment:所属组ID（0=Global）"`
+	ID          int64          `gorm:"primaryKey"`                              // 雪花算法生成
+	GroupID     int64          `gorm:"index;default:0;comment:所属组ID（0=Global）"` // 关联组ID
 	Path        string         `gorm:"index;size:1024;comment:精确路径（Personal作用域）"`
 	Title       string         `gorm:"index;size:255;not null;comment:标题"`
 	Description string         `gorm:"type:text;comment:描述"`
@@ -121,10 +121,10 @@ func (ToDo) TableName() string {
 }
 
 // ToDoTag 待办标签关联表
-// 呀~ 用于存储待办的标签关联！✨
+// 存储待办的标签关联
 type ToDoTag struct {
-	ID     uint   `gorm:"primaryKey;autoIncrement"`
-	ToDoID uint   `gorm:"index;not null"`
+	ID     int64  `gorm:"primaryKey"`     // 雪花算法生成
+	ToDoID int64  `gorm:"index;not null"` // 关联待办ID
 	Tag    string `gorm:"index;size:100;not null"`
 }
 

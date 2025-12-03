@@ -8,7 +8,6 @@ import (
 )
 
 // Card 创建卡片容器
-// 嘿嘿~ 这是通用的卡片组件，带标题和边框！💖
 func Card(title, content string, width int) string {
 	if width < 20 {
 		width = 20
@@ -89,7 +88,6 @@ func CardInfo(title, content string, width int) string {
 }
 
 // NestedCard 嵌套卡片（用于详情页的信息分组）
-// 嘿嘿~ 使用更深的背景色和更明显的边框来区分层次！
 func NestedCard(title, content string, width int) string {
 	if width < 20 {
 		width = 20
@@ -109,7 +107,6 @@ func NestedCard(title, content string, width int) string {
 }
 
 // createTitleLine 创建标题行（带装饰线）
-// 嘿嘿~ 添加了防止负值的保护和标题截断功能！
 func createTitleLine(title string, width int) string {
 	if title == "" {
 		return ""

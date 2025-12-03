@@ -3,7 +3,6 @@ package dto
 import "time"
 
 // ToDoCreateDTO 创建待办请求
-// 嘿嘿~ 用于创建新待办的数据传输对象！💖
 type ToDoCreateDTO struct {
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
@@ -14,9 +13,8 @@ type ToDoCreateDTO struct {
 }
 
 // ToDoUpdateDTO 更新待办请求
-// 呀~ 用于更新已有待办的数据传输对象！✨
 type ToDoUpdateDTO struct {
-	ID          uint       `json:"id"`
+	ID          int64      `json:"id"`
 	Title       *string    `json:"title,omitempty"`
 	Description *string    `json:"description,omitempty"`
 	Priority    *int       `json:"priority,omitempty"`
@@ -26,9 +24,8 @@ type ToDoUpdateDTO struct {
 }
 
 // ToDoResponseDTO 待办响应
-// 嘿嘿~ 用于返回待办详情的数据传输对象！💖
 type ToDoResponseDTO struct {
-	ID          uint       `json:"id"`
+	ID          int64      `json:"id"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Priority    int        `json:"priority"`
@@ -45,9 +42,8 @@ type ToDoResponseDTO struct {
 }
 
 // ToDoListDTO 待办列表项
-// 呀~ 用于列表展示的简化待办数据！✨
 type ToDoListDTO struct {
-	ID          uint       `json:"id"`
+	ID          int64      `json:"id"`
 	Title       string     `json:"title"`
 	Priority    int        `json:"priority"`
 	PriorityStr string     `json:"priority_str"`
@@ -58,40 +54,33 @@ type ToDoListDTO struct {
 	IsOverdue   bool       `json:"is_overdue"`
 }
 
-// ========== 批量操作 DTO（新增）==========
-
 // ToDoBatchCreateDTO 批量创建待办请求
-// 嘿嘿~ 一次性创建多个待办！🎮
 type ToDoBatchCreateDTO struct {
 	Items []ToDoCreateDTO `json:"items"` // 最多 100 个
 }
 
 // ToDoBatchUpdateDTO 批量更新待办请求
-// 呀~ 一次性更新多个待办！✨
 type ToDoBatchUpdateDTO struct {
 	Items []ToDoUpdateDTO `json:"items"` // 最多 100 个
 }
 
 // ToDoBatchCompleteDTO 批量完成待办请求
-// 嘿嘿~ 一次性完成多个待办！💖
 type ToDoBatchCompleteDTO struct {
-	IDs []uint `json:"ids"` // 最多 100 个
+	IDs []int64 `json:"ids"` // 最多 100 个
 }
 
 // ToDoBatchDeleteDTO 批量删除待办请求
-// 呀~ 一次性删除多个待办！⚠️
 type ToDoBatchDeleteDTO struct {
-	IDs []uint `json:"ids"` // 最多 100 个
+	IDs []int64 `json:"ids"` // 最多 100 个
 }
 
 // ToDoBatchProgressDTO 批量更新进度请求（按状态批量更新）
 type ToDoBatchProgressDTO struct {
-	IDs    []uint `json:"ids"`    // 最多 100 个
-	Status int    `json:"status"` // 0-3
+	IDs    []int64 `json:"ids"`    // 最多 100 个
+	Status int     `json:"status"` // 0-3
 }
 
 // ToDoBatchResultDTO 批量操作结果
-// 嘿嘿~ 返回批量操作的详细结果！📊
 type ToDoBatchResultDTO struct {
 	Total     int      `json:"total"`     // 总数
 	Succeeded int      `json:"succeeded"` // 成功数

@@ -67,10 +67,16 @@ func New(opts ...Option) *Bootstrap {
 
 // Initialize 初始化应用
 // 嘿嘿~ 按照正确的顺序初始化所有组件！💫
-// 顺序：Context -> Config -> Database -> Model -> Service
+// 顺序：Snowflake -> Context -> Config -> Database -> Model -> Service
 func (b *Bootstrap) Initialize(ctx context.Context) error {
 	if b.initialized {
 		return ErrAlreadyInitialized
+	}
+
+	// 0. 初始化雪花算法
+	// 嘿嘿~ 节点 ID 基于机器 MAC 地址或 hostname 自动生成！✨
+	if err := database.InitSnowflake(); err != nil {
+		return fmt.Errorf("初始化雪花算法失败: %w", err)
 	}
 
 	// 1. 创建应用级 Context
@@ -105,6 +111,7 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 		&entity.ToDoTag{},
 		&entity.Group{},
 		&entity.GroupPath{},
+		&entity.PersonalPath{},
 	); err != nil {
 		return fmt.Errorf("迁移数据库表结构失败: %w", err)
 	}

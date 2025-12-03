@@ -19,7 +19,7 @@ import (
 )
 
 // CreateModel 待办创建模型
-// 呀~ 创建新待办的表单！📝
+// 呀~ 创建新待办的表单！
 type CreateModel struct {
 	bs            *startup.Bootstrap
 	focusIndex    int
@@ -233,7 +233,7 @@ func (m *CreateModel) View() string {
 
 	// 使用卡片包装表单
 	var b strings.Builder
-	cardContent := components.Card("📝 创建新待办", formContent.String(), m.width-4)
+	cardContent := components.Card(styles.IconEdit+" 创建新待办", formContent.String(), m.width-4)
 	b.WriteString(cardContent)
 	b.WriteString("\n\n")
 

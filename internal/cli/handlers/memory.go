@@ -13,7 +13,6 @@ import (
 )
 
 // MemoryHandler 记忆命令处理器
-// 嘿嘿~ 处理所有记忆相关的 CLI 命令！(´∀｀)💖
 type MemoryHandler struct {
 	bs *startup.Bootstrap
 }
@@ -24,7 +23,6 @@ func NewMemoryHandler(bs *startup.Bootstrap) *MemoryHandler {
 }
 
 // List 列出所有记忆
-// 呀~ 展示所有记忆条目！✨
 func (h *MemoryHandler) List(ctx context.Context) error {
 	memories, err := h.bs.MemoryService.ListMemories(ctx)
 	if err != nil {
@@ -36,7 +34,7 @@ func (h *MemoryHandler) List(ctx context.Context) error {
 		return nil
 	}
 
-	cli.PrintTitle("📚 记忆列表")
+	cli.PrintTitle(cli.IconMemory + " 记忆列表")
 	table := output.NewTable("ID", "标题", "分类", "创建时间")
 	for _, m := range memories {
 		table.AddRow(
@@ -52,7 +50,6 @@ func (h *MemoryHandler) List(ctx context.Context) error {
 }
 
 // Create 创建记忆
-// 嘿嘿~ 创建新的记忆条目！💫
 func (h *MemoryHandler) Create(ctx context.Context, title, content, category string, tags []string) error {
 	if category == "" {
 		category = "默认"
@@ -76,7 +73,6 @@ func (h *MemoryHandler) Create(ctx context.Context, title, content, category str
 }
 
 // Search 搜索记忆
-// 呀~ 根据关键词搜索记忆！🔍
 func (h *MemoryHandler) Search(ctx context.Context, keyword string) error {
 	memories, err := h.bs.MemoryService.SearchMemories(ctx, keyword)
 	if err != nil {
@@ -88,7 +84,7 @@ func (h *MemoryHandler) Search(ctx context.Context, keyword string) error {
 		return nil
 	}
 
-	cli.PrintTitle(fmt.Sprintf("🔍 搜索结果 (%d 条)", len(memories)))
+	cli.PrintTitle(fmt.Sprintf("%s 搜索结果 (%d 条)", cli.IconSearch, len(memories)))
 	table := output.NewTable("ID", "标题", "分类")
 	for _, m := range memories {
 		table.AddRow(
@@ -103,7 +99,7 @@ func (h *MemoryHandler) Search(ctx context.Context, keyword string) error {
 }
 
 // Delete 删除记忆
-func (h *MemoryHandler) Delete(ctx context.Context, id uint) error {
+func (h *MemoryHandler) Delete(ctx context.Context, id int64) error {
 	if err := h.bs.MemoryService.DeleteMemory(ctx, id); err != nil {
 		return err
 	}
@@ -113,14 +109,13 @@ func (h *MemoryHandler) Delete(ctx context.Context, id uint) error {
 }
 
 // Get 获取单个记忆详情
-// 嗯嗯！查看记忆的详细内容！📝
-func (h *MemoryHandler) Get(ctx context.Context, id uint) error {
+func (h *MemoryHandler) Get(ctx context.Context, id int64) error {
 	memory, err := h.bs.MemoryService.GetMemory(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	cli.PrintTitle("📝 记忆详情")
+	cli.PrintTitle(cli.IconEdit + " 记忆详情")
 	fmt.Printf("ID:       %d\n", memory.ID)
 	fmt.Printf("标题:     %s\n", memory.Title)
 	fmt.Printf("分类:     %s\n", memory.Category)

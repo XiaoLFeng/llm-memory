@@ -7,11 +7,11 @@ import (
 )
 
 // PlanStatus 计划状态类型
-// 呀~ 用字符串类型让状态更清晰呢！🎯
+// 用字符串类型让状态更清晰
 type PlanStatus string
 
 // 计划状态常量定义
-// 嗯嗯！这些状态涵盖了完整的计划生命周期~
+// 这些状态涵盖了完整的计划生命周期
 const (
 	PlanStatusPending    PlanStatus = "pending"     // 待开始状态
 	PlanStatusInProgress PlanStatus = "in_progress" // 进行中状态
@@ -20,10 +20,10 @@ const (
 )
 
 // Plan 计划实体（数据表结构）
-// 嘿嘿~ 这是用于跟踪长期目标和复杂任务的计划实体！💖
+// 用于跟踪长期目标和复杂任务的计划实体
 type Plan struct {
-	ID          uint           `gorm:"primaryKey;autoIncrement"`
-	GroupID     uint           `gorm:"index;default:0;comment:所属组ID（0=Global）"`
+	ID          int64          `gorm:"primaryKey"`                              // 雪花算法生成
+	GroupID     int64          `gorm:"index;default:0;comment:所属组ID（0=Global）"` // 关联组ID
 	Path        string         `gorm:"index;size:1024;comment:精确路径（Personal作用域）"`
 	Title       string         `gorm:"index;size:255;not null;comment:标题"`
 	Description string         `gorm:"type:text;comment:简要描述（摘要）"`
@@ -82,7 +82,7 @@ func (p *Plan) IsInProgress() bool {
 }
 
 // UpdateProgress 更新计划进度（自动调整状态）
-// 智能进度管理，还会更新状态哦！🎮
+// 智能进度管理，还会更新状态
 func (p *Plan) UpdateProgress(progress int) {
 	if progress < 0 {
 		progress = 0
@@ -129,7 +129,7 @@ func (p *Plan) Cancel() {
 }
 
 // CalculateProgress 根据子任务计算总进度
-// 智能计算整体进度，让计划管理更准确~ ✨
+// 智能计算整体进度，让计划管理更准确
 func (p *Plan) CalculateProgress() {
 	if len(p.SubTasks) == 0 {
 		return

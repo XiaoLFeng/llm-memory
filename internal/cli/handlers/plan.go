@@ -12,7 +12,6 @@ import (
 )
 
 // PlanHandler 计划命令处理器
-// 嘿嘿~ 处理所有计划相关的 CLI 命令！📋
 type PlanHandler struct {
 	bs *startup.Bootstrap
 }
@@ -23,7 +22,6 @@ func NewPlanHandler(bs *startup.Bootstrap) *PlanHandler {
 }
 
 // List 列出所有计划
-// 呀~ 展示所有计划！✨
 func (h *PlanHandler) List(ctx context.Context) error {
 	plans, err := h.bs.PlanService.ListPlans(ctx)
 	if err != nil {
@@ -35,7 +33,7 @@ func (h *PlanHandler) List(ctx context.Context) error {
 		return nil
 	}
 
-	cli.PrintTitle("📋 计划列表")
+	cli.PrintTitle(cli.IconPlan + " 计划列表")
 	table := output.NewTable("ID", "标题", "状态", "进度")
 	for _, p := range plans {
 		table.AddRow(
@@ -51,7 +49,6 @@ func (h *PlanHandler) List(ctx context.Context) error {
 }
 
 // Create 创建计划
-// 嘿嘿~ 创建新计划！💫
 func (h *PlanHandler) Create(ctx context.Context, title, description string) error {
 	createDTO := &dto.PlanCreateDTO{
 		Title:       title,
@@ -68,8 +65,7 @@ func (h *PlanHandler) Create(ctx context.Context, title, description string) err
 }
 
 // UpdateProgress 更新计划进度
-// 呀~ 更新计划的完成进度！📊
-func (h *PlanHandler) UpdateProgress(ctx context.Context, id uint, progress int) error {
+func (h *PlanHandler) UpdateProgress(ctx context.Context, id int64, progress int) error {
 	if err := h.bs.PlanService.UpdateProgress(ctx, id, progress); err != nil {
 		return err
 	}
@@ -79,7 +75,7 @@ func (h *PlanHandler) UpdateProgress(ctx context.Context, id uint, progress int)
 }
 
 // Start 开始计划
-func (h *PlanHandler) Start(ctx context.Context, id uint) error {
+func (h *PlanHandler) Start(ctx context.Context, id int64) error {
 	if err := h.bs.PlanService.StartPlan(ctx, id); err != nil {
 		return err
 	}
@@ -89,7 +85,7 @@ func (h *PlanHandler) Start(ctx context.Context, id uint) error {
 }
 
 // Complete 完成计划
-func (h *PlanHandler) Complete(ctx context.Context, id uint) error {
+func (h *PlanHandler) Complete(ctx context.Context, id int64) error {
 	if err := h.bs.PlanService.CompletePlan(ctx, id); err != nil {
 		return err
 	}
@@ -99,7 +95,7 @@ func (h *PlanHandler) Complete(ctx context.Context, id uint) error {
 }
 
 // Delete 删除计划
-func (h *PlanHandler) Delete(ctx context.Context, id uint) error {
+func (h *PlanHandler) Delete(ctx context.Context, id int64) error {
 	if err := h.bs.PlanService.DeletePlan(ctx, id); err != nil {
 		return err
 	}
@@ -109,14 +105,13 @@ func (h *PlanHandler) Delete(ctx context.Context, id uint) error {
 }
 
 // Get 获取计划详情
-// 嗯嗯！查看计划的详细信息！📝
-func (h *PlanHandler) Get(ctx context.Context, id uint) error {
+func (h *PlanHandler) Get(ctx context.Context, id int64) error {
 	plan, err := h.bs.PlanService.GetPlan(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	cli.PrintTitle("📋 计划详情")
+	cli.PrintTitle(cli.IconClipboard + " 计划详情")
 	fmt.Printf("ID:       %d\n", plan.ID)
 	fmt.Printf("标题:     %s\n", plan.Title)
 	fmt.Printf("状态:     %s\n", getPlanStatusText(plan.Status))

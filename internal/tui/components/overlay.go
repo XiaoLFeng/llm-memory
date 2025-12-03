@@ -20,7 +20,6 @@ const (
 )
 
 // PlaceOverlay 将浮动内容放置在基础内容上
-// 嘿嘿~ 这是实现真正居中浮动的核心函数！✨
 func PlaceOverlay(base, overlay string, width, height int, pos Position) string {
 	baseLines := strings.Split(base, "\n")
 	overlayLines := strings.Split(overlay, "\n")
@@ -85,7 +84,6 @@ func PlaceOverlay(base, overlay string, width, height int, pos Position) string 
 }
 
 // PlaceOverlayWithDim 带半透明遮罩的浮动
-// 呀~ 这个会让背景变暗，突出浮动内容！💖
 func PlaceOverlayWithDim(base, overlay string, width, height int, pos Position) string {
 	// 先将背景变暗
 	dimmedBase := dimContent(base)
@@ -129,7 +127,6 @@ func stripAnsi(s string) string {
 }
 
 // CenterBox 创建居中的盒子
-// 嘿嘿~ 用于创建居中的对话框或提示框！✨
 func CenterBox(content string, width, height int, borderColor lipgloss.Color) string {
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).

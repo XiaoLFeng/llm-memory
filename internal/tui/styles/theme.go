@@ -93,7 +93,7 @@ var (
 			Italic(true)
 
 	// Logo 文本
-	LogoText = "🧠 LLM-Memory"
+	LogoText = IconLogo + " LLM-Memory"
 
 	// 分隔符
 	Separator = " ┃ "
@@ -102,10 +102,10 @@ var (
 // 列表项样式 - 现代化
 var (
 	// 列表项图标
-	ListItemIcon = "📝"
+	ListItemIcon = IconEdit
 
 	// 选中指示器
-	SelectedIndicator = "▸"
+	SelectedIndicator = IconTriangle
 
 	// 未选中占位
 	UnselectedIndicator = " "
@@ -150,7 +150,7 @@ var (
 			Bold(true)
 
 	BadgePersonalStyle = lipgloss.NewStyle().
-				Foreground(Pink).
+				Foreground(Emerald).
 				Bold(true)
 
 	// 优先级徽章样式

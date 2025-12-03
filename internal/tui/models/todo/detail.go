@@ -17,13 +17,12 @@ import (
 )
 
 // DetailModel 待办详情模型
-// 嘿嘿~ 查看待办的详细内容！✅
 type DetailModel struct {
 	bs       *startup.Bootstrap
-	id       uint
+	id       int64
 	todo     *entity.ToDo
 	viewport viewport.Model
-	frame    *components.Frame // 添加 Frame 支持
+	frame    *components.Frame
 	ready    bool
 	width    int
 	height   int
@@ -32,11 +31,11 @@ type DetailModel struct {
 }
 
 // NewDetailModel 创建待办详情模型
-func NewDetailModel(bs *startup.Bootstrap, id uint) *DetailModel {
+func NewDetailModel(bs *startup.Bootstrap, id int64) *DetailModel {
 	return &DetailModel{
 		bs:      bs,
 		id:      id,
-		frame:   components.NewFrame(80, 24), // 初始化 Frame
+		frame:   components.NewFrame(80, 24),
 		loading: true,
 	}
 }
@@ -276,7 +275,6 @@ func (m *DetailModel) renderTimeInfo() string {
 }
 
 // View 渲染界面
-// 嘿嘿~ 现在使用统一的 Frame 渲染！
 func (m *DetailModel) View() string {
 	breadcrumb := "待办管理 > 待办详情"
 	if m.todo != nil {

@@ -7,6 +7,7 @@ import (
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/common"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/components"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/styles"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	"github.com/charmbracelet/bubbles/key"
@@ -16,10 +17,9 @@ import (
 )
 
 // DetailModel 计划详情模型
-// 嘿嘿~ 查看计划的详细内容！📋
 type DetailModel struct {
 	bs       *startup.Bootstrap
-	id       uint
+	id       int64
 	plan     *entity.Plan
 	viewport viewport.Model
 	ready    bool
@@ -31,7 +31,7 @@ type DetailModel struct {
 }
 
 // NewDetailModel 创建计划详情模型
-func NewDetailModel(bs *startup.Bootstrap, id uint) *DetailModel {
+func NewDetailModel(bs *startup.Bootstrap, id int64) *DetailModel {
 	return &DetailModel{
 		bs:      bs,
 		id:      id,
@@ -197,25 +197,25 @@ func (m *DetailModel) renderContent() string {
 
 	// 基本信息卡片
 	basicInfo := m.renderBasicInfo()
-	sections = append(sections, components.NestedCard("📝 基本信息", basicInfo, cardWidth))
+	sections = append(sections, components.NestedCard(styles.IconEdit+" 基本信息", basicInfo, cardWidth))
 
 	// 进度信息卡片
 	progressInfo := m.renderProgressInfo()
-	sections = append(sections, components.NestedCard("📊 进度信息", progressInfo, cardWidth))
+	sections = append(sections, components.NestedCard(styles.IconChart+" 进度信息", progressInfo, cardWidth))
 
 	// 时间信息卡片
 	timeInfo := m.renderTimeInfo()
-	sections = append(sections, components.NestedCard("⏰ 时间信息", timeInfo, cardWidth))
+	sections = append(sections, components.NestedCard(styles.IconClock+" 时间信息", timeInfo, cardWidth))
 
 	// 描述卡片（如果有）
 	if m.plan.Description != "" {
-		sections = append(sections, components.NestedCard("📄 描述", m.plan.Description, cardWidth))
+		sections = append(sections, components.NestedCard(styles.IconFile+" 描述", m.plan.Description, cardWidth))
 	}
 
 	// 子任务列表（如果有）
 	if len(m.plan.SubTasks) > 0 {
 		subTasksInfo := m.renderSubTasks()
-		sections = append(sections, components.NestedCard("✓ 子任务", subTasksInfo, cardWidth))
+		sections = append(sections, components.NestedCard(styles.IconCheck+" 子任务", subTasksInfo, cardWidth))
 	}
 
 	return strings.Join(sections, "\n\n")

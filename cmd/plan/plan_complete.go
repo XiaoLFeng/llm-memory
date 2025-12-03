@@ -13,7 +13,6 @@ import (
 var planCompleteID int
 
 // planCompleteCmd 完成计划
-// 呀~ 标记计划为已完成！🎉
 var planCompleteCmd = &cobra.Command{
 	Use:   "complete",
 	Short: "完成计划",
@@ -30,7 +29,7 @@ var planCompleteCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewPlanHandler(bs)
-		if err := handler.Complete(bs.Context(), uint(planCompleteID)); err != nil {
+		if err := handler.Complete(bs.Context(), int64(planCompleteID)); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}

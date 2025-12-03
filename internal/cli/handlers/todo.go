@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/XiaoLFeng/llm-memory/internal/cli"
 	"github.com/XiaoLFeng/llm-memory/internal/cli/output"
@@ -13,7 +12,6 @@ import (
 )
 
 // TodoHandler TODO 命令处理器
-// 嘿嘿~ 处理所有待办相关的 CLI 命令！✅
 type TodoHandler struct {
 	bs *startup.Bootstrap
 }
@@ -24,7 +22,6 @@ func NewTodoHandler(bs *startup.Bootstrap) *TodoHandler {
 }
 
 // List 列出所有待办
-// 呀~ 展示所有待办事项！✨
 func (h *TodoHandler) List(ctx context.Context) error {
 	todos, err := h.bs.ToDoService.ListToDos(ctx)
 	if err != nil {
@@ -36,35 +33,7 @@ func (h *TodoHandler) List(ctx context.Context) error {
 		return nil
 	}
 
-	cli.PrintTitle("📝 待办事项列表")
-	table := output.NewTable("ID", "标题", "状态", "优先级")
-	for _, t := range todos {
-		table.AddRow(
-			fmt.Sprintf("%d", t.ID),
-			t.Title,
-			getToDoStatusText(t.Status),
-			getToDoStatusPriorityText(t.Priority),
-		)
-	}
-	table.Print()
-
-	return nil
-}
-
-// Today 获取今日待办
-// 嘿嘿~ 查看今天要做的事！📅
-func (h *TodoHandler) Today(ctx context.Context) error {
-	todos, err := h.bs.ToDoService.ListToday(ctx)
-	if err != nil {
-		return err
-	}
-
-	if len(todos) == 0 {
-		cli.PrintInfo("今日暂无待办事项~ 🎉")
-		return nil
-	}
-
-	cli.PrintTitle(fmt.Sprintf("📅 今日待办 (%s)", time.Now().Format("2006-01-02")))
+	cli.PrintTitle(cli.IconTodo + " 待办事项列表")
 	table := output.NewTable("ID", "标题", "状态", "优先级")
 	for _, t := range todos {
 		table.AddRow(
@@ -80,7 +49,6 @@ func (h *TodoHandler) Today(ctx context.Context) error {
 }
 
 // Create 创建待办
-// 呀~ 创建新的待办事项！💫
 func (h *TodoHandler) Create(ctx context.Context, title, description string, priority int) error {
 	if priority == 0 {
 		priority = int(entity.ToDoPriorityMedium)
@@ -103,7 +71,7 @@ func (h *TodoHandler) Create(ctx context.Context, title, description string, pri
 }
 
 // Complete 完成待办
-func (h *TodoHandler) Complete(ctx context.Context, id uint) error {
+func (h *TodoHandler) Complete(ctx context.Context, id int64) error {
 	if err := h.bs.ToDoService.CompleteToDo(ctx, id); err != nil {
 		return err
 	}
@@ -113,7 +81,7 @@ func (h *TodoHandler) Complete(ctx context.Context, id uint) error {
 }
 
 // Start 开始待办
-func (h *TodoHandler) Start(ctx context.Context, id uint) error {
+func (h *TodoHandler) Start(ctx context.Context, id int64) error {
 	if err := h.bs.ToDoService.StartToDo(ctx, id); err != nil {
 		return err
 	}
@@ -123,7 +91,7 @@ func (h *TodoHandler) Start(ctx context.Context, id uint) error {
 }
 
 // Delete 删除待办
-func (h *TodoHandler) Delete(ctx context.Context, id uint) error {
+func (h *TodoHandler) Delete(ctx context.Context, id int64) error {
 	if err := h.bs.ToDoService.DeleteToDo(ctx, id); err != nil {
 		return err
 	}
@@ -133,14 +101,13 @@ func (h *TodoHandler) Delete(ctx context.Context, id uint) error {
 }
 
 // Get 获取待办详情
-// 嗯嗯！查看待办的详细信息！📝
-func (h *TodoHandler) Get(ctx context.Context, id uint) error {
+func (h *TodoHandler) Get(ctx context.Context, id int64) error {
 	todo, err := h.bs.ToDoService.GetToDo(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	cli.PrintTitle("✅ 待办详情")
+	cli.PrintTitle(cli.IconCheck + " 待办详情")
 	fmt.Printf("ID:       %d\n", todo.ID)
 	fmt.Printf("标题:     %s\n", todo.Title)
 	fmt.Printf("状态:     %s\n", getToDoStatusText(todo.Status))

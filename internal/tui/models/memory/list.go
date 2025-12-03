@@ -17,25 +17,34 @@ import (
 )
 
 // ListModel 记忆列表模型
-// 嘿嘿~ 展示所有记忆的列表！📚
 type ListModel struct {
-	bs       *startup.Bootstrap
-	memories []entity.Memory
-	selected int
-	frame    *components.Frame
-	width    int
-	height   int
-	loading  bool
-	err      error
+	bs           *startup.Bootstrap
+	memories     []entity.Memory
+	selected     int
+	frame        *components.Frame
+	width        int
+	height       int
+	loading      bool
+	err          error
+	showAllScope bool   // false = personal, true = all
+	currentPath  string // 当前路径
+	groupName    string // 当前组名
 }
 
 // NewListModel 创建记忆列表模型
 func NewListModel(bs *startup.Bootstrap) *ListModel {
-	return &ListModel{
-		bs:      bs,
-		frame:   components.NewFrame(80, 24),
-		loading: true,
+	m := &ListModel{
+		bs:           bs,
+		frame:        components.NewFrame(80, 24),
+		loading:      true,
+		showAllScope: false, // 默认显示 Personal
 	}
+	// 从 Bootstrap 获取当前作用域信息
+	if bs.CurrentScope != nil {
+		m.currentPath = bs.CurrentScope.CurrentPath
+		m.groupName = bs.CurrentScope.GroupName
+	}
+	return m
 }
 
 // Title 返回页面标题
@@ -53,13 +62,23 @@ func (m *ListModel) ShortHelp() []key.Binding {
 
 // Init 初始化
 func (m *ListModel) Init() tea.Cmd {
-	return m.loadMemories()
+	return tea.Batch(m.loadMemories(), common.StartAutoRefresh())
 }
 
 // loadMemories 加载记忆列表
 func (m *ListModel) loadMemories() tea.Cmd {
 	return func() tea.Msg {
-		memories, err := m.bs.MemoryService.ListMemories(context.Background())
+		var memories []entity.Memory
+		var err error
+
+		if m.showAllScope {
+			// 显示所有可见数据
+			memories, err = m.bs.MemoryService.ListMemoriesByScope(context.Background(), "all", m.bs.CurrentScope)
+		} else {
+			// 只显示 Personal 数据
+			memories, err = m.bs.MemoryService.ListMemoriesByScope(context.Background(), "personal", m.bs.CurrentScope)
+		}
+
 		if err != nil {
 			return memoriesErrorMsg{err}
 		}
@@ -76,7 +95,7 @@ type memoriesErrorMsg struct {
 }
 
 type memoryDeletedMsg struct {
-	id uint
+	id int64
 }
 
 // Update 处理输入
@@ -119,6 +138,13 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					nil,
 				)
 			}
+
+		case key.Matches(msg, common.KeyTab):
+			// Tab 键切换作用域：Personal <-> All
+			m.showAllScope = !m.showAllScope
+			m.loading = true
+			m.selected = 0
+			return m, m.loadMemories()
 		}
 
 	case tea.WindowSizeMsg:
@@ -148,13 +174,17 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case common.RefreshMsg:
 		m.loading = true
 		cmds = append(cmds, m.loadMemories())
+
+	case common.AutoRefreshMsg:
+		// 自动刷新：静默加载数据（不显示加载中状态）
+		cmds = append(cmds, m.loadMemories())
 	}
 
 	return m, tea.Batch(cmds...)
 }
 
 // deleteMemory 删除记忆
-func (m *ListModel) deleteMemory(id uint) tea.Cmd {
+func (m *ListModel) deleteMemory(id int64) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.MemoryService.DeleteMemory(context.Background(), id)
 		if err != nil {
@@ -265,17 +295,26 @@ func (m *ListModel) View() string {
 	}
 
 	// 快捷键
+	scopeLabel := "Personal"
+	if m.showAllScope {
+		scopeLabel = "All"
+	}
 	keys := []string{
 		styles.StatusKeyStyle.Render("↑/↓") + " " + styles.StatusValueStyle.Render("选择"),
 		styles.StatusKeyStyle.Render("Enter") + " " + styles.StatusValueStyle.Render("查看"),
 		styles.StatusKeyStyle.Render("c") + " " + styles.StatusValueStyle.Render("新建"),
 		styles.StatusKeyStyle.Render("d") + " " + styles.StatusValueStyle.Render("删除"),
 		styles.StatusKeyStyle.Render("/") + " " + styles.StatusValueStyle.Render("搜索"),
+		styles.StatusKeyStyle.Render("Tab") + " " + styles.StatusValueStyle.Render(scopeLabel),
 		styles.StatusKeyStyle.Render("esc") + " " + styles.StatusValueStyle.Render("返回"),
 	}
 
-	// 额外信息：总数
-	extra := fmt.Sprintf("共 %d 条", len(m.memories))
+	// 额外信息：作用域 + 总数
+	scopeInfo := "[Personal]"
+	if m.showAllScope {
+		scopeInfo = "[All]"
+	}
+	extra := fmt.Sprintf("%s 共 %d 条", scopeInfo, len(m.memories))
 
 	return m.frame.Render("记忆管理 > 记忆列表", listItems.String(), keys, extra)
 }

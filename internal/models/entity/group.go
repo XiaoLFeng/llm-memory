@@ -7,9 +7,9 @@ import (
 )
 
 // Group 组实体（数据表结构）
-// 嘿嘿~ 这是用于管理多个路径共享数据的组实体！💖
+// 用于管理多个路径共享数据的组实体
 type Group struct {
-	ID          uint           `gorm:"primaryKey;autoIncrement"`
+	ID          int64          `gorm:"primaryKey"` // 雪花算法生成
 	Name        string         `gorm:"uniqueIndex;size:100;not null;comment:组名称"`
 	Description string         `gorm:"type:text;comment:组描述"`
 	CreatedAt   time.Time      `gorm:"index;autoCreateTime"`
@@ -26,10 +26,10 @@ func (Group) TableName() string {
 }
 
 // GroupPath 组路径映射表
-// 呀~ 用于存储组和路径的关联关系！✨
+// 存储组和路径的关联关系
 type GroupPath struct {
-	ID      uint   `gorm:"primaryKey;autoIncrement"`
-	GroupID uint   `gorm:"index;not null"`
+	ID      int64  `gorm:"primaryKey"`     // 雪花算法生成
+	GroupID int64  `gorm:"index;not null"` // 关联组ID
 	Path    string `gorm:"uniqueIndex;size:1024;not null;comment:路径（全局唯一）"`
 }
 

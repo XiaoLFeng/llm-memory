@@ -43,36 +43,36 @@ var groupCurrentCmd = &cobra.Command{
 			scope = types.NewGlobalOnlyScope()
 		}
 
-		fmt.Println("🔍 当前作用域信息:")
+		fmt.Println(iconSearch + " 当前作用域信息:")
 		fmt.Println("─────────────────────────────────────")
-		fmt.Printf("📍 当前路径: %s\n", pwd)
+		fmt.Printf(iconPin+" 当前路径: %s\n", pwd)
 
 		// Personal 作用域
 		if scope.IncludePersonal {
-			fmt.Printf("👤 Personal: ✅ 启用 (精确匹配当前路径)\n")
+			fmt.Printf(iconUser + " Personal: " + iconCheck + " 启用 (精确匹配当前路径)\n")
 		} else {
-			fmt.Println("👤 Personal: ❌ 未启用")
+			fmt.Println(iconUser + " Personal: " + iconTimes + " 未启用")
 		}
 
 		// Group 作用域
 		if scope.GroupID != types.GlobalGroupID {
-			fmt.Printf("👥 Group: ✅ 启用 (组: %s, ID: %d)\n", scope.GroupName, scope.GroupID)
+			fmt.Printf(iconUsers+" Group: "+iconCheck+" 启用 (组: %s, ID: %d)\n", scope.GroupName, scope.GroupID)
 		} else {
-			fmt.Println("👥 Group: ❌ 当前路径不属于任何组")
+			fmt.Println(iconUsers + " Group: " + iconTimes + " 当前路径不属于任何组")
 		}
 
 		// Global 作用域
 		if scope.IncludeGlobal {
-			fmt.Println("🌐 Global: ✅ 启用")
+			fmt.Println(iconGlobe + " Global: " + iconCheck + " 启用")
 		} else {
-			fmt.Println("🌐 Global: ❌ 未启用")
+			fmt.Println(iconGlobe + " Global: " + iconTimes + " 未启用")
 		}
 
 		fmt.Println("─────────────────────────────────────")
 
 		// 提示信息
 		if scope.GroupID == types.GlobalGroupID {
-			fmt.Println("\n💡 提示: 使用 'llm-memory group add-path <group-name>' 将当前目录添加到组")
+			fmt.Println("\n" + iconBulb + " 提示: 使用 'llm-memory group add-path <group-name>' 将当前目录添加到组")
 		}
 	},
 }

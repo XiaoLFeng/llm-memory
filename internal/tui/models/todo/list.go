@@ -37,15 +37,17 @@ func (i todoItem) FilterValue() string {
 }
 
 // ListModel 待办列表模型
-// 嘿嘿~ 展示所有待办的列表！✅
 type ListModel struct {
-	bs      *startup.Bootstrap
-	list    list.Model
-	todos   []entity.ToDo
-	width   int
-	height  int
-	loading bool
-	err     error
+	bs           *startup.Bootstrap
+	list         list.Model
+	todos        []entity.ToDo
+	width        int
+	height       int
+	loading      bool
+	err          error
+	showAllScope bool   // false = personal, true = all
+	currentPath  string // 当前路径
+	groupName    string // 当前组名
 }
 
 // NewListModel 创建待办列表模型
@@ -58,16 +60,23 @@ func NewListModel(bs *startup.Bootstrap) *ListModel {
 	delegate.Styles.NormalDesc = styles.ListDescStyle
 
 	l := list.New([]list.Item{}, delegate, 80, 20)
-	l.Title = "✅ 待办列表"
+	l.Title = styles.IconTodo + " 待办列表"
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(true)
 	l.Styles.Title = styles.ListTitleStyle
 
-	return &ListModel{
-		bs:      bs,
-		list:    l,
-		loading: true,
+	m := &ListModel{
+		bs:           bs,
+		list:         l,
+		loading:      true,
+		showAllScope: false, // 默认显示 Personal
 	}
+	// 从 Bootstrap 获取当前作用域信息
+	if bs.CurrentScope != nil {
+		m.currentPath = bs.CurrentScope.CurrentPath
+		m.groupName = bs.CurrentScope.GroupName
+	}
+	return m
 }
 
 // Title 返回页面标题
@@ -85,13 +94,23 @@ func (m *ListModel) ShortHelp() []key.Binding {
 
 // Init 初始化
 func (m *ListModel) Init() tea.Cmd {
-	return m.loadTodos()
+	return tea.Batch(m.loadTodos(), common.StartAutoRefresh())
 }
 
 // loadTodos 加载待办列表
 func (m *ListModel) loadTodos() tea.Cmd {
 	return func() tea.Msg {
-		todos, err := m.bs.ToDoService.ListToDos(context.Background())
+		var todos []entity.ToDo
+		var err error
+
+		if m.showAllScope {
+			// 显示所有可见数据
+			todos, err = m.bs.ToDoService.ListToDosByScope(context.Background(), "all", m.bs.CurrentScope)
+		} else {
+			// 只显示 Personal 数据
+			todos, err = m.bs.ToDoService.ListToDosByScope(context.Background(), "personal", m.bs.CurrentScope)
+		}
+
 		if err != nil {
 			return todosErrorMsg{err}
 		}
@@ -108,15 +127,15 @@ type todosErrorMsg struct {
 }
 
 type todoDeletedMsg struct {
-	id uint
+	id int64
 }
 
 type todoStartedMsg struct {
-	id uint
+	id int64
 }
 
 type todoCompletedMsg struct {
-	id uint
+	id int64
 }
 
 // Update 处理输入
@@ -168,9 +187,11 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		case msg.String() == "t":
-			// 今日待办
-			return m, common.Navigate(common.PageTodoToday)
+		case key.Matches(msg, common.KeyTab):
+			// Tab 键切换作用域：Personal <-> All
+			m.showAllScope = !m.showAllScope
+			m.loading = true
+			return m, m.loadTodos()
 		}
 
 	case tea.WindowSizeMsg:
@@ -206,6 +227,10 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case common.RefreshMsg:
 		m.loading = true
 		cmds = append(cmds, m.loadTodos())
+
+	case common.AutoRefreshMsg:
+		// 自动刷新：静默加载数据
+		cmds = append(cmds, m.loadTodos())
 	}
 
 	// 更新列表
@@ -219,7 +244,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // deleteTodo 删除待办
-func (m *ListModel) deleteTodo(id uint) tea.Cmd {
+func (m *ListModel) deleteTodo(id int64) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.ToDoService.DeleteToDo(context.Background(), id)
 		if err != nil {
@@ -230,7 +255,7 @@ func (m *ListModel) deleteTodo(id uint) tea.Cmd {
 }
 
 // startTodo 开始待办
-func (m *ListModel) startTodo(id uint) tea.Cmd {
+func (m *ListModel) startTodo(id int64) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.ToDoService.StartToDo(context.Background(), id)
 		if err != nil {
@@ -241,7 +266,7 @@ func (m *ListModel) startTodo(id uint) tea.Cmd {
 }
 
 // completeTodo 完成待办
-func (m *ListModel) completeTodo(id uint) tea.Cmd {
+func (m *ListModel) completeTodo(id int64) tea.Cmd {
 	return func() tea.Msg {
 		err := m.bs.ToDoService.CompleteToDo(context.Background(), id)
 		if err != nil {
@@ -279,13 +304,12 @@ func (m *ListModel) View() string {
 			styles.HelpStyle.Render("按 c 创建新待办"),
 		}, "\n")
 
-		cardContent := components.Card("✅ 待办列表", emptyContent, m.width-4)
+		cardContent := components.Card(styles.IconTodo+" 待办列表", emptyContent, m.width-4)
 		b.WriteString(cardContent)
 		b.WriteString("\n\n")
 
 		keys := []string{
 			styles.StatusKeyStyle.Render("c") + " 新建",
-			styles.StatusKeyStyle.Render("t") + " 今日",
 			styles.StatusKeyStyle.Render("esc") + " 返回",
 		}
 		b.WriteString(components.RenderKeysOnly(keys, m.width))
@@ -300,18 +324,29 @@ func (m *ListModel) View() string {
 	// 渲染列表内容
 	var b strings.Builder
 	listContent := m.renderList()
-	cardContent := components.Card("✅ 待办列表", listContent, m.width-4)
+
+	// 卡片标题带作用域信息
+	scopeInfo := "[Personal]"
+	if m.showAllScope {
+		scopeInfo = "[All]"
+	}
+	cardTitle := fmt.Sprintf("%s 待办列表 %s", styles.IconTodo, scopeInfo)
+	cardContent := components.Card(cardTitle, listContent, m.width-4)
 	b.WriteString(cardContent)
 	b.WriteString("\n\n")
 
 	// 底部快捷键状态栏
+	scopeLabel := "Personal"
+	if m.showAllScope {
+		scopeLabel = "All"
+	}
 	keys := []string{
 		styles.StatusKeyStyle.Render("↑/↓") + " 选择",
 		styles.StatusKeyStyle.Render("enter") + " 查看",
 		styles.StatusKeyStyle.Render("c") + " 新建",
 		styles.StatusKeyStyle.Render("s") + " 开始",
 		styles.StatusKeyStyle.Render("f") + " 完成",
-		styles.StatusKeyStyle.Render("t") + " 今日",
+		styles.StatusKeyStyle.Render("Tab") + " " + scopeLabel,
 		styles.StatusKeyStyle.Render("d") + " 删除",
 		styles.StatusKeyStyle.Render("esc") + " 返回",
 	}

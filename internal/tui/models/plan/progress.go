@@ -16,10 +16,9 @@ import (
 )
 
 // ProgressModel 计划进度更新模型
-// 呀~ 更新计划进度！📊
 type ProgressModel struct {
 	bs       *startup.Bootstrap
-	id       uint
+	id       int64
 	progress int
 	input    textinput.Model
 	width    int
@@ -28,7 +27,7 @@ type ProgressModel struct {
 }
 
 // NewProgressModel 创建计划进度更新模型
-func NewProgressModel(bs *startup.Bootstrap, id uint, progress int) *ProgressModel {
+func NewProgressModel(bs *startup.Bootstrap, id int64, progress int) *ProgressModel {
 	ti := textinput.New()
 	ti.Placeholder = "0-100"
 	ti.Focus()
@@ -145,7 +144,7 @@ func (m *ProgressModel) save() tea.Cmd {
 func (m *ProgressModel) View() string {
 	var b strings.Builder
 
-	b.WriteString(styles.TitleStyle.Render("📊 更新进度"))
+	b.WriteString(styles.TitleStyle.Render(styles.IconChart + " 更新进度"))
 	b.WriteString("\n\n")
 
 	// 当前进度

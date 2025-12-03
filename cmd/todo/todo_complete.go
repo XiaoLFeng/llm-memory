@@ -13,7 +13,6 @@ import (
 var todoCompleteID int
 
 // todoCompleteCmd 完成待办
-// 嘿嘿~ 标记待办为已完成！🎉
 var todoCompleteCmd = &cobra.Command{
 	Use:   "complete",
 	Short: "完成待办事项",
@@ -30,7 +29,7 @@ var todoCompleteCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewTodoHandler(bs)
-		if err := handler.Complete(bs.Context(), uint(todoCompleteID)); err != nil {
+		if err := handler.Complete(bs.Context(), int64(todoCompleteID)); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}

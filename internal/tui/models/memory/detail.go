@@ -17,10 +17,9 @@ import (
 )
 
 // DetailModel 记忆详情模型
-// 嘿嘿~ 查看记忆的详细内容！📝
 type DetailModel struct {
 	bs       *startup.Bootstrap
-	id       uint
+	id       int64
 	memory   *entity.Memory
 	viewport viewport.Model
 	frame    *components.Frame
@@ -35,7 +34,7 @@ type DetailModel struct {
 func NewDetailModel(bs *startup.Bootstrap, id int) *DetailModel {
 	return &DetailModel{
 		bs:      bs,
-		id:      uint(id),
+		id:      int64(id),
 		frame:   components.NewFrame(80, 24),
 		loading: true,
 	}

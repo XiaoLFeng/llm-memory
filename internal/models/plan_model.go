@@ -4,12 +4,12 @@ import (
 	"context"
 	"strings"
 
+	"github.com/XiaoLFeng/llm-memory/internal/database"
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
 	"gorm.io/gorm"
 )
 
 // PlanModel 计划数据访问层
-// 嘿嘿~ 这是计划的数据访问模型！💖
 type PlanModel struct {
 	db *gorm.DB
 }
@@ -21,6 +21,7 @@ func NewPlanModel(db *gorm.DB) *PlanModel {
 
 // Create 创建计划
 func (m *PlanModel) Create(ctx context.Context, plan *entity.Plan) error {
+	plan.ID = database.GenerateID()
 	return m.db.WithContext(ctx).Create(plan).Error
 }
 
@@ -30,12 +31,12 @@ func (m *PlanModel) Update(ctx context.Context, plan *entity.Plan) error {
 }
 
 // Delete 删除计划（软删除）
-func (m *PlanModel) Delete(ctx context.Context, id uint) error {
+func (m *PlanModel) Delete(ctx context.Context, id int64) error {
 	return m.db.WithContext(ctx).Delete(&entity.Plan{}, id).Error
 }
 
 // FindByID 根据 ID 查找计划
-func (m *PlanModel) FindByID(ctx context.Context, id uint) (*entity.Plan, error) {
+func (m *PlanModel) FindByID(ctx context.Context, id int64) (*entity.Plan, error) {
 	var plan entity.Plan
 	err := m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
 		return db.Order("sort_order ASC")
@@ -65,8 +66,8 @@ func (m *PlanModel) FindByStatus(ctx context.Context, status entity.PlanStatus) 
 }
 
 // FindByScope 根据作用域查找计划
-// 呀~ 支持 Personal/Group/Global 三层作用域过滤！✨
-func (m *PlanModel) FindByScope(ctx context.Context, groupID uint, path string, includeGlobal bool) ([]entity.Plan, error) {
+// 支持 Personal/Group/Global 三层作用域过滤
+func (m *PlanModel) FindByScope(ctx context.Context, groupID int64, path string, includeGlobal bool) ([]entity.Plan, error) {
 	var plans []entity.Plan
 	query := m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
 		return db.Order("sort_order ASC")
@@ -97,7 +98,7 @@ func (m *PlanModel) FindByScope(ctx context.Context, groupID uint, path string, 
 }
 
 // UpdateProgress 更新计划进度
-func (m *PlanModel) UpdateProgress(ctx context.Context, id uint, progress int) error {
+func (m *PlanModel) UpdateProgress(ctx context.Context, id int64, progress int) error {
 	plan, err := m.FindByID(ctx, id)
 	if err != nil {
 		return err
@@ -107,7 +108,7 @@ func (m *PlanModel) UpdateProgress(ctx context.Context, id uint, progress int) e
 }
 
 // Start 开始计划
-func (m *PlanModel) Start(ctx context.Context, id uint) error {
+func (m *PlanModel) Start(ctx context.Context, id int64) error {
 	plan, err := m.FindByID(ctx, id)
 	if err != nil {
 		return err
@@ -117,7 +118,7 @@ func (m *PlanModel) Start(ctx context.Context, id uint) error {
 }
 
 // Complete 完成计划
-func (m *PlanModel) Complete(ctx context.Context, id uint) error {
+func (m *PlanModel) Complete(ctx context.Context, id int64) error {
 	plan, err := m.FindByID(ctx, id)
 	if err != nil {
 		return err
@@ -127,7 +128,7 @@ func (m *PlanModel) Complete(ctx context.Context, id uint) error {
 }
 
 // Cancel 取消计划
-func (m *PlanModel) Cancel(ctx context.Context, id uint) error {
+func (m *PlanModel) Cancel(ctx context.Context, id int64) error {
 	plan, err := m.FindByID(ctx, id)
 	if err != nil {
 		return err
@@ -137,12 +138,13 @@ func (m *PlanModel) Cancel(ctx context.Context, id uint) error {
 }
 
 // AddSubTask 添加子任务
-func (m *PlanModel) AddSubTask(ctx context.Context, planID uint, title, description string) (*entity.SubTask, error) {
+func (m *PlanModel) AddSubTask(ctx context.Context, planID int64, title, description string) (*entity.SubTask, error) {
 	// 获取当前最大排序值
 	var maxOrder int
 	m.db.WithContext(ctx).Model(&entity.SubTask{}).Where("plan_id = ?", planID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
 
 	subTask := &entity.SubTask{
+		ID:          database.GenerateID(),
 		PlanID:      planID,
 		Title:       title,
 		Description: description,
@@ -163,12 +165,12 @@ func (m *PlanModel) UpdateSubTask(ctx context.Context, subTask *entity.SubTask) 
 }
 
 // DeleteSubTask 删除子任务
-func (m *PlanModel) DeleteSubTask(ctx context.Context, subTaskID uint) error {
+func (m *PlanModel) DeleteSubTask(ctx context.Context, subTaskID int64) error {
 	return m.db.WithContext(ctx).Delete(&entity.SubTask{}, subTaskID).Error
 }
 
 // GetSubTask 获取子任务
-func (m *PlanModel) GetSubTask(ctx context.Context, subTaskID uint) (*entity.SubTask, error) {
+func (m *PlanModel) GetSubTask(ctx context.Context, subTaskID int64) (*entity.SubTask, error) {
 	var subTask entity.SubTask
 	err := m.db.WithContext(ctx).First(&subTask, subTaskID).Error
 	if err != nil {

@@ -16,7 +16,6 @@ type KeyGroup struct {
 }
 
 // Help 帮助面板组件
-// 呀~ 现代化的帮助面板，支持分组显示快捷键！❓
 type Help struct {
 	keys      []key.Binding
 	keyGroups []KeyGroup
@@ -106,7 +105,7 @@ func (h *Help) View() string {
 		Bold(true).
 		Foreground(styles.Primary).
 		MarginBottom(1)
-	title := titleStyle.Render("📖 快捷键帮助")
+	title := titleStyle.Render("快捷键帮助")
 	b.WriteString(title)
 	b.WriteString("\n\n")
 

@@ -18,10 +18,9 @@ import (
 )
 
 // DetailModel 组详情模型
-// 嘿嘿~ 查看组的详细信息和管理路径！📋
 type DetailModel struct {
 	bs            *startup.Bootstrap
-	groupID       uint
+	groupID       int64
 	group         *entity.Group
 	selectedIndex int
 	width         int
@@ -31,7 +30,7 @@ type DetailModel struct {
 }
 
 // NewDetailModel 创建组详情模型
-func NewDetailModel(bs *startup.Bootstrap, groupID uint) *DetailModel {
+func NewDetailModel(bs *startup.Bootstrap, groupID int64) *DetailModel {
 	return &DetailModel{
 		bs:      bs,
 		groupID: groupID,
@@ -220,7 +219,7 @@ func (m *DetailModel) View() string {
 	}
 	basicInfo.WriteString(components.InfoRow("创建时间", utils.FormatRelativeTime(m.group.CreatedAt)))
 
-	basicCard := components.Card("📋 基本信息", basicInfo.String(), cardWidth)
+	basicCard := components.Card(styles.IconClipboard+" 基本信息", basicInfo.String(), cardWidth)
 
 	// 路径列表卡片
 	var pathsList strings.Builder
@@ -246,7 +245,7 @@ func (m *DetailModel) View() string {
 		}
 	}
 
-	pathsTitle := fmt.Sprintf("📂 关联路径 %s",
+	pathsTitle := fmt.Sprintf("%s 关联路径 %s", styles.IconFolder,
 		lipgloss.NewStyle().Foreground(styles.Subtext0).Render(fmt.Sprintf("(%d)", len(m.group.Paths))))
 	pathsCard := components.Card(pathsTitle, pathsList.String(), cardWidth)
 

@@ -8,7 +8,6 @@ import (
 )
 
 // Spinner 加载动画组件
-// 嘿嘿~ 用于显示加载状态的动画！⏳
 type Spinner struct {
 	spinner spinner.Model
 	message string
@@ -142,7 +141,7 @@ func LoadingView(message string) string {
 	messageStyle := lipgloss.NewStyle().
 		Foreground(styles.Subtext0)
 
-	return spinnerStyle.Render("⏳") + " " + messageStyle.Render(message)
+	return spinnerStyle.Render("...") + " " + messageStyle.Render(message)
 }
 
 // LoadingCard 加载卡片（带边框）
