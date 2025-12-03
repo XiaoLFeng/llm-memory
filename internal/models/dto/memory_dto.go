@@ -9,7 +9,7 @@ type MemoryCreateDTO struct {
 	Category string   `json:"category"`
 	Tags     []string `json:"tags"`
 	Priority int      `json:"priority"`
-	Scope    string   `json:"scope"` // personal/group/global（默认 group）
+	Global   bool     `json:"global"` // true=全局；false=当前路径(私有/组内)
 }
 
 // MemoryUpdateDTO 更新记忆请求

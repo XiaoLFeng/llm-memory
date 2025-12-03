@@ -39,27 +39,10 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 		priority = entity.ToDoPriorityMedium
 	}
 
-	// 解析作用域 -> PathID
-	var pathID int64
-
-	scope := strings.ToLower(input.Scope)
-	switch scope {
-	case "personal":
-		if scopeCtx != nil && scopeCtx.PathID > 0 {
-			pathID = scopeCtx.PathID
-		}
-	case "group":
-		// group 作用域下，仍然保存到当前路径
-		if scopeCtx != nil && scopeCtx.PathID > 0 {
-			pathID = scopeCtx.PathID
-		}
-	case "global":
-		pathID = 0
-	default:
-		// 默认使用当前路径
-		if scopeCtx != nil && scopeCtx.PathID > 0 {
-			pathID = scopeCtx.PathID
-		}
+	// 解析作用域 -> PathID（global=true 存全局；否则使用当前路径）
+	pathID := int64(0)
+	if !input.Global && scopeCtx != nil && scopeCtx.PathID > 0 {
+		pathID = scopeCtx.PathID
 	}
 
 	// 创建待办事项实例
@@ -267,24 +250,9 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 		}
 
 		// 解析作用域 -> PathID
-		var pathID int64
-
-		scope := strings.ToLower(item.Scope)
-		switch scope {
-		case "personal":
-			if scopeCtx != nil && scopeCtx.PathID > 0 {
-				pathID = scopeCtx.PathID
-			}
-		case "group":
-			if scopeCtx != nil && scopeCtx.PathID > 0 {
-				pathID = scopeCtx.PathID
-			}
-		case "global":
-			pathID = 0
-		default:
-			if scopeCtx != nil && scopeCtx.PathID > 0 {
-				pathID = scopeCtx.PathID
-			}
+		pathID := int64(0)
+		if !item.Global && scopeCtx != nil && scopeCtx.PathID > 0 {
+			pathID = scopeCtx.PathID
 		}
 
 		priority := entity.ToDoPriority(item.Priority)

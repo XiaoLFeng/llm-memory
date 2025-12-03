@@ -7,6 +7,39 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// FitCardWidth 根据容器宽度计算卡片合适宽度（含边框与 padding）
+// margin 代表左右总预留空间（例如 Place 时两侧 2 列留白可设为 4）
+// min/max 为最终卡片总宽度的上下限（含边框与 padding）
+func FitCardWidth(containerWidth, margin, min, max int) int {
+	if margin < 0 {
+		margin = 0
+	}
+	usable := containerWidth - margin
+	if max > 0 && usable > max {
+		usable = max
+	}
+	if usable < min {
+		usable = min
+	}
+	if usable < 20 {
+		usable = 20
+	}
+	return usable
+}
+
+// RenderCard 渲染卡片并居中/定高放置
+func RenderCard(frame *Frame, title, content string, minWidth, maxWidth, margin int, vPos lipgloss.Position) string {
+	width := FitCardWidth(frame.GetContentWidth(), margin, minWidth, maxWidth)
+	card := Card(title, content, width)
+	return lipgloss.Place(
+		frame.GetContentWidth(),
+		frame.GetContentHeight(),
+		lipgloss.Center,
+		vPos,
+		card,
+	)
+}
+
 // Card 创建卡片容器
 // width 参数代表卡片的期望总宽度（包含边框和 padding）
 func Card(title, content string, width int) string {
@@ -28,7 +61,6 @@ func Card(title, content string, width int) string {
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.Border).
-		Background(styles.Surface0). // 添加背景色增强层次感
 		Width(contentWidth).
 		Padding(1, 2)
 
@@ -54,7 +86,6 @@ func CardWithColor(title, content string, width int, borderColor lipgloss.Color)
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
-		Background(styles.Surface0). // 添加背景色
 		Width(contentWidth).
 		Padding(1, 2)
 
@@ -78,7 +109,6 @@ func CardSimple(content string, width int) string {
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.Border).
-		Background(styles.Surface0). // 添加背景色
 		Width(contentWidth).
 		Padding(1, 2)
 
@@ -128,7 +158,6 @@ func NestedCard(title, content string, width int) string {
 	nestedStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.BorderSubtle). // 使用提高对比度的边框色
-		Background(styles.Mantle).             // 使用更深的背景色区分层次
 		Width(contentWidth).
 		Padding(0, 1)
 

@@ -50,7 +50,7 @@ func (h *MemoryHandler) List(ctx context.Context) error {
 }
 
 // Create 创建记忆
-func (h *MemoryHandler) Create(ctx context.Context, title, content, category string, tags []string) error {
+func (h *MemoryHandler) Create(ctx context.Context, title, content, category string, tags []string, global bool) error {
 	if category == "" {
 		category = "默认"
 	}
@@ -61,9 +61,9 @@ func (h *MemoryHandler) Create(ctx context.Context, title, content, category str
 		Category: category,
 		Tags:     tags,
 		Priority: 2,
-		Scope:    "global",
+		Global:   global,
 	}
-	memory, err := h.bs.MemoryService.CreateMemory(ctx, createDTO, nil)
+	memory, err := h.bs.MemoryService.CreateMemory(ctx, createDTO, h.bs.CurrentScope)
 	if err != nil {
 		return err
 	}

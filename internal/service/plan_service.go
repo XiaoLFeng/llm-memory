@@ -32,27 +32,10 @@ func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, 
 		return nil, errors.New("计划标题不能为空")
 	}
 
-	// 解析作用域 -> PathID
-	var pathID int64
-
-	scope := strings.ToLower(input.Scope)
-	switch scope {
-	case "personal":
-		if scopeCtx != nil && scopeCtx.PathID > 0 {
-			pathID = scopeCtx.PathID
-		}
-	case "group":
-		// group 作用域下，仍然保存到当前路径
-		if scopeCtx != nil && scopeCtx.PathID > 0 {
-			pathID = scopeCtx.PathID
-		}
-	case "global":
-		pathID = 0
-	default:
-		// 默认使用当前路径
-		if scopeCtx != nil && scopeCtx.PathID > 0 {
-			pathID = scopeCtx.PathID
-		}
+	// 解析作用域 -> PathID（global=true 则存储到全局，否则使用当前路径）
+	pathID := int64(0)
+	if !input.Global && scopeCtx != nil && scopeCtx.PathID > 0 {
+		pathID = scopeCtx.PathID
 	}
 
 	// 创建计划实例

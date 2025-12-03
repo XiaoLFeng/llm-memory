@@ -26,6 +26,7 @@ type CreateModel struct {
 	contentArea   textarea.Model
 	categoryInput textinput.Model
 	tagsInput     textinput.Model
+	global        bool
 	frame         *components.Frame
 	width         int
 	height        int
@@ -117,6 +118,15 @@ func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+s":
 			// 保存
 			return m, m.save()
+
+		case "g":
+			// 切换全局/私有
+			m.global = !m.global
+			target := "当前路径/组内"
+			if m.global {
+				target = "全局"
+			}
+			return m, common.ShowToast(fmt.Sprintf("已切换为 %s", target), common.ToastInfo)
 		}
 
 	case tea.WindowSizeMsg:
@@ -216,9 +226,9 @@ func (m *CreateModel) save() tea.Cmd {
 			Category: category,
 			Tags:     tags,
 			Priority: 2,
-			Scope:    "global",
+			Global:   m.global,
 		}
-		_, err := m.bs.MemoryService.CreateMemory(context.Background(), createDTO, nil)
+		_, err := m.bs.MemoryService.CreateMemory(context.Background(), createDTO, m.bs.CurrentScope)
 		if err != nil {
 			return memoriesErrorMsg{err: err}
 		}
@@ -230,15 +240,6 @@ func (m *CreateModel) save() tea.Cmd {
 // View 渲染界面
 func (m *CreateModel) View() string {
 	// 计算表单卡片宽度
-	contentWidth := m.frame.GetContentWidth()
-	cardWidth := contentWidth - 4
-	if cardWidth > 70 {
-		cardWidth = 70
-	}
-	if cardWidth < 60 {
-		cardWidth = 60
-	}
-
 	// 构建表单内容
 	var formContent strings.Builder
 
@@ -269,6 +270,17 @@ func (m *CreateModel) View() string {
 	formContent.WriteString(labelStyle.Render("标签"))
 	formContent.WriteString("\n")
 	formContent.WriteString(m.tagsInput.View())
+	formContent.WriteString("\n\n")
+
+	// 作用域切换
+	scopeLabel := styles.IconGlobe + " 作用域 (按 g 切换)"
+	scopeValue := "当前路径/组内"
+	if m.global {
+		scopeValue = "全局"
+	}
+	formContent.WriteString(labelStyle.Render(scopeLabel))
+	formContent.WriteString("\n")
+	formContent.WriteString(lipgloss.NewStyle().Foreground(styles.Accent).Render(scopeValue))
 	formContent.WriteString("\n")
 
 	// 错误信息
@@ -279,16 +291,7 @@ func (m *CreateModel) View() string {
 	}
 
 	// 将表单包装在卡片中
-	formCard := components.Card("创建新记忆", formContent.String(), cardWidth)
-
-	// 居中显示卡片
-	centeredContent := lipgloss.Place(
-		contentWidth,
-		m.frame.GetContentHeight(),
-		lipgloss.Center,
-		lipgloss.Top,
-		formCard,
-	)
+	centeredContent := components.RenderCard(m.frame, "创建新记忆", formContent.String(), 56, 72, 4, lipgloss.Top)
 
 	// 快捷键
 	keys := []string{

@@ -26,6 +26,7 @@ type CreateModel struct {
 	titleInput    textinput.Model
 	descArea      textarea.Model
 	priorityInput textinput.Model
+	global        bool
 	width         int
 	height        int
 	err           error
@@ -100,6 +101,14 @@ func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+s":
 			// 保存
 			return m, m.save()
+
+		case "g":
+			m.global = !m.global
+			target := "当前路径/组内"
+			if m.global {
+				target = "全局"
+			}
+			return m, common.ShowToast(fmt.Sprintf("已切换为 %s", target), common.ToastInfo)
 		}
 
 	case tea.WindowSizeMsg:
@@ -182,9 +191,9 @@ func (m *CreateModel) save() tea.Cmd {
 			Title:       title,
 			Description: description,
 			Priority:    priority,
-			Scope:       "global",
+			Global:      m.global,
 		}
-		_, err := m.bs.ToDoService.CreateToDo(context.Background(), createDTO, nil)
+		_, err := m.bs.ToDoService.CreateToDo(context.Background(), createDTO, m.bs.CurrentScope)
 		if err != nil {
 			return todosErrorMsg{err: err}
 		}
@@ -226,6 +235,20 @@ func (m *CreateModel) View() string {
 		Render("(1低/2中/3高/4紧急)"))
 	formContent.WriteString("\n")
 	formContent.WriteString(m.renderInput(2))
+	formContent.WriteString("\n\n")
+
+	// 作用域切换
+	scopeLabel := styles.IconGlobe + " 作用域 (按 g 切换)"
+	scopeValue := "当前路径/组内"
+	if m.global {
+		scopeValue = "全局"
+	}
+	formContent.WriteString(lipgloss.NewStyle().
+		Foreground(styles.Subtext1).
+		Bold(true).
+		Render(scopeLabel))
+	formContent.WriteString("\n")
+	formContent.WriteString(lipgloss.NewStyle().Foreground(styles.Accent).Render(scopeValue))
 	formContent.WriteString("\n")
 
 	// 错误信息
@@ -235,20 +258,7 @@ func (m *CreateModel) View() string {
 	}
 
 	// 使用卡片包装表单
-	cardWidth := m.frame.GetContentWidth() - 4
-	if cardWidth > 70 {
-		cardWidth = 70
-	}
-	cardContent := components.Card(styles.IconEdit+" 创建新待办", formContent.String(), cardWidth)
-
-	// 居中显示
-	centeredContent := lipgloss.Place(
-		m.frame.GetContentWidth(),
-		m.frame.GetContentHeight(),
-		lipgloss.Center,
-		lipgloss.Center,
-		cardContent,
-	)
+	centeredContent := components.RenderCard(m.frame, styles.IconEdit+" 创建新待办", formContent.String(), 52, 72, 4, lipgloss.Center)
 
 	// 快捷键
 	keys := []string{

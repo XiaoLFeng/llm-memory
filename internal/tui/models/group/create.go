@@ -163,12 +163,11 @@ func (m *CreateModel) save() tea.Cmd {
 // View 渲染界面
 func (m *CreateModel) View() string {
 	// 计算卡片宽度
-	cardWidth := m.frame.GetContentWidth() - 4
-	if cardWidth > 70 {
-		cardWidth = 70
-	}
-	if cardWidth < 60 {
-		cardWidth = 60
+	cardWidth := components.FitCardWidth(m.frame.GetContentWidth(), 4, 52, 72)
+	innerWidth := cardWidth - 6
+	inputWidth := innerWidth - 2
+	if inputWidth < 24 {
+		inputWidth = 24
 	}
 
 	// 表单内容
@@ -186,7 +185,7 @@ func (m *CreateModel) View() string {
 	inputStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.Border).
-		Width(cardWidth-8).
+		Width(inputWidth).
 		Padding(0, 1)
 
 	if m.focusIndex == 0 {
@@ -203,7 +202,7 @@ func (m *CreateModel) View() string {
 	descStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.Border).
-		Width(cardWidth-8).
+		Width(inputWidth).
 		Padding(0, 1)
 
 	if m.focusIndex == 1 {

@@ -49,7 +49,7 @@ func (h *TodoHandler) List(ctx context.Context) error {
 }
 
 // Create 创建待办
-func (h *TodoHandler) Create(ctx context.Context, title, description string, priority int) error {
+func (h *TodoHandler) Create(ctx context.Context, title, description string, priority int, global bool) error {
 	if priority == 0 {
 		priority = int(entity.ToDoPriorityMedium)
 	}
@@ -58,10 +58,10 @@ func (h *TodoHandler) Create(ctx context.Context, title, description string, pri
 		Title:       title,
 		Description: description,
 		Priority:    priority,
-		Scope:       "global",
+		Global:      global,
 	}
 
-	todo, err := h.bs.ToDoService.CreateToDo(ctx, createDTO, nil)
+	todo, err := h.bs.ToDoService.CreateToDo(ctx, createDTO, h.bs.CurrentScope)
 	if err != nil {
 		return err
 	}

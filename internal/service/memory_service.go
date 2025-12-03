@@ -51,8 +51,8 @@ func parseScope(scope string, scopeCtx *types.ScopeContext) (int64, []int64, boo
 		return 0, nil, false
 	case "global":
 		return 0, nil, true
-	case "all", "":
-		// all 或不指定则显示所有可见数据
+	case "all":
+		// all 显示当前可见的全部（个人+小组+全局）
 		var pathID int64
 		var groupPathIDs []int64
 		if scopeCtx != nil {
@@ -60,6 +60,12 @@ func parseScope(scope string, scopeCtx *types.ScopeContext) (int64, []int64, boo
 			groupPathIDs = scopeCtx.GroupPathIDs
 		}
 		return pathID, groupPathIDs, true
+	case "":
+		// 默认：使用当前路径(私有/所在组可见)，无路径则回退全局
+		if scopeCtx != nil && scopeCtx.PathID > 0 {
+			return scopeCtx.PathID, nil, false
+		}
+		return 0, nil, true
 	default:
 		return 0, nil, true
 	}
@@ -91,25 +97,9 @@ func (s *MemoryService) CreateMemory(ctx context.Context, input *dto.MemoryCreat
 		priority = 1
 	}
 
-	// 解析作用域 -> PathID
-	var pathID int64
-
-	scope := strings.ToLower(input.Scope)
-	switch scope {
-	case "personal":
-		if scopeCtx != nil && scopeCtx.PathID > 0 {
-			pathID = scopeCtx.PathID
-		}
-	case "group":
-		// group 作用域下，仍然保存到当前路径（数据属于当前路径，只是查询时会关联组）
-		if scopeCtx != nil && scopeCtx.PathID > 0 {
-			pathID = scopeCtx.PathID
-		}
-	case "global":
-		// pathID = 0 即为 global
-		pathID = 0
-	default:
-		// 默认使用当前路径
+	// 解析作用域 -> PathID（global=true 存全局；否则使用当前路径）
+	pathID := int64(0)
+	if !input.Global {
 		pathID = resolveDefaultScope(scopeCtx)
 	}
 

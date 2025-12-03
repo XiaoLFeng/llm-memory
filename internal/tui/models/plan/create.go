@@ -24,6 +24,7 @@ type CreateModel struct {
 	focusIndex int
 	titleInput textinput.Model
 	descArea   textarea.Model
+	global     bool
 	width      int
 	height     int
 	err        error
@@ -90,6 +91,14 @@ func (m *CreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+s":
 			// 保存
 			return m, m.save()
+
+		case "g":
+			m.global = !m.global
+			target := "当前路径/组内"
+			if m.global {
+				target = "全局"
+			}
+			return m, common.ShowToast(fmt.Sprintf("已切换为 %s", target), common.ToastInfo)
 		}
 
 	case tea.WindowSizeMsg:
@@ -157,9 +166,9 @@ func (m *CreateModel) save() tea.Cmd {
 		createDTO := &dto.PlanCreateDTO{
 			Title:       title,
 			Description: description,
-			Scope:       "global",
+			Global:      m.global,
 		}
-		_, err := m.bs.PlanService.CreatePlan(context.Background(), createDTO, nil)
+		_, err := m.bs.PlanService.CreatePlan(context.Background(), createDTO, m.bs.CurrentScope)
 		if err != nil {
 			return plansErrorMsg{err: err}
 		}
@@ -205,6 +214,18 @@ func (m *CreateModel) View() string {
 	}
 	formParts = append(formParts, descLabel+"\n"+descArea)
 
+	// 作用域显示
+	scopeLabel := lipgloss.NewStyle().
+		Foreground(styles.Subtext1).
+		Bold(true).
+		Render(styles.IconGlobe + " 作用域 (按 g 切换)")
+	scopeValue := "当前路径/组内"
+	if m.global {
+		scopeValue = "全局"
+	}
+	scopeText := lipgloss.NewStyle().Foreground(styles.Accent).Render(scopeValue)
+	formParts = append(formParts, scopeLabel+"\n"+scopeText)
+
 	// 提示信息
 	hint := lipgloss.NewStyle().
 		Foreground(styles.Overlay1).
@@ -221,16 +242,7 @@ func (m *CreateModel) View() string {
 	formContent := strings.Join(formParts, "\n\n")
 
 	// 用卡片包装表单
-	cardContent := components.Card(styles.IconEdit+" 创建新计划", formContent, m.frame.GetContentWidth()-4)
-
-	// 居中显示
-	content := lipgloss.Place(
-		m.frame.GetContentWidth(),
-		m.frame.GetContentHeight(),
-		lipgloss.Center,
-		lipgloss.Center,
-		cardContent,
-	)
+	content := components.RenderCard(m.frame, styles.IconEdit+" 创建新计划", formContent, 52, 72, 4, lipgloss.Center)
 
 	keys := []string{
 		"tab 切换",

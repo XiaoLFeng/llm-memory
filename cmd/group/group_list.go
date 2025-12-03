@@ -45,7 +45,7 @@ var groupListCmd = &cobra.Command{
 			if len(group.Paths) > 0 {
 				fmt.Printf("   "+iconFolder+" 路径 (%d):\n", len(group.Paths))
 				for _, path := range group.Paths {
-					fmt.Printf("      - %s\n", path)
+					fmt.Printf("      - %s\n", path.GetPath())
 				}
 			} else {
 				fmt.Println("   " + iconFolder + " 暂无关联路径")

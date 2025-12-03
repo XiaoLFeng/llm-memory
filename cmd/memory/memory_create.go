@@ -16,6 +16,7 @@ var (
 	memoryContent  string
 	memoryCategory string
 	memoryTags     string
+	memoryGlobal   bool
 )
 
 // memoryCreateCmd 创建新记忆
@@ -49,7 +50,7 @@ var memoryCreateCmd = &cobra.Command{
 		}
 
 		handler := handlers.NewMemoryHandler(bs)
-		if err := handler.Create(bs.Context(), memoryTitle, memoryContent, memoryCategory, tags); err != nil {
+		if err := handler.Create(bs.Context(), memoryTitle, memoryContent, memoryCategory, tags, memoryGlobal); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}
@@ -61,6 +62,7 @@ func init() {
 	memoryCreateCmd.Flags().StringVarP(&memoryContent, "content", "c", "", "记忆内容（必填）")
 	memoryCreateCmd.Flags().StringVarP(&memoryCategory, "category", "C", "默认", "记忆分类")
 	memoryCreateCmd.Flags().StringVar(&memoryTags, "tags", "", "标签（逗号分隔）")
+	memoryCreateCmd.Flags().BoolVar(&memoryGlobal, "global", false, "将记忆保存为全局（默认当前路径/组内可见）")
 
 	_ = memoryCreateCmd.MarkFlagRequired("title")
 	_ = memoryCreateCmd.MarkFlagRequired("content")
