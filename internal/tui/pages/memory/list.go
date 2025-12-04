@@ -20,10 +20,13 @@ type (
 		items []typesMemory
 		err   error
 	}
+	deleteSuccessMsg struct{}
+	deleteErrorMsg   struct{ err error }
 )
 
 // typesMemory 只包含 TUI 展示需要的字段，避免直接耦合 entity
 type typesMemory struct {
+	ID        int64
 	Title     string
 	Category  string
 	Priority  int
@@ -34,25 +37,32 @@ type typesMemory struct {
 }
 
 type ListPage struct {
-	bs          *startup.Bootstrap
-	frame       *layout.Frame
-	width       int
-	height      int
-	loading     bool
-	err         error
-	items       []typesMemory
-	cursor      int
-	showing     bool              // true 展示详情，false 展示列表
-	scopeFilter utils.ScopeFilter // 作用域过滤状态
+	bs               *startup.Bootstrap
+	frame            *layout.Frame
+	width            int
+	height           int
+	loading          bool
+	err              error
+	items            []typesMemory
+	cursor           int
+	showing          bool              // true 展示详情，false 展示列表
+	scopeFilter      utils.ScopeFilter // 作用域过滤状态
+	push             func(core.PageID) tea.Cmd
+	pushWithData     func(core.PageID, interface{}) tea.Cmd
+	confirmDelete    bool  // 是否在删除确认模式
+	deleteTarget     int64 // 要删除的 ID
+	deleteProcessing bool  // 是否正在处理删除
 }
 
-func NewListPage(bs *startup.Bootstrap, _ func(core.PageID) tea.Cmd) *ListPage {
+func NewListPage(bs *startup.Bootstrap, push func(core.PageID) tea.Cmd, pushWithData func(core.PageID, interface{}) tea.Cmd) *ListPage {
 	return &ListPage{
-		bs:      bs,
-		frame:   layout.NewFrame(80, 24),
-		width:   80,
-		height:  24,
-		loading: true,
+		bs:           bs,
+		frame:        layout.NewFrame(80, 24),
+		width:        80,
+		height:       24,
+		loading:      true,
+		push:         push,
+		pushWithData: pushWithData,
 	}
 }
 
@@ -71,6 +81,7 @@ func (p *ListPage) load() tea.Cmd {
 		items := make([]typesMemory, 0, len(memories))
 		for _, m := range memories {
 			items = append(items, typesMemory{
+				ID:        m.ID,
 				Title:     m.Title,
 				Category:  m.Category,
 				Priority:  m.Priority,
@@ -92,6 +103,21 @@ func (p *ListPage) Resize(w, h int) {
 func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.KeyMsg:
+		// 删除确认模式处理
+		if p.confirmDelete {
+			switch v.String() {
+			case "y", "Y", "enter":
+				p.confirmDelete = false
+				p.deleteProcessing = true
+				return p, p.doDelete()
+			case "n", "N", "esc":
+				p.confirmDelete = false
+				p.deleteTarget = 0
+				return p, nil
+			}
+			return p, nil
+		}
+
 		switch v.String() {
 		case "tab":
 			p.scopeFilter = p.scopeFilter.Next()
@@ -114,6 +140,20 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 			p.showing = !p.showing
 		case "esc":
 			p.showing = false
+		case "c":
+			return p, p.push(core.PageMemoryCreate)
+		case "e":
+			if len(p.items) > 0 {
+				id := p.items[p.cursor].ID
+				return p, p.pushWithData(core.PageMemoryEdit, id)
+			}
+		case "d":
+			if len(p.items) > 0 {
+				p.deleteTarget = p.items[p.cursor].ID
+				p.confirmDelete = true
+			}
+		case "?":
+			return p, p.push(core.PageHelp)
 		}
 	case loadMsg:
 		p.loading = false
@@ -123,7 +163,19 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 			if p.cursor >= len(p.items) {
 				p.cursor = len(p.items) - 1
 			}
+			if p.cursor < 0 {
+				p.cursor = 0
+			}
 		}
+	case deleteSuccessMsg:
+		p.deleteProcessing = false
+		p.deleteTarget = 0
+		p.loading = true
+		return p, p.load()
+	case deleteErrorMsg:
+		p.deleteProcessing = false
+		p.deleteTarget = 0
+		p.err = v.err
 	}
 	return p, nil
 }
@@ -134,9 +186,22 @@ func (p *ListPage) View() string {
 	scopeLabel := p.scopeFilter.Label()
 	titleWithScope := fmt.Sprintf("%s 记忆列表 [%s]", theme.IconMemory, scopeLabel)
 
+	// 删除确认对话框
+	if p.confirmDelete {
+		var itemName string
+		if p.cursor < len(p.items) {
+			itemName = p.items[p.cursor].Title
+		}
+		return components.DeleteConfirmDialog(itemName, cardWidth)
+	}
+
 	switch {
-	case p.loading:
-		return components.LoadingState(titleWithScope, "努力加载中...", cardWidth)
+	case p.loading || p.deleteProcessing:
+		msg := "努力加载中..."
+		if p.deleteProcessing {
+			msg = "正在删除..."
+		}
+		return components.LoadingState(titleWithScope, msg, cardWidth)
 	case p.err != nil:
 		return components.ErrorState(titleWithScope, p.err.Error(), cardWidth)
 	case len(p.items) == 0:
@@ -218,9 +283,22 @@ func (p *ListPage) Meta() core.Meta {
 			{Key: "Tab", Desc: "切换作用域"},
 			{Key: "Enter", Desc: "详情"},
 			{Key: "c", Desc: "新建"},
+			{Key: "e", Desc: "编辑"},
+			{Key: "d", Desc: "删除"},
 			{Key: "r", Desc: "刷新"},
 			{Key: "Esc", Desc: "返回"},
 			{Key: "↑/↓", Desc: "移动"},
 		},
+	}
+}
+
+// doDelete 执行删除操作
+func (p *ListPage) doDelete() tea.Cmd {
+	return func() tea.Msg {
+		ctx := p.bs.Context()
+		if err := p.bs.MemoryService.DeleteMemory(ctx, p.deleteTarget); err != nil {
+			return deleteErrorMsg{err: err}
+		}
+		return deleteSuccessMsg{}
 	}
 }

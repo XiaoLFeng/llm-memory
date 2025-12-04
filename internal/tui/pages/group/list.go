@@ -20,26 +20,31 @@ type loadMsg struct {
 }
 
 type groupItem struct {
+	ID          int64
 	Name        string
 	Description string
 	PathCount   int
 }
 
 type ListPage struct {
-	bs      *startup.Bootstrap
-	frame   *layout.Frame
-	loading bool
-	err     error
-	items   []groupItem
-	cursor  int
-	showing bool
+	bs               *startup.Bootstrap
+	frame            *layout.Frame
+	navigateWithData func(core.PageID, interface{}) tea.Cmd
+	loading          bool
+	err              error
+	items            []groupItem
+	cursor           int
+	showing          bool
+	confirmDelete    bool
+	deleteTarget     string
 }
 
-func NewListPage(bs *startup.Bootstrap, _ func(core.PageID) tea.Cmd) *ListPage {
+func NewListPage(bs *startup.Bootstrap, _ func(core.PageID) tea.Cmd, navigateWithData func(core.PageID, interface{}) tea.Cmd) *ListPage {
 	return &ListPage{
-		bs:      bs,
-		frame:   layout.NewFrame(80, 24),
-		loading: true,
+		bs:               bs,
+		frame:            layout.NewFrame(80, 24),
+		navigateWithData: navigateWithData,
+		loading:          true,
 	}
 }
 
@@ -55,6 +60,7 @@ func (p *ListPage) load() tea.Cmd {
 		items := make([]groupItem, 0, len(groups))
 		for _, g := range groups {
 			items = append(items, groupItem{
+				ID:          g.ID,
 				Name:        g.Name,
 				Description: g.Description,
 				PathCount:   len(g.Paths),
@@ -69,6 +75,19 @@ func (p *ListPage) Resize(w, h int) { p.frame.Resize(w, h) }
 func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.KeyMsg:
+		// 删除确认对话框激活状态
+		if p.confirmDelete {
+			switch v.String() {
+			case "y", "Y":
+				return p, p.doDelete()
+			case "n", "N", "esc":
+				p.confirmDelete = false
+				p.deleteTarget = ""
+			}
+			return p, nil
+		}
+
+		// 正常按键处理
 		if v.String() == "r" {
 			p.loading = true
 			p.err = nil
@@ -87,6 +106,22 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 			p.showing = !p.showing
 		case "esc":
 			p.showing = false
+		case "c":
+			if p.navigateWithData != nil {
+				return p, p.navigateWithData(core.PageGroupCreate, nil)
+			}
+		case "e":
+			if len(p.items) > 0 && p.navigateWithData != nil {
+				item := p.items[p.cursor]
+				return p, p.navigateWithData(core.PageGroupEdit, item.ID)
+			}
+		case "d":
+			if len(p.items) > 0 {
+				p.confirmDelete = true
+				p.deleteTarget = p.items[p.cursor].Name
+			}
+		case "?":
+			// 切换帮助显示（暂未实现）
 		}
 	case loadMsg:
 		p.loading = false
@@ -97,6 +132,16 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 				p.cursor = len(p.items) - 1
 			}
 		}
+	case deleteResult:
+		p.confirmDelete = false
+		p.deleteTarget = ""
+		if v.err != nil {
+			p.err = v.err
+		} else {
+			// 删除成功，重新加载列表
+			p.loading = true
+			return p, p.load()
+		}
 	}
 	return p, nil
 }
@@ -104,6 +149,12 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 func (p *ListPage) View() string {
 	cw, _ := p.frame.ContentSize()
 	cardW := layout.FitCardWidth(cw)
+
+	// 删除确认对话框覆盖层
+	if p.confirmDelete {
+		return components.DeleteConfirmDialog(p.deleteTarget, cardW)
+	}
+
 	switch {
 	case p.loading:
 		return components.LoadingState(theme.IconGroup+" 组列表", "加载组信息中...", cardW)
@@ -180,9 +231,30 @@ func (p *ListPage) Meta() core.Meta {
 		Keys: []components.KeyHint{
 			{Key: "Enter", Desc: "切换详情/列表"},
 			{Key: "c", Desc: "新建"},
+			{Key: "e", Desc: "编辑"},
+			{Key: "d", Desc: "删除"},
 			{Key: "r", Desc: "刷新"},
+			{Key: "?", Desc: "帮助"},
 			{Key: "Esc", Desc: "返回"},
 			{Key: "↑/↓", Desc: "移动"},
 		},
+	}
+}
+
+// deleteResult 删除结果消息
+type deleteResult struct {
+	err error
+}
+
+// doDelete 执行删除操作
+func (p *ListPage) doDelete() tea.Cmd {
+	return func() tea.Msg {
+		if len(p.items) == 0 {
+			return deleteResult{err: nil}
+		}
+		item := p.items[p.cursor]
+		ctx := p.bs.Context()
+		err := p.bs.GroupService.DeleteGroup(ctx, item.ID)
+		return deleteResult{err: err}
 	}
 }

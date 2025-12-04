@@ -22,6 +22,7 @@ type loadMsg struct {
 }
 
 type todoItem struct {
+	ID          int64 // 添加ID字段用于编辑和删除
 	Title       string
 	Priority    entity.ToDoPriority
 	Status      entity.ToDoStatus
@@ -32,21 +33,28 @@ type todoItem struct {
 }
 
 type ListPage struct {
-	bs          *startup.Bootstrap
-	frame       *layout.Frame
-	loading     bool
-	err         error
-	items       []todoItem
-	cursor      int
-	showing     bool
-	scopeFilter utils.ScopeFilter // 作用域过滤状态
+	bs              *startup.Bootstrap
+	frame           *layout.Frame
+	loading         bool
+	err             error
+	items           []todoItem
+	cursor          int
+	showing         bool
+	scopeFilter     utils.ScopeFilter // 作用域过滤状态
+	push            func(core.PageID) tea.Cmd
+	pushWithData    func(core.PageID, interface{}) tea.Cmd
+	confirmDelete   bool
+	deleteTarget    int64
+	deleteYesActive bool // true=选中确认，false=选中取消
 }
 
-func NewListPage(bs *startup.Bootstrap, _ func(core.PageID) tea.Cmd) *ListPage {
+func NewListPage(bs *startup.Bootstrap, push func(core.PageID) tea.Cmd, pushWithData func(core.PageID, interface{}) tea.Cmd) *ListPage {
 	return &ListPage{
-		bs:      bs,
-		frame:   layout.NewFrame(80, 24),
-		loading: true,
+		bs:           bs,
+		frame:        layout.NewFrame(80, 24),
+		loading:      true,
+		push:         push,
+		pushWithData: pushWithData,
 	}
 }
 
@@ -63,6 +71,7 @@ func (p *ListPage) load() tea.Cmd {
 		items := make([]todoItem, 0, len(todos))
 		for _, t := range todos {
 			items = append(items, todoItem{
+				ID:          t.ID, // 添加ID
 				Title:       t.Title,
 				Priority:    t.Priority,
 				Status:      t.Status,
@@ -81,6 +90,25 @@ func (p *ListPage) Resize(w, h int) { p.frame.Resize(w, h) }
 func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.KeyMsg:
+		// 删除确认模式
+		if p.confirmDelete {
+			switch v.String() {
+			case "left", "right", "h", "l":
+				p.deleteYesActive = !p.deleteYesActive
+			case "y", "enter":
+				if p.deleteYesActive {
+					return p, p.doDelete()
+				}
+				p.confirmDelete = false
+				p.deleteTarget = 0
+			case "n", "esc":
+				p.confirmDelete = false
+				p.deleteTarget = 0
+			}
+			return p, nil
+		}
+
+		// 普通模式
 		switch v.String() {
 		case "tab":
 			p.scopeFilter = p.scopeFilter.Next()
@@ -103,6 +131,29 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 			p.showing = !p.showing
 		case "esc":
 			p.showing = false
+		case "c":
+			// 创建待办
+			if p.push != nil {
+				return p, p.push(core.PageTodoCreate)
+			}
+		case "e":
+			// 编辑待办
+			if len(p.items) > 0 && p.pushWithData != nil {
+				todoID := p.items[p.cursor].ID
+				return p, p.pushWithData(core.PageTodoEdit, todoID)
+			}
+		case "d":
+			// 删除待办
+			if len(p.items) > 0 {
+				p.confirmDelete = true
+				p.deleteTarget = p.items[p.cursor].ID
+				p.deleteYesActive = false
+			}
+		case "?":
+			// 查看帮助（可选实现）
+			if p.push != nil {
+				return p, p.push(core.PageHelp)
+			}
 		}
 	case loadMsg:
 		p.loading = false
@@ -122,6 +173,13 @@ func (p *ListPage) View() string {
 	cardW := layout.FitCardWidth(cw)
 	scopeLabel := p.scopeFilter.Label()
 	titleWithScope := fmt.Sprintf("%s 待办列表 [%s]", theme.IconTodo, scopeLabel)
+
+	// 删除确认对话框
+	if p.confirmDelete && len(p.items) > 0 {
+		itemName := p.items[p.cursor].Title
+		dialog := components.DeleteConfirmDialog(itemName, cardW)
+		return dialog
+	}
 
 	switch {
 	case p.loading:
@@ -212,10 +270,29 @@ func (p *ListPage) Meta() core.Meta {
 			{Key: "Tab", Desc: "切换作用域"},
 			{Key: "Enter", Desc: "详情"},
 			{Key: "c", Desc: "新建"},
+			{Key: "e", Desc: "编辑"},
+			{Key: "d", Desc: "删除"},
 			{Key: "r", Desc: "刷新"},
 			{Key: "Esc", Desc: "返回"},
 			{Key: "↑/↓", Desc: "移动"},
 		},
+	}
+}
+
+// doDelete 执行删除操作
+func (p *ListPage) doDelete() tea.Cmd {
+	return func() tea.Msg {
+		ctx := p.bs.Context()
+		if err := p.bs.ToDoService.DeleteToDo(ctx, p.deleteTarget); err != nil {
+			p.err = err
+			p.confirmDelete = false
+			p.deleteTarget = 0
+			return nil
+		}
+		// 删除成功，重新加载
+		p.confirmDelete = false
+		p.deleteTarget = 0
+		return p.load()()
 	}
 }
 
