@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -13,22 +14,131 @@ import (
 
 // TodoListInput todo_list 工具输入
 type TodoListInput struct {
-	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤(personal/group/global/all)，默认all显示全部"`
+	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤 personal group global all 默认all显示全部"`
 }
 
-// TodoCreateInput todo_create 工具输入
-type TodoCreateInput struct {
+// TodoCreateItem 批量创建的待办项
+type TodoCreateItem struct {
 	Code        string `json:"code" jsonschema:"待办唯一标识码"`
-	Title       string `json:"title" jsonschema:"待办标题，简洁描述任务"`
+	Title       string `json:"title" jsonschema:"待办标题 简洁描述任务"`
 	Description string `json:"description,omitempty" jsonschema:"待办的详细描述"`
-	Priority    int    `json:"priority,omitempty" jsonschema:"优先级(1低/2中/3高/4紧急)，默认2"`
-	Global      bool   `json:"global,omitempty" jsonschema:"是否写入全局（true 全局；false/省略 当前路径/组内）"`
-	Scope       string `json:"scope,omitempty" jsonschema:"查询筛选仍可用的作用域 personal/group/global/all"`
+	Priority    int    `json:"priority,omitempty" jsonschema:"优先级 1低2中3高4紧急 默认2"`
+	Global      bool   `json:"global,omitempty" jsonschema:"是否写入全局 true 全局 false 省略 当前路径组内"`
 }
 
-// TodoCompleteInput todo_complete 工具输入
-type TodoCompleteInput struct {
-	Code string `json:"code" jsonschema:"要完成的待办事项code"`
+// TodoBatchCreateInput todo_batch_create 工具输入
+type TodoBatchCreateInput struct {
+	Items []TodoCreateItem `json:"items" jsonschema:"待办事项列表最多100个"`
+	Scope string           `json:"scope,omitempty" jsonschema:"查询筛选仍可用的作用域 personal/group/global/all"`
+}
+
+// TodoBatchOperationInput 批量操作输入（完成/取消/删除）
+type TodoBatchOperationInput struct {
+	Codes []string `json:"codes" jsonschema:"待办事项代码列表最多100个"`
+}
+
+// TodoBatchOperationResult 批量操作结果
+type TodoBatchOperationResult struct {
+	SuccessCount int                `json:"success_count"`
+	FailCount    int                `json:"fail_count"`
+	Failures     []TodoBatchFailure `json:"failures,omitempty"`
+}
+
+type TodoBatchFailure struct {
+	Code  string `json:"code"`
+	Error string `json:"error"`
+}
+
+// TodoBatchUpdateInput todo_batch_update 工具输入
+type TodoBatchUpdateInput struct {
+	Items []TodoUpdateItem `json:"items" jsonschema:"待办事项更新列表最多100个"`
+}
+
+type TodoUpdateItem struct {
+	Code        string `json:"code" jsonschema:"要更新的待办事项代码"`
+	Title       string `json:"title,omitempty" jsonschema:"新的待办标题"`
+	Description string `json:"description,omitempty" jsonschema:"新的待办描述"`
+	Priority    int    `json:"priority,omitempty" jsonschema:"新的优先级 1低2中3高4紧急"`
+	Status      int    `json:"status,omitempty" jsonschema:"新的状态 0待处理1进行中2已完成3已取消"`
+}
+
+// TodoBatchStartInput todo_batch_start 工具输入
+type TodoBatchStartInput struct {
+	Codes []string `json:"codes" jsonschema:"要开始的待办事项代码列表最多100个"`
+}
+
+// TodoFinalInput todo_final 工具输入
+type TodoFinalInput struct {
+	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤 personal group global all 默认all显示全部"`
+}
+
+// validateTodoOwnership 验证待办所有权权限
+func validateTodoOwnership(ctx context.Context, bs *startup.Bootstrap, code string) (*entity.ToDo, error) {
+	todo, err := bs.ToDoService.GetToDo(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("待办不存在: %s", code)
+	}
+
+	// 权限检查：只能操作自己作用域内的待办
+	scope := bs.CurrentScope
+	if scope == nil {
+		return nil, fmt.Errorf("当前作用域为空")
+	}
+
+	// 检查全局权限
+	if todo.Global && scope.IncludeGlobal {
+		return todo, nil
+	}
+
+	// 检查个人权限
+	if !todo.Global && todo.PathID > 0 {
+		if scope.IncludePersonal && todo.PathID == scope.PathID {
+			return todo, nil
+		}
+		// 检查组权限
+		if scope.IncludeGroup {
+			for _, groupPathID := range scope.GroupPathIDs {
+				if todo.PathID == groupPathID {
+					return todo, nil
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("无权限操作待办: %s", code)
+}
+
+// validateBatchSize 验证批量操作大小
+func validateBatchSize(count int) error {
+	if count > 100 {
+		return fmt.Errorf("批量操作最多支持100个项目")
+	}
+	if count == 0 {
+		return fmt.Errorf("批量操作至少需要1个项目")
+	}
+	return nil
+}
+
+// formatBatchResult 格式化批量操作结果为混合模式
+func formatBatchResult(result *TodoBatchOperationResult, operation string) string {
+	if result.FailCount == 0 {
+		return fmt.Sprintf("✅ %s成功! 共处理 %d 个待办事项", operation, result.SuccessCount)
+	}
+	if result.SuccessCount == 0 {
+		return fmt.Sprintf("❌ %s失败! 所有 %d 个待办事项都无法处理:\n%s",
+			operation, result.FailCount, formatFailures(result.Failures))
+	}
+	return fmt.Sprintf("⚠️ %s部分完成! 成功 %d 个，失败 %d 个:\n%s",
+		operation, result.SuccessCount, result.FailCount, formatFailures(result.Failures))
+}
+
+// formatFailures 格式化失败信息
+func formatFailures(failures []TodoBatchFailure) string {
+	var sb strings.Builder
+	for _, failure := range failures {
+		sb.WriteString(fmt.Sprintf("  • %s: %s\n", failure.Code, failure.Error))
+	}
+	return sb.String()
 }
 
 // RegisterTodoTools 注册 TODO 管理工具
@@ -62,46 +172,303 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		return NewTextResult(result), nil, nil
 	})
 
-	// todo_create - 创建待办
+	// todo_batch_create - 批量创建待办
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "todo_create",
-		Description: `创建待办，适合可立即执行或短周期的单一步行动。必填: title。可选: description、priority、global。global=true 存入全局；省略/false 存当前路径(私有，若在组内则组可见)。多步骤请用 plan_create；长期背景/事实请用 memory_create。scope 参数仅用于列表筛选。`,
-	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoCreateInput) (*mcp.CallToolResult, any, error) {
-		// 默认优先级
-		priority := input.Priority
-		if priority == 0 {
-			priority = 2 // 默认中等优先级
+		Name:        "todo_batch_create",
+		Description: `批量创建待办事项，提高AI处理效率。支持最多100个待办项的批量创建。返回混合模式结果：成功显示统计，失败显示详情。`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoBatchCreateInput) (*mcp.CallToolResult, any, error) {
+		// 验证批量大小
+		if err := validateBatchSize(len(input.Items)); err != nil {
+			return NewErrorResult(err.Error()), nil, nil
 		}
 
-		// 构建创建 DTO
-		createDTO := &dto.ToDoCreateDTO{
-			Code:        input.Code,
-			Title:       input.Title,
-			Description: input.Description,
-			Priority:    priority,
-			Global:      input.Global,
+		result := &TodoBatchOperationResult{}
+		scopeCtx := buildScopeContext(input.Scope, bs)
+
+		// 批量创建
+		for _, item := range input.Items {
+			// 默认优先级
+			priority := item.Priority
+			if priority == 0 {
+				priority = 2 // 默认中等优先级
+			}
+
+			createDTO := &dto.ToDoCreateDTO{
+				Code:        item.Code,
+				Title:       item.Title,
+				Description: item.Description,
+				Priority:    priority,
+				Global:      item.Global,
+			}
+
+			_, err := bs.ToDoService.CreateToDo(ctx, createDTO, scopeCtx)
+			if err != nil {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  item.Code,
+					Error: err.Error(),
+				})
+			} else {
+				result.SuccessCount++
+			}
 		}
 
+		response := formatBatchResult(result, "批量创建")
+		return NewTextResult(response), result, nil
+	})
+
+	// todo_batch_complete - 批量完成待办
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "todo_batch_complete",
+		Description: `批量标记待办事项为已完成。支持最多100个待办的批量完成操作。返回混合模式结果。`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoBatchOperationInput) (*mcp.CallToolResult, any, error) {
+		// 验证批量大小
+		if err := validateBatchSize(len(input.Codes)); err != nil {
+			return NewErrorResult(err.Error()), nil, nil
+		}
+
+		result := &TodoBatchOperationResult{}
+
+		// 批量完成
+		for _, code := range input.Codes {
+			// 权限验证
+			_, err := validateTodoOwnership(ctx, bs, code)
+			if err != nil {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  code,
+					Error: err.Error(),
+				})
+				continue
+			}
+
+			// 标记完成
+			if err := bs.ToDoService.CompleteToDo(ctx, code); err != nil {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  code,
+					Error: err.Error(),
+				})
+			} else {
+				result.SuccessCount++
+			}
+		}
+
+		response := formatBatchResult(result, "批量完成")
+		return NewTextResult(response), result, nil
+	})
+
+	// todo_batch_cancel - 批量取消待办
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "todo_batch_cancel",
+		Description: `批量标记待办事项为已取消。支持最多100个待办的批量取消操作。返回混合模式结果。`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoBatchOperationInput) (*mcp.CallToolResult, any, error) {
+		// 验证批量大小
+		if err := validateBatchSize(len(input.Codes)); err != nil {
+			return NewErrorResult(err.Error()), nil, nil
+		}
+
+		result := &TodoBatchOperationResult{}
+
+		// 批量取消
+		for _, code := range input.Codes {
+			// 权限验证
+			_, err := validateTodoOwnership(ctx, bs, code)
+			if err != nil {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  code,
+					Error: err.Error(),
+				})
+				continue
+			}
+
+			// 标记取消
+			if err := bs.ToDoService.CancelToDo(ctx, code); err != nil {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  code,
+					Error: err.Error(),
+				})
+			} else {
+				result.SuccessCount++
+			}
+		}
+
+		response := formatBatchResult(result, "批量取消")
+		return NewTextResult(response), result, nil
+	})
+
+	// todo_batch_start - 批量开始待办
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "todo_batch_start",
+		Description: `批量标记待办事项为进行中状态。支持最多100个待办的批量开始操作。返回混合模式结果。`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoBatchStartInput) (*mcp.CallToolResult, any, error) {
+		// 验证批量大小
+		if err := validateBatchSize(len(input.Codes)); err != nil {
+			return NewErrorResult(err.Error()), nil, nil
+		}
+
+		result := &TodoBatchOperationResult{}
+
+		// 批量开始
+		for _, code := range input.Codes {
+			// 权限验证
+			_, err := validateTodoOwnership(ctx, bs, code)
+			if err != nil {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  code,
+					Error: err.Error(),
+				})
+				continue
+			}
+
+			// 标记开始
+			if err := bs.ToDoService.StartToDo(ctx, code); err != nil {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  code,
+					Error: err.Error(),
+				})
+			} else {
+				result.SuccessCount++
+			}
+		}
+
+		response := formatBatchResult(result, "批量开始")
+		return NewTextResult(response), result, nil
+	})
+
+	// todo_batch_update - 批量更新待办
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "todo_batch_update",
+		Description: `批量更新待办事项的标题、描述、优先级或状态。支持最多100个待办的批量更新。返回混合模式结果。`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoBatchUpdateInput) (*mcp.CallToolResult, any, error) {
+		// 验证批量大小
+		if err := validateBatchSize(len(input.Items)); err != nil {
+			return NewErrorResult(err.Error()), nil, nil
+		}
+
+		result := &TodoBatchOperationResult{}
+
+		// 批量更新
+		for _, item := range input.Items {
+			// 权限验证
+			_, err := validateTodoOwnership(ctx, bs, item.Code)
+			if err != nil {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  item.Code,
+					Error: err.Error(),
+				})
+				continue
+			}
+
+			// 检查是否有更新内容
+			hasUpdates := false
+			updateDTO := &dto.ToDoUpdateDTO{
+				Code: item.Code,
+			}
+
+			if item.Title != "" {
+				updateDTO.Title = &item.Title
+				hasUpdates = true
+			}
+			if item.Description != "" {
+				updateDTO.Description = &item.Description
+				hasUpdates = true
+			}
+			if item.Priority > 0 && item.Priority <= 4 {
+				updateDTO.Priority = &item.Priority
+				hasUpdates = true
+			}
+			if item.Status >= 0 && item.Status <= 3 {
+				updateDTO.Status = &item.Status
+				hasUpdates = true
+			}
+
+			if !hasUpdates {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  item.Code,
+					Error: "至少需要提供一个要更新的字段",
+				})
+				continue
+			}
+
+			// 更新待办
+			if err := bs.ToDoService.UpdateToDo(ctx, updateDTO); err != nil {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  item.Code,
+					Error: err.Error(),
+				})
+			} else {
+				result.SuccessCount++
+			}
+		}
+
+		response := formatBatchResult(result, "批量更新")
+		return NewTextResult(response), result, nil
+	})
+
+	// todo_final - 完成所有待办
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "todo_final",
+		Description: `完成所有当前作用域内的待办事项。这是一个快速清理工具，会将指定作用域内的所有待办标记为已完成。`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoFinalInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
 
-		todo, err := bs.ToDoService.CreateToDo(ctx, createDTO, scopeCtx)
+		// 获取所有待办
+		todos, err := bs.ToDoService.ListToDosByScope(ctx, input.Scope, scopeCtx)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTagWithContext(todo.Global, todo.PathID, bs.CurrentScope)
-		return NewTextResult(fmt.Sprintf("待办事项创建成功! Code: %s, 标题: %s %s", todo.Code, todo.Title, scopeTag)), nil, nil
-	})
 
-	// todo_complete - 完成待办
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "todo_complete",
-		Description: `标记待办为已完成。`,
-	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoCompleteInput) (*mcp.CallToolResult, any, error) {
-		if err := bs.ToDoService.CompleteToDo(ctx, input.Code); err != nil {
-			return NewErrorResult(err.Error()), nil, nil
+		if len(todos) == 0 {
+			return NewTextResult("当前作用域内没有待办事项需要完成"), nil, nil
 		}
-		return NewTextResult(fmt.Sprintf("待办事项 %s 已标记为完成", input.Code)), nil, nil
+
+		// 过滤出未完成的待办
+		var pendingTodos []string
+		for _, todo := range todos {
+			if todo.Status != entity.ToDoStatusCompleted && todo.Status != entity.ToDoStatusCancelled {
+				pendingTodos = append(pendingTodos, todo.Code)
+			}
+		}
+
+		if len(pendingTodos) == 0 {
+			return NewTextResult("当前作用域内没有需要完成的待办事项（所有待办已完成或已取消）"), nil, nil
+		}
+
+		// 批量完成所有待办
+		successCount := 0
+		failCount := 0
+		var failures []TodoBatchFailure
+
+		for _, code := range pendingTodos {
+			// 标记完成
+			if err := bs.ToDoService.CompleteToDo(ctx, code); err != nil {
+				failCount++
+				failures = append(failures, TodoBatchFailure{
+					Code:  code,
+					Error: err.Error(),
+				})
+			} else {
+				successCount++
+			}
+		}
+
+		result := &TodoBatchOperationResult{
+			SuccessCount: successCount,
+			FailCount:    failCount,
+			Failures:     failures,
+		}
+
+		response := formatBatchResult(result, "完成所有待办")
+		return NewTextResult(response), result, nil
 	})
 }
 
