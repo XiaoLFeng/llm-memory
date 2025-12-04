@@ -23,7 +23,8 @@ func NewPlanHandler(bs *startup.Bootstrap) *PlanHandler {
 
 // List 列出所有计划
 func (h *PlanHandler) List(ctx context.Context) error {
-	plans, err := h.bs.PlanService.ListPlans(ctx)
+	// 使用 ListPlansByScope 确保权限隔离：全局 + 当前路径相关
+	plans, err := h.bs.PlanService.ListPlansByScope(ctx, "all", h.bs.CurrentScope)
 	if err != nil {
 		return err
 	}

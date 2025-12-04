@@ -23,7 +23,8 @@ func NewTodoHandler(bs *startup.Bootstrap) *TodoHandler {
 
 // List 列出所有待办
 func (h *TodoHandler) List(ctx context.Context) error {
-	todos, err := h.bs.ToDoService.ListToDos(ctx)
+	// 使用 ListToDosByScope 确保权限隔离：全局 + 当前路径相关
+	todos, err := h.bs.ToDoService.ListToDosByScope(ctx, "all", h.bs.CurrentScope)
 	if err != nil {
 		return err
 	}

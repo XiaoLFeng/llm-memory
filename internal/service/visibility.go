@@ -39,13 +39,21 @@ func buildVisibilityFilter(scope string, scopeCtx *types.ScopeContext) models.Vi
 			filter.IncludeNonGlobal = false
 		}
 	case "all", "":
-		// 默认：全局 + 全部非全局（不限制路径）
+		// 默认：全局 + 当前路径相关（使用 scopeCtx，安全优先）
+		// 嘿嘿~ 这样就不会泄露其他路径的私有数据啦！(´∀｀)b
 		filter.IncludeGlobal = true
 		filter.IncludeNonGlobal = true
+		if scopeCtx != nil {
+			filter.PathIDs = models.MergePathIDs(scopeCtx.PathID, scopeCtx.GroupPathIDs)
+		}
+		// 如果没有有效的 PathID，只显示全局数据
+		if len(filter.PathIDs) == 0 {
+			filter.IncludeNonGlobal = false
+		}
 	default:
-		// 未知 scope 时，选择最宽松的过滤器，避免误过滤
+		// 未知 scope：只显示全局（安全优先）
 		filter.IncludeGlobal = true
-		filter.IncludeNonGlobal = true
+		filter.IncludeNonGlobal = false
 	}
 
 	return filter

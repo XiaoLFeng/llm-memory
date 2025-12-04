@@ -24,7 +24,8 @@ func NewMemoryHandler(bs *startup.Bootstrap) *MemoryHandler {
 
 // List 列出所有记忆
 func (h *MemoryHandler) List(ctx context.Context) error {
-	memories, err := h.bs.MemoryService.ListMemories(ctx)
+	// 使用 ListMemoriesByScope 确保权限隔离：全局 + 当前路径相关
+	memories, err := h.bs.MemoryService.ListMemoriesByScope(ctx, "all", h.bs.CurrentScope)
 	if err != nil {
 		return err
 	}
@@ -75,7 +76,8 @@ func (h *MemoryHandler) Create(ctx context.Context, code, title, content, catego
 
 // Search 搜索记忆
 func (h *MemoryHandler) Search(ctx context.Context, keyword string) error {
-	memories, err := h.bs.MemoryService.SearchMemories(ctx, keyword)
+	// 使用 SearchMemoriesByScope 确保权限隔离：全局 + 当前路径相关
+	memories, err := h.bs.MemoryService.SearchMemoriesByScope(ctx, keyword, "all", h.bs.CurrentScope)
 	if err != nil {
 		return err
 	}

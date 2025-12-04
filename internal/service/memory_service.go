@@ -215,7 +215,8 @@ func (s *MemoryService) GetMemoryByID(ctx context.Context, id int64) (*entity.Me
 	return s.memoryModel.FindByID(ctx, id)
 }
 
-// ListMemories 列出所有记忆
+// ListMemories 列出所有记忆（已废弃，仅返回全局数据）
+// ⚠️ 为保持兼容性，此方法仅返回全局数据，建议使用 ListMemoriesByScope
 func (s *MemoryService) ListMemories(ctx context.Context) ([]entity.Memory, error) {
 	return s.memoryModel.FindByFilter(ctx, models.DefaultVisibilityFilter())
 }

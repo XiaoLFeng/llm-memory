@@ -197,7 +197,8 @@ func (s *ToDoService) GetToDoByID(ctx context.Context, id int64) (*entity.ToDo, 
 	return s.todoModel.FindByID(ctx, id)
 }
 
-// ListToDos 获取所有待办事项
+// ListToDos 获取所有待办事项（已废弃，仅返回全局数据）
+// ⚠️ 为保持兼容性，此方法仅返回全局数据，建议使用 ListToDosByScope
 func (s *ToDoService) ListToDos(ctx context.Context) ([]entity.ToDo, error) {
 	return s.todoModel.FindByFilter(ctx, models.DefaultVisibilityFilter())
 }

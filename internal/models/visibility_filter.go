@@ -14,11 +14,12 @@ type VisibilityFilter struct {
 	PathIDs          []int64 // 限定非全局数据所属的路径ID列表，空则不过滤
 }
 
-// DefaultVisibilityFilter 返回默认过滤器：全局 + 所有非全局
+// DefaultVisibilityFilter 返回默认过滤器：仅全局数据（安全默认值）
+// 呀~ 默认只显示全局数据，私有数据需要明确指定作用域才能看到！(´∀｀)b
 func DefaultVisibilityFilter() VisibilityFilter {
 	return VisibilityFilter{
 		IncludeGlobal:    true,
-		IncludeNonGlobal: true,
+		IncludeNonGlobal: false, // 默认不显示非全局数据（安全优先）
 		PathIDs:          nil,
 	}
 }
@@ -37,9 +38,8 @@ func applyVisibilityFilter(db *gorm.DB, filter VisibilityFilter) *gorm.DB {
 		if len(filter.PathIDs) > 0 {
 			conditions = append(conditions, "(global = 0 AND path_id IN ?)")
 			args = append(args, filter.PathIDs)
-		} else {
-			conditions = append(conditions, "global = 0")
 		}
+		// PathIDs 为空时，不添加非全局条件（只返回全局数据，安全优先）
 	}
 
 	// 如果没有任何条件，返回空结果以避免全表扫描
@@ -50,8 +50,8 @@ func applyVisibilityFilter(db *gorm.DB, filter VisibilityFilter) *gorm.DB {
 	return db.Where(strings.Join(conditions, " OR "), args...)
 }
 
-// mergePathIDs 将单个 pathID 与路径列表去重合并
-func mergePathIDs(pathID int64, pathIDs []int64) []int64 {
+// MergePathIDs 将单个 pathID 与路径列表去重合并（公开函数）
+func MergePathIDs(pathID int64, pathIDs []int64) []int64 {
 	pathSet := make(map[int64]struct{})
 	if pathID > 0 {
 		pathSet[pathID] = struct{}{}

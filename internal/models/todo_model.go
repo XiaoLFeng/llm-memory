@@ -115,7 +115,7 @@ func (m *ToDoModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs 
 	filter := VisibilityFilter{
 		IncludeGlobal:    includeGlobal,
 		IncludeNonGlobal: true,
-		PathIDs:          mergePathIDs(pathID, groupPathIDs),
+		PathIDs:          MergePathIDs(pathID, groupPathIDs),
 	}
 	return m.FindByFilter(ctx, filter)
 }

@@ -58,8 +58,12 @@ type MemoryUpdateInput struct {
 func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// memory_list - 列出所有记忆
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "memory_list",
-		Description: `列出可见记忆。scope: personal/group/global/all；默认不填=全部（全局+私有+小组）。`,
+		Name: "memory_list",
+		Description: `列出可见记忆。scope参数说明（安全隔离）：
+  - personal: 仅当前路径的私有数据
+  - group: 仅当前小组的数据（需已加入小组）
+  - global: 仅全局可见数据
+  - all/省略: 全局 + 当前路径相关（默认，权限隔离）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)

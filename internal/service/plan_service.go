@@ -204,7 +204,8 @@ func (s *PlanService) GetPlanByID(ctx context.Context, id int64) (*entity.Plan, 
 	return plan, nil
 }
 
-// ListPlans 获取所有计划列表
+// ListPlans 获取所有计划列表（已废弃，仅返回全局数据）
+// ⚠️ 为保持兼容性，此方法仅返回全局数据，建议使用 ListPlansByScope
 func (s *PlanService) ListPlans(ctx context.Context) ([]entity.Plan, error) {
 	plans, err := s.planModel.FindByFilter(ctx, models.DefaultVisibilityFilter())
 	if err != nil {

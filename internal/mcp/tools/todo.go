@@ -35,8 +35,12 @@ type TodoCompleteInput struct {
 func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// todo_list - 列出所有待办
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "todo_list",
-		Description: `列出所有待办及状态。scope: personal/group/global/all；默认不填=全部（全局+私有+小组）。`,
+		Name: "todo_list",
+		Description: `列出所有待办及状态。scope参数说明（安全隔离）：
+  - personal: 仅当前路径的私有数据
+  - group: 仅当前小组的数据（需已加入小组）
+  - global: 仅全局可见数据
+  - all/省略: 全局 + 当前路径相关（默认，权限隔离）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)

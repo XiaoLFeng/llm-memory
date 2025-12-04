@@ -96,7 +96,7 @@ func (m *MemoryModel) FindByScope(ctx context.Context, pathID int64, groupPathID
 	filter := VisibilityFilter{
 		IncludeGlobal:    includeGlobal,
 		IncludeNonGlobal: true,
-		PathIDs:          mergePathIDs(pathID, groupPathIDs),
+		PathIDs:          MergePathIDs(pathID, groupPathIDs),
 	}
 	return m.FindByFilter(ctx, filter)
 }
@@ -122,7 +122,7 @@ func (m *MemoryModel) SearchByScope(ctx context.Context, keyword string, pathID 
 	filter := VisibilityFilter{
 		IncludeGlobal:    includeGlobal,
 		IncludeNonGlobal: true,
-		PathIDs:          mergePathIDs(pathID, groupPathIDs),
+		PathIDs:          MergePathIDs(pathID, groupPathIDs),
 	}
 	return m.SearchByFilter(ctx, keyword, filter)
 }
