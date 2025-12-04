@@ -29,6 +29,7 @@ type CreatePage struct {
 	err      error
 
 	// 表单字段
+	inputCode      *components.Input
 	inputTitle     *components.Input
 	textContent    *components.TextArea
 	inputCategory  *components.Input
@@ -45,6 +46,7 @@ func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *Create
 		height: 24,
 		pop:    pop,
 
+		inputCode:     components.NewInput("标识码", "小写字母+连字符，如: my-memory", true),
 		inputTitle:    components.NewInput("标题", "请输入记忆标题", true),
 		textContent:   components.NewTextArea("内容", "请输入记忆内容", true),
 		inputCategory: components.NewInput("分类", "默认", false),
@@ -65,7 +67,7 @@ func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *Create
 func (p *CreatePage) Init() tea.Cmd {
 	p.inputCategory.SetValue("默认")
 	p.selectPriority.SetSelectedIndex(1) // 默认中优先级
-	return p.inputTitle.Focus()
+	return p.inputCode.Focus()
 }
 
 func (p *CreatePage) Resize(w, h int) {
@@ -114,6 +116,7 @@ func (p *CreatePage) View() string {
 
 	// 设置所有组件宽度
 	formWidth := cardWidth - 8
+	p.inputCode.SetWidth(formWidth)
 	p.inputTitle.SetWidth(formWidth)
 	p.textContent.SetWidth(formWidth)
 	p.inputCategory.SetWidth(formWidth)
@@ -123,6 +126,7 @@ func (p *CreatePage) View() string {
 
 	// 表单内容
 	var formParts []string
+	formParts = append(formParts, p.inputCode.View())
 	formParts = append(formParts, p.inputTitle.View())
 	formParts = append(formParts, p.textContent.View())
 	formParts = append(formParts, p.inputCategory.View())
@@ -161,19 +165,20 @@ func (p *CreatePage) Meta() core.Meta {
 // nextField 切换到下一个字段
 func (p *CreatePage) nextField() tea.Cmd {
 	p.blurAll()
-	p.focusIdx = (p.focusIdx + 1) % 6
+	p.focusIdx = (p.focusIdx + 1) % 7
 	return p.focusCurrent()
 }
 
 // prevField 切换到上一个字段
 func (p *CreatePage) prevField() tea.Cmd {
 	p.blurAll()
-	p.focusIdx = (p.focusIdx - 1 + 6) % 6
+	p.focusIdx = (p.focusIdx - 1 + 7) % 7
 	return p.focusCurrent()
 }
 
 // blurAll 取消所有字段焦点
 func (p *CreatePage) blurAll() {
+	p.inputCode.Blur()
 	p.inputTitle.Blur()
 	p.textContent.Blur()
 	p.inputCategory.Blur()
@@ -186,16 +191,18 @@ func (p *CreatePage) blurAll() {
 func (p *CreatePage) focusCurrent() tea.Cmd {
 	switch p.focusIdx {
 	case 0:
-		return p.inputTitle.Focus()
+		return p.inputCode.Focus()
 	case 1:
-		return p.textContent.Focus()
+		return p.inputTitle.Focus()
 	case 2:
-		return p.inputCategory.Focus()
+		return p.textContent.Focus()
 	case 3:
-		return p.inputTags.Focus()
+		return p.inputCategory.Focus()
 	case 4:
-		return p.selectPriority.Focus()
+		return p.inputTags.Focus()
 	case 5:
+		return p.selectPriority.Focus()
+	case 6:
 		return p.selectGlobal.Focus()
 	}
 	return nil
@@ -206,16 +213,18 @@ func (p *CreatePage) updateFocusedField(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	switch p.focusIdx {
 	case 0:
-		_, cmd = p.inputTitle.Update(msg)
+		_, cmd = p.inputCode.Update(msg)
 	case 1:
-		_, cmd = p.textContent.Update(msg)
+		_, cmd = p.inputTitle.Update(msg)
 	case 2:
-		_, cmd = p.inputCategory.Update(msg)
+		_, cmd = p.textContent.Update(msg)
 	case 3:
-		_, cmd = p.inputTags.Update(msg)
+		_, cmd = p.inputCategory.Update(msg)
 	case 4:
-		_, cmd = p.selectPriority.Update(msg)
+		_, cmd = p.inputTags.Update(msg)
 	case 5:
+		_, cmd = p.selectPriority.Update(msg)
+	case 6:
 		_, cmd = p.selectGlobal.Update(msg)
 	}
 	return cmd
@@ -224,6 +233,10 @@ func (p *CreatePage) updateFocusedField(msg tea.Msg) tea.Cmd {
 // save 保存记忆
 func (p *CreatePage) save() tea.Cmd {
 	// 验证表单
+	if err := p.inputCode.Validate(); err != nil {
+		p.inputCode.SetError(err)
+		return nil
+	}
 	if err := p.inputTitle.Validate(); err != nil {
 		p.inputTitle.SetError(err)
 		return nil
@@ -234,6 +247,7 @@ func (p *CreatePage) save() tea.Cmd {
 	}
 
 	// 清除错误
+	p.inputCode.SetError(nil)
 	p.inputTitle.SetError(nil)
 	p.textContent.SetError(nil)
 	p.err = nil
@@ -257,6 +271,7 @@ func (p *CreatePage) save() tea.Cmd {
 	return func() tea.Msg {
 		ctx := p.bs.Context()
 		input := &dto.MemoryCreateDTO{
+			Code:     p.inputCode.Value(),
 			Title:    p.inputTitle.Value(),
 			Content:  p.textContent.Value(),
 			Category: category,

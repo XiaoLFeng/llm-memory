@@ -26,6 +26,7 @@ type CreatePage struct {
 	height int
 
 	// 表单字段
+	codeInput        *components.Input // Code 输入框
 	titleInput       *components.Input
 	descriptionInput *components.TextArea
 	prioritySelect   *components.Select
@@ -42,6 +43,7 @@ type CreatePage struct {
 
 func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *CreatePage {
 	// 初始化表单组件
+	codeInput := components.NewInput("标识码", "小写字母+连字符，如: my-todo", true)
 	titleInput := components.NewInput("标题", "待办事项标题", true)
 	descriptionInput := components.NewTextArea("描述", "详细描述（可选）", false)
 	descriptionInput.SetHeight(4)
@@ -66,18 +68,19 @@ func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *Create
 		bs:               bs,
 		frame:            layout.NewFrame(80, 24),
 		pop:              pop,
+		codeInput:        codeInput,
 		titleInput:       titleInput,
 		descriptionInput: descriptionInput,
 		prioritySelect:   prioritySelect,
 		dueDateInput:     dueDateInput,
 		tagsInput:        tagsInput,
 		globalSelect:     globalSelect,
-		maxFocus:         5, // 6个字段，索引0-5
+		maxFocus:         6, // 7个字段，索引0-6
 	}
 }
 
 func (p *CreatePage) Init() tea.Cmd {
-	return p.titleInput.Focus()
+	return p.codeInput.Focus()
 }
 
 func (p *CreatePage) Resize(w, h int) {
@@ -89,6 +92,7 @@ func (p *CreatePage) Resize(w, h int) {
 	if w < 70 {
 		formWidth = w - 10
 	}
+	p.codeInput.SetWidth(formWidth)
 	p.titleInput.SetWidth(formWidth)
 	p.descriptionInput.SetWidth(formWidth)
 	p.prioritySelect.SetWidth(formWidth)
@@ -152,6 +156,7 @@ func (p *CreatePage) View() string {
 
 func (p *CreatePage) renderForm(width int) string {
 	parts := []string{
+		p.codeInput.View(),
 		p.titleInput.View(),
 		p.descriptionInput.View(),
 		p.prioritySelect.View(),
@@ -199,16 +204,18 @@ func (p *CreatePage) prevField() {
 func (p *CreatePage) focusCurrent() tea.Cmd {
 	switch p.focusIndex {
 	case 0:
-		return p.titleInput.Focus()
+		return p.codeInput.Focus()
 	case 1:
-		return p.descriptionInput.Focus()
+		return p.titleInput.Focus()
 	case 2:
-		return p.prioritySelect.Focus()
+		return p.descriptionInput.Focus()
 	case 3:
-		return p.dueDateInput.Focus()
+		return p.prioritySelect.Focus()
 	case 4:
-		return p.tagsInput.Focus()
+		return p.dueDateInput.Focus()
 	case 5:
+		return p.tagsInput.Focus()
+	case 6:
 		return p.globalSelect.Focus()
 	}
 	return nil
@@ -218,16 +225,18 @@ func (p *CreatePage) focusCurrent() tea.Cmd {
 func (p *CreatePage) blurCurrent() {
 	switch p.focusIndex {
 	case 0:
-		p.titleInput.Blur()
+		p.codeInput.Blur()
 	case 1:
-		p.descriptionInput.Blur()
+		p.titleInput.Blur()
 	case 2:
-		p.prioritySelect.Blur()
+		p.descriptionInput.Blur()
 	case 3:
-		p.dueDateInput.Blur()
+		p.prioritySelect.Blur()
 	case 4:
-		p.tagsInput.Blur()
+		p.dueDateInput.Blur()
 	case 5:
+		p.tagsInput.Blur()
+	case 6:
 		p.globalSelect.Blur()
 	}
 }
@@ -237,16 +246,18 @@ func (p *CreatePage) updateFocused(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	switch p.focusIndex {
 	case 0:
-		p.titleInput, cmd = p.titleInput.Update(msg)
+		p.codeInput, cmd = p.codeInput.Update(msg)
 	case 1:
-		p.descriptionInput, cmd = p.descriptionInput.Update(msg)
+		p.titleInput, cmd = p.titleInput.Update(msg)
 	case 2:
-		p.prioritySelect, cmd = p.prioritySelect.Update(msg)
+		p.descriptionInput, cmd = p.descriptionInput.Update(msg)
 	case 3:
-		p.dueDateInput, cmd = p.dueDateInput.Update(msg)
+		p.prioritySelect, cmd = p.prioritySelect.Update(msg)
 	case 4:
-		p.tagsInput, cmd = p.tagsInput.Update(msg)
+		p.dueDateInput, cmd = p.dueDateInput.Update(msg)
 	case 5:
+		p.tagsInput, cmd = p.tagsInput.Update(msg)
+	case 6:
 		p.globalSelect, cmd = p.globalSelect.Update(msg)
 	}
 	return cmd
@@ -259,6 +270,11 @@ func (p *CreatePage) submit() tea.Cmd {
 		p.err = nil
 
 		// 验证必填字段
+		if err := p.codeInput.Validate(); err != nil {
+			p.err = fmt.Errorf("标识码不能为空")
+			p.submitting = false
+			return nil
+		}
 		if err := p.titleInput.Validate(); err != nil {
 			p.err = fmt.Errorf("标题不能为空")
 			p.submitting = false
@@ -293,6 +309,7 @@ func (p *CreatePage) submit() tea.Cmd {
 
 		// 构建创建请求
 		createDTO := &dto.ToDoCreateDTO{
+			Code:        p.codeInput.Value(),
 			Title:       p.titleInput.Value(),
 			Description: p.descriptionInput.Value(),
 			Priority:    p.prioritySelect.Value().(int),

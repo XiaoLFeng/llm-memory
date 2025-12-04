@@ -23,6 +23,7 @@ type CreatePage struct {
 	focusIdx int // 当前聚焦的表单字段索引
 
 	// 表单字段
+	codeInput       *components.Input
 	titleInput      *components.Input
 	descriptionArea *components.TextArea
 	contentArea     *components.TextArea
@@ -41,6 +42,7 @@ type createResultMsg struct {
 // NewCreatePage 创建计划创建页面
 func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *CreatePage {
 	// 初始化表单组件
+	codeInput := components.NewInput("标识码", "小写字母+连字符，如: my-plan", true)
 	titleInput := components.NewInput("标题", "请输入计划标题", true)
 	descriptionArea := components.NewTextArea("描述", "请输入计划描述（摘要）", true)
 	contentArea := components.NewTextArea("详细内容", "请输入详细的计划内容，支持 Markdown 格式", true)
@@ -59,6 +61,7 @@ func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *Create
 		pop:             pop,
 		width:           80,
 		height:          24,
+		codeInput:       codeInput,
 		titleInput:      titleInput,
 		descriptionArea: descriptionArea,
 		contentArea:     contentArea,
@@ -68,7 +71,7 @@ func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *Create
 
 func (p *CreatePage) Init() tea.Cmd {
 	// 聚焦第一个字段
-	return p.titleInput.Focus()
+	return p.codeInput.Focus()
 }
 
 func (p *CreatePage) Resize(w, h int) {
@@ -82,6 +85,7 @@ func (p *CreatePage) Resize(w, h int) {
 		fieldWidth = 80
 	}
 
+	p.codeInput.SetWidth(fieldWidth)
 	p.titleInput.SetWidth(fieldWidth)
 	p.descriptionArea.SetWidth(fieldWidth)
 	p.contentArea.SetWidth(fieldWidth)
@@ -127,12 +131,14 @@ func (p *CreatePage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 	// 更新当前聚焦的组件
 	switch p.focusIdx {
 	case 0:
-		p.titleInput, cmd = p.titleInput.Update(msg)
+		p.codeInput, cmd = p.codeInput.Update(msg)
 	case 1:
-		p.descriptionArea, cmd = p.descriptionArea.Update(msg)
+		p.titleInput, cmd = p.titleInput.Update(msg)
 	case 2:
-		p.contentArea, cmd = p.contentArea.Update(msg)
+		p.descriptionArea, cmd = p.descriptionArea.Update(msg)
 	case 3:
+		p.contentArea, cmd = p.contentArea.Update(msg)
+	case 4:
 		p.scopeSelect, cmd = p.scopeSelect.Update(msg)
 	}
 
@@ -146,6 +152,8 @@ func (p *CreatePage) View() string {
 	var body strings.Builder
 
 	// 渲染表单
+	body.WriteString(p.codeInput.View())
+	body.WriteString("\n\n")
 	body.WriteString(p.titleInput.View())
 	body.WriteString("\n\n")
 	body.WriteString(p.descriptionArea.View())
@@ -185,14 +193,14 @@ func (p *CreatePage) Meta() core.Meta {
 // nextField 切换到下一个字段
 func (p *CreatePage) nextField() tea.Cmd {
 	p.blurCurrent()
-	p.focusIdx = (p.focusIdx + 1) % 4
+	p.focusIdx = (p.focusIdx + 1) % 5
 	return p.focusCurrent()
 }
 
 // prevField 切换到上一个字段
 func (p *CreatePage) prevField() tea.Cmd {
 	p.blurCurrent()
-	p.focusIdx = (p.focusIdx - 1 + 4) % 4
+	p.focusIdx = (p.focusIdx - 1 + 5) % 5
 	return p.focusCurrent()
 }
 
@@ -200,12 +208,14 @@ func (p *CreatePage) prevField() tea.Cmd {
 func (p *CreatePage) focusCurrent() tea.Cmd {
 	switch p.focusIdx {
 	case 0:
-		return p.titleInput.Focus()
+		return p.codeInput.Focus()
 	case 1:
-		return p.descriptionArea.Focus()
+		return p.titleInput.Focus()
 	case 2:
-		return p.contentArea.Focus()
+		return p.descriptionArea.Focus()
 	case 3:
+		return p.contentArea.Focus()
+	case 4:
 		return p.scopeSelect.Focus()
 	}
 	return nil
@@ -215,12 +225,14 @@ func (p *CreatePage) focusCurrent() tea.Cmd {
 func (p *CreatePage) blurCurrent() {
 	switch p.focusIdx {
 	case 0:
-		p.titleInput.Blur()
+		p.codeInput.Blur()
 	case 1:
-		p.descriptionArea.Blur()
+		p.titleInput.Blur()
 	case 2:
-		p.contentArea.Blur()
+		p.descriptionArea.Blur()
 	case 3:
+		p.contentArea.Blur()
+	case 4:
 		p.scopeSelect.Blur()
 	}
 }
@@ -228,6 +240,10 @@ func (p *CreatePage) blurCurrent() {
 // submit 提交表单
 func (p *CreatePage) submit() tea.Cmd {
 	// 验证表单
+	if err := p.codeInput.Validate(); err != nil {
+		p.err = err
+		return nil
+	}
 	if err := p.titleInput.Validate(); err != nil {
 		p.err = err
 		return nil
@@ -248,6 +264,7 @@ func (p *CreatePage) submit() tea.Cmd {
 		ctx := p.bs.Context()
 
 		// 获取表单值
+		code := strings.TrimSpace(p.codeInput.Value())
 		title := strings.TrimSpace(p.titleInput.Value())
 		description := strings.TrimSpace(p.descriptionArea.Value())
 		content := strings.TrimSpace(p.contentArea.Value())
@@ -255,6 +272,7 @@ func (p *CreatePage) submit() tea.Cmd {
 
 		// 创建计划
 		input := &dto.PlanCreateDTO{
+			Code:        code,
 			Title:       title,
 			Description: description,
 			Content:     content,
