@@ -27,9 +27,12 @@ func NewErrorResult(errMsg string) *mcp.CallToolResult {
 
 // getScopeTagWithContext 根据 PathID 和作用域上下文返回中文作用域标签
 // 优先匹配组路径，其次个人路径，0 为全局
-func getScopeTagWithContext(pathID int64, scopeCtx *types.ScopeContext) string {
-	if pathID == 0 {
+func getScopeTagWithContext(global bool, pathID int64, scopeCtx *types.ScopeContext) string {
+	if global {
 		return "[全局]"
+	}
+	if pathID == 0 {
+		return "[私有]"
 	}
 	if scopeCtx != nil {
 		for _, gid := range scopeCtx.GroupPathIDs {

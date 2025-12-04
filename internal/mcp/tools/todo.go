@@ -35,7 +35,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// todo_list - 列出所有待办
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "todo_list",
-		Description: `列出所有待办及状态。scope: personal/group/global/all；默认不填=当前路径(私有/组内)，无路径则全局；all=当前作用域集合。`,
+		Description: `列出所有待办及状态。scope: personal/group/global/all；默认不填=全部（全局+私有+小组）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -51,7 +51,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		for _, t := range todos {
 			status := getToDoStatusText(t.Status)
 			priority := getToDoPriorityText(t.Priority)
-			scopeTag := getScopeTagWithContext(t.PathID, bs.CurrentScope)
+			scopeTag := getScopeTagWithContext(t.Global, t.PathID, bs.CurrentScope)
 			result += fmt.Sprintf("- [%d] %s (%s, %s) %s\n", t.ID, t.Title, status, priority, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -83,7 +83,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTagWithContext(todo.PathID, bs.CurrentScope)
+		scopeTag := getScopeTagWithContext(todo.Global, todo.PathID, bs.CurrentScope)
 		return NewTextResult(fmt.Sprintf("待办事项创建成功! ID: %d, 标题: %s %s", todo.ID, todo.Title, scopeTag)), nil, nil
 	})
 

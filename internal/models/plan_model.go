@@ -2,7 +2,6 @@ package models
 
 import (
 	"context"
-	"strings"
 
 	"github.com/XiaoLFeng/llm-memory/internal/database"
 	"github.com/XiaoLFeng/llm-memory/internal/models/entity"
@@ -56,19 +55,16 @@ func (m *PlanModel) FindByID(ctx context.Context, id int64) (*entity.Plan, error
 
 // FindAll 查找所有计划
 func (m *PlanModel) FindAll(ctx context.Context) ([]entity.Plan, error) {
-	var plans []entity.Plan
-	err := m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
-		return db.Order("sort_order ASC")
-	}).Order("created_at DESC").Find(&plans).Error
-	return plans, err
+	return m.FindByFilter(ctx, DefaultVisibilityFilter())
 }
 
 // FindByStatus 根据状态查找计划
 func (m *PlanModel) FindByStatus(ctx context.Context, status entity.PlanStatus) ([]entity.Plan, error) {
+	filter := DefaultVisibilityFilter()
 	var plans []entity.Plan
-	err := m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
+	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
 		return db.Order("sort_order ASC")
-	}).Where("status = ?", status).Order("created_at DESC").Find(&plans).Error
+	}), filter).Where("status = ?", status).Order("created_at DESC").Find(&plans).Error
 	return plans, err
 }
 
@@ -78,39 +74,20 @@ func (m *PlanModel) FindByStatus(ctx context.Context, status entity.PlanStatus) 
 // groupPathIDs: 组内所有路径 ID 列表（空切片表示无组）
 // includeGlobal: 是否包含全局计划
 func (m *PlanModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs []int64, includeGlobal bool) ([]entity.Plan, error) {
+	filter := VisibilityFilter{
+		IncludeGlobal:    includeGlobal,
+		IncludeNonGlobal: true,
+		PathIDs:          mergePathIDs(pathID, groupPathIDs),
+	}
+	return m.FindByFilter(ctx, filter)
+}
+
+// FindByFilter 统一过滤器查询计划
+func (m *PlanModel) FindByFilter(ctx context.Context, filter VisibilityFilter) ([]entity.Plan, error) {
 	var plans []entity.Plan
-	query := m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
+	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
 		return db.Order("sort_order ASC")
-	})
-
-	// 构建作用域条件
-	var conditions []string
-	var args []interface{}
-
-	// Personal: 当前路径
-	if pathID > 0 {
-		conditions = append(conditions, "(path_id = ?)")
-		args = append(args, pathID)
-	}
-
-	// Group: 组内所有路径
-	if len(groupPathIDs) > 0 {
-		conditions = append(conditions, "(path_id IN ?)")
-		args = append(args, groupPathIDs)
-	}
-
-	// Global: PathID = 0
-	if includeGlobal {
-		conditions = append(conditions, "(path_id = 0)")
-	}
-
-	if len(conditions) > 0 {
-		query = query.Where(strings.Join(conditions, " OR "), args...)
-	} else {
-		query = query.Where("path_id = 0")
-	}
-
-	err := query.Order("created_at DESC").Find(&plans).Error
+	}), filter).Order("created_at DESC").Find(&plans).Error
 	return plans, err
 }
 

@@ -1,0 +1,52 @@
+package service
+
+import (
+	"strings"
+
+	"github.com/XiaoLFeng/llm-memory/internal/models"
+	"github.com/XiaoLFeng/llm-memory/pkg/types"
+)
+
+// resolveDefaultPathID 获取默认的非全局路径ID
+func resolveDefaultPathID(scopeCtx *types.ScopeContext) int64 {
+	if scopeCtx != nil && scopeCtx.PathID > 0 {
+		return scopeCtx.PathID
+	}
+	return 0
+}
+
+// buildVisibilityFilter 将 scope 字符串解析为统一的查询过滤器
+// 默认（空字符串）返回“全局 + 所有非全局”结果，避免遗漏数据
+func buildVisibilityFilter(scope string, scopeCtx *types.ScopeContext) models.VisibilityFilter {
+	filter := models.DefaultVisibilityFilter()
+
+	switch strings.ToLower(scope) {
+	case "global":
+		filter.IncludeNonGlobal = false
+	case "personal":
+		filter.IncludeGlobal = false
+		pathID := resolveDefaultPathID(scopeCtx)
+		if pathID > 0 {
+			filter.PathIDs = []int64{pathID}
+		} else {
+			filter.IncludeNonGlobal = false
+		}
+	case "group":
+		filter.IncludeGlobal = false
+		if scopeCtx != nil && len(scopeCtx.GroupPathIDs) > 0 {
+			filter.PathIDs = scopeCtx.GroupPathIDs
+		} else {
+			filter.IncludeNonGlobal = false
+		}
+	case "all", "":
+		// 默认：全局 + 全部非全局（不限制路径）
+		filter.IncludeGlobal = true
+		filter.IncludeNonGlobal = true
+	default:
+		// 未知 scope 时，选择最宽松的过滤器，避免误过滤
+		filter.IncludeGlobal = true
+		filter.IncludeNonGlobal = true
+	}
+
+	return filter
+}

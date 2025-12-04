@@ -24,55 +24,6 @@ func NewMemoryService(model *models.MemoryModel) *MemoryService {
 	}
 }
 
-// resolveDefaultScope 解析默认作用域
-// 纯关联模式：返回 PathID（0 表示 Global）
-func resolveDefaultScope(scopeCtx *types.ScopeContext) int64 {
-	// 1. 如果在组内，使用 personal 作用域（当前目录）
-	if scopeCtx != nil && scopeCtx.PathID > 0 {
-		return scopeCtx.PathID
-	}
-	// 2. 回退到 global
-	return 0
-}
-
-// parseScope 解析 scope 参数
-// 纯关联模式：返回 pathID, groupPathIDs, includeGlobal
-func parseScope(scope string, scopeCtx *types.ScopeContext) (int64, []int64, bool) {
-	switch strings.ToLower(scope) {
-	case "personal":
-		if scopeCtx != nil && scopeCtx.PathID > 0 {
-			return scopeCtx.PathID, nil, false
-		}
-		// 没有上下文时，回退到全局可见
-		return 0, nil, true
-	case "group":
-		if scopeCtx != nil && len(scopeCtx.GroupPathIDs) > 0 {
-			return 0, scopeCtx.GroupPathIDs, false
-		}
-		// 无组上下文则退回全局
-		return 0, nil, true
-	case "global":
-		return 0, nil, true
-	case "all":
-		// all 显示当前可见的全部（个人+小组+全局）
-		var pathID int64
-		var groupPathIDs []int64
-		if scopeCtx != nil {
-			pathID = scopeCtx.PathID
-			groupPathIDs = scopeCtx.GroupPathIDs
-		}
-		return pathID, groupPathIDs, true
-	case "":
-		// 默认：使用当前路径(私有/所在组可见)，无路径则回退全局
-		if scopeCtx != nil && scopeCtx.PathID > 0 {
-			return scopeCtx.PathID, nil, false
-		}
-		return 0, nil, true
-	default:
-		return 0, nil, true
-	}
-}
-
 // CreateMemory 创建新的记忆
 // scope 参数: personal/group/global，留空则使用默认作用域
 // 纯关联模式：数据存储时只使用 PathID
@@ -102,11 +53,15 @@ func (s *MemoryService) CreateMemory(ctx context.Context, input *dto.MemoryCreat
 	// 解析作用域 -> PathID（global=true 存全局；否则使用当前路径）
 	pathID := int64(0)
 	if !input.Global {
-		pathID = resolveDefaultScope(scopeCtx)
+		pathID = resolveDefaultPathID(scopeCtx)
+		if pathID == 0 {
+			return nil, errors.New("无法确定私有/小组作用域，请先初始化 paths 或指定全局模式")
+		}
 	}
 
 	// 创建记忆实例
 	memory := &entity.Memory{
+		Global:   input.Global,
 		PathID:   pathID,
 		Title:    strings.TrimSpace(input.Title),
 		Content:  strings.TrimSpace(input.Content),
@@ -219,15 +174,14 @@ func (s *MemoryService) GetMemory(ctx context.Context, id int64) (*entity.Memory
 
 // ListMemories 列出所有记忆
 func (s *MemoryService) ListMemories(ctx context.Context) ([]entity.Memory, error) {
-	return s.model.FindAll(ctx)
+	return s.model.FindByFilter(ctx, models.DefaultVisibilityFilter())
 }
 
 // ListMemoriesByScope 根据作用域列出记忆
 // scope 参数: personal/group/global/all
-// 纯关联模式：使用 PathID 和 GroupPathIDs 进行查询
 func (s *MemoryService) ListMemoriesByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.Memory, error) {
-	pathID, groupPathIDs, includeGlobal := parseScope(scope, scopeCtx)
-	return s.model.FindByScope(ctx, pathID, groupPathIDs, includeGlobal)
+	filter := buildVisibilityFilter(scope, scopeCtx)
+	return s.model.FindByFilter(ctx, filter)
 }
 
 // ListByCategory 根据分类列出记忆
@@ -247,7 +201,7 @@ func (s *MemoryService) SearchMemories(ctx context.Context, keyword string) ([]e
 		return nil, errors.New("搜索关键词不能为空")
 	}
 
-	return s.model.Search(ctx, keyword)
+	return s.model.SearchByFilter(ctx, keyword, models.DefaultVisibilityFilter())
 }
 
 // SearchMemoriesByScope 根据作用域搜索记忆
@@ -258,8 +212,8 @@ func (s *MemoryService) SearchMemoriesByScope(ctx context.Context, keyword strin
 		return nil, errors.New("搜索关键词不能为空")
 	}
 
-	pathID, groupPathIDs, includeGlobal := parseScope(scope, scopeCtx)
-	return s.model.SearchByScope(ctx, keyword, pathID, groupPathIDs, includeGlobal)
+	filter := buildVisibilityFilter(scope, scopeCtx)
+	return s.model.SearchByFilter(ctx, keyword, filter)
 }
 
 // ArchiveMemory 归档记忆
@@ -314,13 +268,7 @@ func ToMemoryResponseDTO(memory *entity.Memory, scopeCtx *types.ScopeContext) *d
 		tags = append(tags, t.Tag)
 	}
 
-	// 使用 PathID 判断作用域
-	var scope types.Scope
-	if scopeCtx != nil {
-		scope = types.GetScopeForDisplay(memory.PathID, scopeCtx.PathID, scopeCtx.GroupPathIDs)
-	} else {
-		scope = types.GetScope(memory.PathID)
-	}
+	scope := types.GetScopeForDisplayWithGlobal(memory.Global, memory.PathID, scopeCtx)
 
 	return &dto.MemoryResponseDTO{
 		ID:         memory.ID,

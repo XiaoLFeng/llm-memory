@@ -41,12 +41,16 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 
 	// 解析作用域 -> PathID（global=true 存全局；否则使用当前路径）
 	pathID := int64(0)
-	if !input.Global && scopeCtx != nil && scopeCtx.PathID > 0 {
-		pathID = scopeCtx.PathID
+	if !input.Global {
+		pathID = resolveDefaultPathID(scopeCtx)
+		if pathID == 0 {
+			return nil, errors.New("无法确定私有/小组作用域，请先初始化 paths 或选择全局")
+		}
 	}
 
 	// 创建待办事项实例
 	todo := &entity.ToDo{
+		Global:      input.Global,
 		PathID:      pathID,
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
@@ -156,14 +160,14 @@ func (s *ToDoService) GetToDo(ctx context.Context, id int64) (*entity.ToDo, erro
 
 // ListToDos 获取所有待办事项
 func (s *ToDoService) ListToDos(ctx context.Context) ([]entity.ToDo, error) {
-	return s.model.FindAll(ctx)
+	return s.model.FindByFilter(ctx, models.DefaultVisibilityFilter())
 }
 
 // ListToDosByScope 根据作用域列出待办事项
 // 纯关联模式：使用 PathID 和 GroupPathIDs 进行查询
 func (s *ToDoService) ListToDosByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.ToDo, error) {
-	pathID, groupPathIDs, includeGlobal := parseScope(scope, scopeCtx)
-	return s.model.FindByScope(ctx, pathID, groupPathIDs, includeGlobal)
+	filter := buildVisibilityFilter(scope, scopeCtx)
+	return s.model.FindByFilter(ctx, filter)
 }
 
 // ListByStatus 根据状态获取待办事项列表
@@ -251,8 +255,11 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 
 		// 解析作用域 -> PathID
 		pathID := int64(0)
-		if !item.Global && scopeCtx != nil && scopeCtx.PathID > 0 {
-			pathID = scopeCtx.PathID
+		if !item.Global {
+			pathID = resolveDefaultPathID(scopeCtx)
+			if pathID == 0 {
+				continue // 跳过无法确定作用域的条目
+			}
 		}
 
 		priority := entity.ToDoPriority(item.Priority)
@@ -261,6 +268,7 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 		}
 
 		todo := entity.ToDo{
+			Global:      item.Global,
 			PathID:      pathID,
 			Title:       strings.TrimSpace(item.Title),
 			Description: strings.TrimSpace(item.Description),
@@ -338,13 +346,7 @@ func ToToDoResponseDTO(todo *entity.ToDo, scopeCtx *types.ScopeContext) *dto.ToD
 		tags = append(tags, t.Tag)
 	}
 
-	// 使用 PathID 判断作用域
-	var scope types.Scope
-	if scopeCtx != nil {
-		scope = types.GetScopeForDisplay(todo.PathID, scopeCtx.PathID, scopeCtx.GroupPathIDs)
-	} else {
-		scope = types.GetScope(todo.PathID)
-	}
+	scope := types.GetScopeForDisplayWithGlobal(todo.Global, todo.PathID, scopeCtx)
 
 	return &dto.ToDoResponseDTO{
 		ID:          todo.ID,

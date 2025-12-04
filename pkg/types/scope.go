@@ -141,8 +141,9 @@ func GetScope(pathID int64) Scope {
 // GetScopeForDisplay 获取用于显示的作用域
 // 如果 pathID 在 groupPathIDs 中，则显示为 group
 func GetScopeForDisplay(pathID int64, currentPathID int64, groupPathIDs []int64) Scope {
+	// 保留旧函数供部分调用，但全新逻辑以全局标记为准
 	if pathID == 0 {
-		return ScopeGlobal
+		return ScopePersonal
 	}
 	if pathID == currentPathID {
 		return ScopePersonal
@@ -154,4 +155,19 @@ func GetScopeForDisplay(pathID int64, currentPathID int64, groupPathIDs []int64)
 		}
 	}
 	return ScopePersonal
+}
+
+// GetScopeForDisplayWithGlobal 基于 global 标记 & PathID 计算展示用作用域
+// 优先使用 global 标记，其次根据路径上下文推断
+func GetScopeForDisplayWithGlobal(global bool, pathID int64, scopeCtx *ScopeContext) Scope {
+	if global {
+		return ScopeGlobal
+	}
+	currentPathID := int64(0)
+	groupPathIDs := []int64{}
+	if scopeCtx != nil {
+		currentPathID = scopeCtx.PathID
+		groupPathIDs = scopeCtx.GroupPathIDs
+	}
+	return GetScopeForDisplay(pathID, currentPathID, groupPathIDs)
 }

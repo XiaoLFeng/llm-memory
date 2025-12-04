@@ -34,12 +34,16 @@ func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, 
 
 	// 解析作用域 -> PathID（global=true 则存储到全局，否则使用当前路径）
 	pathID := int64(0)
-	if !input.Global && scopeCtx != nil && scopeCtx.PathID > 0 {
-		pathID = scopeCtx.PathID
+	if !input.Global {
+		pathID = resolveDefaultPathID(scopeCtx)
+		if pathID == 0 {
+			return nil, errors.New("无法确定私有/小组作用域，请先初始化 paths 或选择全局")
+		}
 	}
 
 	// 创建计划实例
 	plan := &entity.Plan{
+		Global:      input.Global,
 		PathID:      pathID,
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
@@ -146,7 +150,7 @@ func (s *PlanService) GetPlan(ctx context.Context, id int64) (*entity.Plan, erro
 
 // ListPlans 获取所有计划列表
 func (s *PlanService) ListPlans(ctx context.Context) ([]entity.Plan, error) {
-	plans, err := s.model.FindAll(ctx)
+	plans, err := s.model.FindByFilter(ctx, models.DefaultVisibilityFilter())
 	if err != nil {
 		return nil, err
 	}
@@ -162,9 +166,8 @@ func (s *PlanService) ListPlans(ctx context.Context) ([]entity.Plan, error) {
 // ListPlansByScope 根据作用域列出计划
 // 纯关联模式：使用 PathID 和 GroupPathIDs 进行查询
 func (s *PlanService) ListPlansByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.Plan, error) {
-	pathID, groupPathIDs, includeGlobal := parseScope(scope, scopeCtx)
-
-	plans, err := s.model.FindByScope(ctx, pathID, groupPathIDs, includeGlobal)
+	filter := buildVisibilityFilter(scope, scopeCtx)
+	plans, err := s.model.FindByFilter(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -388,13 +391,7 @@ func ToPlanResponseDTO(plan *entity.Plan, scopeCtx *types.ScopeContext) *dto.Pla
 		return nil
 	}
 
-	// 使用 PathID 判断作用域
-	var scope types.Scope
-	if scopeCtx != nil {
-		scope = types.GetScopeForDisplay(plan.PathID, scopeCtx.PathID, scopeCtx.GroupPathIDs)
-	} else {
-		scope = types.GetScope(plan.PathID)
-	}
+	scope := types.GetScopeForDisplayWithGlobal(plan.Global, plan.PathID, scopeCtx)
 
 	// 转换子任务
 	subTasks := make([]dto.SubTaskDTO, 0, len(plan.SubTasks))

@@ -8,8 +8,9 @@ import (
 // 记忆条目，用于持久化存储重要信息
 // 纯关联模式：PathID=0 表示 Global，PathID>0 关联 PersonalPath
 type Memory struct {
-	ID         int64     `gorm:"primaryKey"`                             // 雪花算法生成
-	PathID     int64     `gorm:"index;default:0;comment:路径ID（0=Global）"` // 关联 PersonalPath.ID，0 表示 Global
+	ID         int64     `gorm:"primaryKey"`                               // 雪花算法生成
+	Global     bool      `gorm:"index;default:false;comment:是否全局可见"`       // true=全局，false=私有/小组
+	PathID     int64     `gorm:"index;default:0;comment:关联路径ID(0=无绑定/全局)"` // 关联 Path.ID，0 表示未绑定
 	Title      string    `gorm:"index;size:255;not null;comment:标题"`
 	Content    string    `gorm:"type:text;not null;comment:内容"`
 	Category   string    `gorm:"index;size:100;default:'默认';comment:分类"`
@@ -51,22 +52,23 @@ const (
 
 // IsGlobal 检查是否为全局记忆
 func (m *Memory) IsGlobal() bool {
-	return m.PathID == 0
+	return m.Global
 }
 
 // IsPersonal 检查是否为 Personal 作用域
-// 纯关联模式下，PathID > 0 表示关联某个路径
 func (m *Memory) IsPersonal() bool {
-	return m.PathID > 0
+	return !m.Global && m.PathID > 0
 }
 
 // GetScope 获取作用域类型字符串
-// 注意：纯关联模式下只有 personal 和 global，group 通过 join 查询实现
 func (m *Memory) GetScope() string {
+	if m.Global {
+		return "global"
+	}
 	if m.PathID > 0 {
 		return "personal"
 	}
-	return "global"
+	return "unknown"
 }
 
 // GetTagStrings 获取标签字符串列表

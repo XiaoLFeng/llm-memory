@@ -16,7 +16,7 @@ type PersonalPath struct {
 
 // TableName 指定表名
 func (PersonalPath) TableName() string {
-	return "personal_paths"
+	return "paths"
 }
 
 // Touch 更新最后访问时间

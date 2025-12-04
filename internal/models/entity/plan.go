@@ -22,7 +22,8 @@ const (
 // 纯关联模式：PathID=0 表示 Global，PathID>0 关联 PersonalPath
 type Plan struct {
 	ID          int64      `gorm:"primaryKey"`                             // 雪花算法生成
-	PathID      int64      `gorm:"index;default:0;comment:路径ID（0=Global）"` // 关联 PersonalPath.ID，0 表示 Global
+	Global      bool       `gorm:"index;default:false;comment:是否全局可见"`     // true=全局；false=私有/小组
+	PathID      int64      `gorm:"index;default:0;comment:路径ID（0=无绑定/全局）"` // 关联 Path.ID，0 表示未绑定
 	Title       string     `gorm:"index;size:255;not null;comment:标题"`
 	Description string     `gorm:"type:text;comment:简要描述（摘要）"`
 	Content     string     `gorm:"type:text;comment:详细内容（新增字段）"` // 新增：详细内容
@@ -44,22 +45,25 @@ func (Plan) TableName() string {
 
 // IsGlobal 检查是否为全局计划
 func (p *Plan) IsGlobal() bool {
-	return p.PathID == 0
+	return p.Global
 }
 
 // IsPersonal 检查是否为 Personal 作用域
 // 纯关联模式下，PathID > 0 表示关联某个路径
 func (p *Plan) IsPersonal() bool {
-	return p.PathID > 0
+	return !p.Global && p.PathID > 0
 }
 
 // GetScope 获取作用域类型字符串
 // 注意：纯关联模式下只有 personal 和 global，group 通过 join 查询实现
 func (p *Plan) GetScope() string {
+	if p.Global {
+		return "global"
+	}
 	if p.PathID > 0 {
 		return "personal"
 	}
-	return "global"
+	return "unknown"
 }
 
 // IsCompleted 检查计划是否已完成

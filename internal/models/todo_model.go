@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/XiaoLFeng/llm-memory/internal/database"
@@ -57,15 +56,17 @@ func (m *ToDoModel) FindByID(ctx context.Context, id int64) (*entity.ToDo, error
 
 // FindAll 查找所有待办
 func (m *ToDoModel) FindAll(ctx context.Context) ([]entity.ToDo, error) {
-	var todos []entity.ToDo
-	err := m.db.WithContext(ctx).Preload("Tags").Order("priority DESC, created_at DESC").Find(&todos).Error
-	return todos, err
+	return m.FindByFilter(ctx, DefaultVisibilityFilter())
 }
 
 // FindByStatus 根据状态查找待办
 func (m *ToDoModel) FindByStatus(ctx context.Context, status entity.ToDoStatus) ([]entity.ToDo, error) {
+	filter := DefaultVisibilityFilter()
 	var todos []entity.ToDo
-	err := m.db.WithContext(ctx).Preload("Tags").Where("status = ?", status).Order("priority DESC, created_at DESC").Find(&todos).Error
+	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("Tags"), filter).
+		Where("status = ?", status).
+		Order("priority DESC, created_at DESC").
+		Find(&todos).Error
 	return todos, err
 }
 
@@ -75,37 +76,20 @@ func (m *ToDoModel) FindByStatus(ctx context.Context, status entity.ToDoStatus) 
 // groupPathIDs: 组内所有路径 ID 列表（空切片表示无组）
 // includeGlobal: 是否包含全局待办
 func (m *ToDoModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs []int64, includeGlobal bool) ([]entity.ToDo, error) {
+	filter := VisibilityFilter{
+		IncludeGlobal:    includeGlobal,
+		IncludeNonGlobal: true,
+		PathIDs:          mergePathIDs(pathID, groupPathIDs),
+	}
+	return m.FindByFilter(ctx, filter)
+}
+
+// FindByFilter 根据统一过滤器查询待办
+func (m *ToDoModel) FindByFilter(ctx context.Context, filter VisibilityFilter) ([]entity.ToDo, error) {
 	var todos []entity.ToDo
-	query := m.db.WithContext(ctx).Preload("Tags")
-
-	// 构建作用域条件
-	var conditions []string
-	var args []interface{}
-
-	// Personal: 当前路径
-	if pathID > 0 {
-		conditions = append(conditions, "(path_id = ?)")
-		args = append(args, pathID)
-	}
-
-	// Group: 组内所有路径
-	if len(groupPathIDs) > 0 {
-		conditions = append(conditions, "(path_id IN ?)")
-		args = append(args, groupPathIDs)
-	}
-
-	// Global: PathID = 0
-	if includeGlobal {
-		conditions = append(conditions, "(path_id = 0)")
-	}
-
-	if len(conditions) > 0 {
-		query = query.Where(strings.Join(conditions, " OR "), args...)
-	} else {
-		query = query.Where("path_id = 0")
-	}
-
-	err := query.Order("priority DESC, created_at DESC").Find(&todos).Error
+	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("Tags"), filter).
+		Order("priority DESC, created_at DESC").
+		Find(&todos).Error
 	return todos, err
 }
 

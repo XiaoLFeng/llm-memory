@@ -36,7 +36,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// plan_list - 列出所有计划
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "plan_list",
-		Description: `列出所有计划及进度状态。scope: personal/group/global/all；默认不填=当前路径(私有/组内)，无路径则全局；all=当前作用域集合。`,
+		Description: `列出所有计划及进度状态。scope: personal/group/global/all；默认不填=全部（全局+私有+小组）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -51,7 +51,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		result := "计划列表:\n"
 		for _, p := range plans {
 			status := getPlanStatusText(p.Status)
-			scopeTag := getScopeTagWithContext(p.PathID, bs.CurrentScope)
+			scopeTag := getScopeTagWithContext(p.Global, p.PathID, bs.CurrentScope)
 			result += fmt.Sprintf("- [%d] %s (%s, 进度: %d%%) %s\n", p.ID, p.Title, status, p.Progress, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -77,7 +77,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTagWithContext(plan.PathID, bs.CurrentScope)
+		scopeTag := getScopeTagWithContext(plan.Global, plan.PathID, bs.CurrentScope)
 		return NewTextResult(fmt.Sprintf("计划创建成功! ID: %d, 标题: %s %s", plan.ID, plan.Title, scopeTag)), nil, nil
 	})
 

@@ -58,7 +58,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// memory_list - 列出所有记忆
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "memory_list",
-		Description: `列出可见记忆。scope: personal/group/global/all；默认不填=当前路径(私有/组内)，无路径则全局；all=当前作用域集合。`,
+		Description: `列出可见记忆。scope: personal/group/global/all；默认不填=全部（全局+私有+小组）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -72,7 +72,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := "记忆列表:\n"
 		for _, m := range memories {
-			scopeTag := getScopeTagWithContext(m.PathID, bs.CurrentScope)
+			scopeTag := getScopeTagWithContext(m.Global, m.PathID, bs.CurrentScope)
 			result += fmt.Sprintf("- [%d] %s (分类: %s) %s\n", m.ID, m.Title, m.Category, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -100,7 +100,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTagWithContext(memory.PathID, bs.CurrentScope)
+		scopeTag := getScopeTagWithContext(memory.Global, memory.PathID, bs.CurrentScope)
 		return NewTextResult(fmt.Sprintf("记忆创建成功! ID: %d, 标题: %s %s", memory.ID, memory.Title, scopeTag)), nil, nil
 	})
 
@@ -118,7 +118,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// memory_search - 搜索记忆
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "memory_search",
-		Description: `搜索记忆（标题与内容模糊匹配 keyword）。scope: personal/group/global/all；默认不填=当前路径(私有/组内)，无路径则全局；all=当前作用域集合。`,
+		Description: `搜索记忆（标题与内容模糊匹配 keyword）。scope: personal/group/global/all；默认不填=全部（全局+私有+小组）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemorySearchInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -132,7 +132,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := fmt.Sprintf("搜索结果 (%d 条):\n", len(memories))
 		for _, m := range memories {
-			scopeTag := getScopeTagWithContext(m.PathID, bs.CurrentScope)
+			scopeTag := getScopeTagWithContext(m.Global, m.PathID, bs.CurrentScope)
 			result += fmt.Sprintf("- [%d] %s %s\n", m.ID, m.Title, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -154,7 +154,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 			tags = append(tags, t.Tag)
 		}
 
-		scopeTag := getScopeTagWithContext(memory.PathID, bs.CurrentScope)
+		scopeTag := getScopeTagWithContext(memory.Global, memory.PathID, bs.CurrentScope)
 		var sb strings.Builder
 		_, _ = fmt.Fprintf(&sb, "记忆详情:\n")
 		_, _ = fmt.Fprintf(&sb, "ID: %d\n", memory.ID)
@@ -211,71 +211,12 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	})
 }
 
-// buildScopeContext 根据 scope 字符串构建 ScopeContext
-func buildScopeContext(scope string, bs *startup.Bootstrap) *types.ScopeContext {
-	// 获取当前工作目录和作用域上下文
-	currentScope := bs.CurrentScope
-	if currentScope == nil {
-		currentScope = types.NewScopeContext("")
+// buildScopeContext 根据 scope 构建 ScopeContext（保持简单：默认返回当前上下文）
+func buildScopeContext(_ string, bs *startup.Bootstrap) *types.ScopeContext {
+	if bs.CurrentScope == nil {
+		return types.NewScopeContext("")
 	}
-
-	switch strings.ToLower(scope) {
-	case "personal":
-		return &types.ScopeContext{
-			CurrentPath:     currentScope.CurrentPath,
-			PathID:          currentScope.PathID,
-			GroupID:         types.GlobalGroupID,
-			IncludePersonal: true,
-			IncludeGroup:    false,
-			IncludeGlobal:   false,
-		}
-	case "group":
-		return &types.ScopeContext{
-			CurrentPath:     currentScope.CurrentPath,
-			PathID:          currentScope.PathID,
-			GroupID:         currentScope.GroupID,
-			GroupName:       currentScope.GroupName,
-			GroupPathIDs:    currentScope.GroupPathIDs,
-			IncludePersonal: false,
-			IncludeGroup:    true,
-			IncludeGlobal:   false,
-		}
-	case "global":
-		return &types.ScopeContext{
-			CurrentPath:     currentScope.CurrentPath,
-			PathID:          currentScope.PathID,
-			GroupID:         types.GlobalGroupID,
-			IncludePersonal: false,
-			IncludeGroup:    false,
-			IncludeGlobal:   true,
-		}
-	case "all":
-		return currentScope
-	default: // 默认使用当前路径(私有/组内)，无则全局
-		return defaultScopeContext(currentScope)
-	}
-}
-
-// defaultScopeContext 默认作用域：优先当前路径(私有/组内)，无则全局
-func defaultScopeContext(currentScope *types.ScopeContext) *types.ScopeContext {
-	if currentScope == nil {
-		return types.NewGlobalOnlyScope()
-	}
-
-	if currentScope.CurrentPath != "" {
-		return &types.ScopeContext{
-			CurrentPath:     currentScope.CurrentPath,
-			PathID:          currentScope.PathID,
-			GroupID:         currentScope.GroupID,
-			GroupName:       currentScope.GroupName,
-			GroupPathIDs:    currentScope.GroupPathIDs,
-			IncludePersonal: true,
-			IncludeGroup:    len(currentScope.GroupPathIDs) > 0,
-			IncludeGlobal:   false,
-		}
-	}
-
-	return types.NewGlobalOnlyScope()
+	return bs.CurrentScope
 }
 
 // tagsToStringSlice 将 MemoryTag 切片转换为字符串切片
