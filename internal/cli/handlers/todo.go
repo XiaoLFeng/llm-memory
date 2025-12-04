@@ -34,10 +34,10 @@ func (h *TodoHandler) List(ctx context.Context) error {
 	}
 
 	cli.PrintTitle(cli.IconTodo + " 待办事项列表")
-	table := output.NewTable("ID", "标题", "状态", "优先级")
+	table := output.NewTable("标识码", "标题", "状态", "优先级")
 	for _, t := range todos {
 		table.AddRow(
-			fmt.Sprintf("%d", t.ID),
+			t.Code,
 			t.Title,
 			getToDoStatusText(t.Status),
 			getToDoStatusPriorityText(t.Priority),
@@ -49,12 +49,13 @@ func (h *TodoHandler) List(ctx context.Context) error {
 }
 
 // Create 创建待办
-func (h *TodoHandler) Create(ctx context.Context, title, description string, priority int, global bool) error {
+func (h *TodoHandler) Create(ctx context.Context, code, title, description string, priority int, global bool) error {
 	if priority == 0 {
 		priority = int(entity.ToDoPriorityMedium)
 	}
 
 	createDTO := &dto.ToDoCreateDTO{
+		Code:        code,
 		Title:       title,
 		Description: description,
 		Priority:    priority,
@@ -66,49 +67,49 @@ func (h *TodoHandler) Create(ctx context.Context, title, description string, pri
 		return err
 	}
 
-	cli.PrintSuccess(fmt.Sprintf("待办创建成功！ID: %d, 标题: %s", todo.ID, todo.Title))
+	cli.PrintSuccess(fmt.Sprintf("待办创建成功！标识码: %s, 标题: %s", todo.Code, todo.Title))
 	return nil
 }
 
 // Complete 完成待办
-func (h *TodoHandler) Complete(ctx context.Context, id int64) error {
-	if err := h.bs.ToDoService.CompleteToDo(ctx, id); err != nil {
+func (h *TodoHandler) Complete(ctx context.Context, code string) error {
+	if err := h.bs.ToDoService.CompleteToDo(ctx, code); err != nil {
 		return err
 	}
 
-	cli.PrintSuccess(fmt.Sprintf("待办 %d 已完成", id))
+	cli.PrintSuccess(fmt.Sprintf("待办 %s 已完成", code))
 	return nil
 }
 
 // Start 开始待办
-func (h *TodoHandler) Start(ctx context.Context, id int64) error {
-	if err := h.bs.ToDoService.StartToDo(ctx, id); err != nil {
+func (h *TodoHandler) Start(ctx context.Context, code string) error {
+	if err := h.bs.ToDoService.StartToDo(ctx, code); err != nil {
 		return err
 	}
 
-	cli.PrintSuccess(fmt.Sprintf("待办 %d 已开始", id))
+	cli.PrintSuccess(fmt.Sprintf("待办 %s 已开始", code))
 	return nil
 }
 
 // Delete 删除待办
-func (h *TodoHandler) Delete(ctx context.Context, id int64) error {
-	if err := h.bs.ToDoService.DeleteToDo(ctx, id); err != nil {
+func (h *TodoHandler) Delete(ctx context.Context, code string) error {
+	if err := h.bs.ToDoService.DeleteToDo(ctx, code); err != nil {
 		return err
 	}
 
-	cli.PrintSuccess(fmt.Sprintf("待办 %d 已删除", id))
+	cli.PrintSuccess(fmt.Sprintf("待办 %s 已删除", code))
 	return nil
 }
 
 // Get 获取待办详情
-func (h *TodoHandler) Get(ctx context.Context, id int64) error {
-	todo, err := h.bs.ToDoService.GetToDo(ctx, id)
+func (h *TodoHandler) Get(ctx context.Context, code string) error {
+	todo, err := h.bs.ToDoService.GetToDo(ctx, code)
 	if err != nil {
 		return err
 	}
 
 	cli.PrintTitle(cli.IconCheck + " 待办详情")
-	fmt.Printf("ID:       %d\n", todo.ID)
+	fmt.Printf("标识码:   %s\n", todo.Code)
 	fmt.Printf("标题:     %s\n", todo.Title)
 	fmt.Printf("状态:     %s\n", getToDoStatusText(todo.Status))
 	fmt.Printf("优先级:   %s\n", getToDoStatusPriorityText(todo.Priority))

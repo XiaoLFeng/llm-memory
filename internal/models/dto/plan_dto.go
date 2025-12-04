@@ -4,6 +4,7 @@ import "time"
 
 // PlanCreateDTO 创建计划请求
 type PlanCreateDTO struct {
+	Code        string `json:"code"` // 人类可读的唯一标识码（必填）
 	Title       string `json:"title"`
 	Description string `json:"description"` // 摘要
 	Content     string `json:"content"`     // 详细内容
@@ -12,7 +13,7 @@ type PlanCreateDTO struct {
 
 // PlanUpdateDTO 更新计划请求
 type PlanUpdateDTO struct {
-	ID          int64   `json:"id"`
+	Code        string  `json:"code"` // 通过 code 定位计划
 	Title       *string `json:"title,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Content     *string `json:"content,omitempty"`
@@ -21,13 +22,14 @@ type PlanUpdateDTO struct {
 
 // PlanProgressDTO 更新计划进度请求
 type PlanProgressDTO struct {
-	ID       int64 `json:"id"`
-	Progress int   `json:"progress"` // 0-100
+	Code     string `json:"code"`     // 通过 code 定位计划
+	Progress int    `json:"progress"` // 0-100
 }
 
 // PlanResponseDTO 计划响应
 type PlanResponseDTO struct {
 	ID          int64        `json:"id"`
+	Code        string       `json:"code"` // 人类可读的唯一标识码
 	Title       string       `json:"title"`
 	Description string       `json:"description"` // 摘要
 	Content     string       `json:"content"`     // 详细内容
@@ -43,6 +45,7 @@ type PlanResponseDTO struct {
 // PlanListDTO 计划列表项
 type PlanListDTO struct {
 	ID          int64  `json:"id"`
+	Code        string `json:"code"` // 人类可读的唯一标识码
 	Title       string `json:"title"`
 	Description string `json:"description"` // 摘要用于列表展示
 	Status      string `json:"status"`

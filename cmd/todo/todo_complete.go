@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var todoCompleteID int
+var todoCompleteCode string
 
 // todoCompleteCmd 完成待办
 var todoCompleteCmd = &cobra.Command{
@@ -18,8 +18,8 @@ var todoCompleteCmd = &cobra.Command{
 	Short: "完成待办事项",
 	Long:  `将指定待办事项标记为已完成~ 🎉`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if todoCompleteID <= 0 {
-			cli.PrintError("请使用 --id 参数指定有效的待办ID")
+		if todoCompleteCode == "" {
+			cli.PrintError("请使用 --code 参数指定有效的待办标识码")
 			os.Exit(1)
 		}
 
@@ -29,7 +29,7 @@ var todoCompleteCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewTodoHandler(bs)
-		if err := handler.Complete(bs.Context(), int64(todoCompleteID)); err != nil {
+		if err := handler.Complete(bs.Context(), todoCompleteCode); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}
@@ -37,8 +37,8 @@ var todoCompleteCmd = &cobra.Command{
 }
 
 func init() {
-	todoCompleteCmd.Flags().IntVarP(&todoCompleteID, "id", "i", 0, "待办ID（必填）")
-	_ = todoCompleteCmd.MarkFlagRequired("id")
+	todoCompleteCmd.Flags().StringVarP(&todoCompleteCode, "code", "c", "", "待办标识码（必填）")
+	_ = todoCompleteCmd.MarkFlagRequired("code")
 
 	todoCmd.AddCommand(todoCompleteCmd)
 }

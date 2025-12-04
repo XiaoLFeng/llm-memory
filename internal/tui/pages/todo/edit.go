@@ -97,7 +97,7 @@ func (p *EditPage) Init() tea.Cmd {
 func (p *EditPage) load() tea.Cmd {
 	return func() tea.Msg {
 		ctx := p.bs.Context()
-		todo, err := p.bs.ToDoService.GetToDo(ctx, p.todoID)
+		todo, err := p.bs.ToDoService.GetToDoByID(ctx, p.todoID)
 		if err != nil {
 			return editLoadMsg{err: err}
 		}
@@ -371,8 +371,15 @@ func (p *EditPage) submit() tea.Cmd {
 		priority := p.prioritySelect.Value().(int)
 		status := p.statusSelect.Value().(int)
 
+		// 先通过ID获取当前待办的Code
+		ctx := p.bs.Context()
+		todo, err := p.bs.ToDoService.GetToDoByID(ctx, p.todoID)
+		if err != nil {
+			return editLoadMsg{err: err}
+		}
+
 		updateDTO := &dto.ToDoUpdateDTO{
-			ID:          p.todoID,
+			Code:        todo.Code,
 			Title:       &title,
 			Description: &description,
 			Priority:    &priority,
@@ -382,8 +389,7 @@ func (p *EditPage) submit() tea.Cmd {
 		}
 
 		// 调用服务更新待办
-		ctx := p.bs.Context()
-		err := p.bs.ToDoService.UpdateToDo(ctx, updateDTO)
+		err = p.bs.ToDoService.UpdateToDo(ctx, updateDTO)
 		if err != nil {
 			p.err = err
 			p.submitting = false

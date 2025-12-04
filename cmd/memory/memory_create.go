@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	memoryCode     string
 	memoryTitle    string
 	memoryContent  string
 	memoryCategory string
@@ -26,6 +27,10 @@ var memoryCreateCmd = &cobra.Command{
 	Short: "创建新记忆",
 	Long:  `创建一条新的记忆条目~ ✨`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if memoryCode == "" {
+			cli.PrintError("标识码不能为空，请使用 --code 参数")
+			os.Exit(1)
+		}
 		if memoryTitle == "" {
 			cli.PrintError("标题不能为空，请使用 --title 参数")
 			os.Exit(1)
@@ -50,7 +55,7 @@ var memoryCreateCmd = &cobra.Command{
 		}
 
 		handler := handlers.NewMemoryHandler(bs)
-		if err := handler.Create(bs.Context(), memoryTitle, memoryContent, memoryCategory, tags, memoryGlobal); err != nil {
+		if err := handler.Create(bs.Context(), memoryCode, memoryTitle, memoryContent, memoryCategory, tags, memoryGlobal); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}
@@ -58,12 +63,14 @@ var memoryCreateCmd = &cobra.Command{
 }
 
 func init() {
+	memoryCreateCmd.Flags().StringVarP(&memoryCode, "code", "c", "", "记忆标识码（必填）")
 	memoryCreateCmd.Flags().StringVarP(&memoryTitle, "title", "t", "", "记忆标题（必填）")
-	memoryCreateCmd.Flags().StringVarP(&memoryContent, "content", "c", "", "记忆内容（必填）")
+	memoryCreateCmd.Flags().StringVar(&memoryContent, "content", "", "记忆内容（必填）")
 	memoryCreateCmd.Flags().StringVarP(&memoryCategory, "category", "C", "默认", "记忆分类")
 	memoryCreateCmd.Flags().StringVar(&memoryTags, "tags", "", "标签（逗号分隔）")
 	memoryCreateCmd.Flags().BoolVar(&memoryGlobal, "global", false, "将记忆保存为全局（默认当前路径/组内可见）")
 
+	_ = memoryCreateCmd.MarkFlagRequired("code")
 	_ = memoryCreateCmd.MarkFlagRequired("title")
 	_ = memoryCreateCmd.MarkFlagRequired("content")
 

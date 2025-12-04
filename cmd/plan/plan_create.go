@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	planCode        string
 	planTitle       string
 	planDescription string
 	planGlobal      bool
@@ -23,6 +24,10 @@ var planCreateCmd = &cobra.Command{
 	Short: "创建新计划",
 	Long:  `创建一个新的计划~ ✨`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if planCode == "" {
+			cli.PrintError("标识码不能为空，请使用 --code 参数")
+			os.Exit(1)
+		}
 		if planTitle == "" {
 			cli.PrintError("标题不能为空，请使用 --title 参数")
 			os.Exit(1)
@@ -34,7 +39,7 @@ var planCreateCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewPlanHandler(bs)
-		if err := handler.Create(bs.Context(), planTitle, planDescription, planGlobal); err != nil {
+		if err := handler.Create(bs.Context(), planCode, planTitle, planDescription, planGlobal); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}
@@ -42,10 +47,12 @@ var planCreateCmd = &cobra.Command{
 }
 
 func init() {
+	planCreateCmd.Flags().StringVarP(&planCode, "code", "c", "", "计划标识码（必填）")
 	planCreateCmd.Flags().StringVarP(&planTitle, "title", "t", "", "计划标题（必填）")
 	planCreateCmd.Flags().StringVarP(&planDescription, "description", "d", "", "计划描述")
 	planCreateCmd.Flags().BoolVar(&planGlobal, "global", false, "将计划保存为全局（默认当前路径/组内可见）")
 
+	_ = planCreateCmd.MarkFlagRequired("code")
 	_ = planCreateCmd.MarkFlagRequired("title")
 
 	planCmd.AddCommand(planCreateCmd)

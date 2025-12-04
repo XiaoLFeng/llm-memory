@@ -10,16 +10,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var todoDeleteID int
+var todoDeleteCode string
 
 // todoDeleteCmd 删除待办
 var todoDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "删除待办事项",
-	Long:  `删除指定ID的待办事项~ 🗑️`,
+	Long:  `删除指定标识码的待办事项~ 🗑️`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if todoDeleteID <= 0 {
-			cli.PrintError("请使用 --id 参数指定有效的待办ID")
+		if todoDeleteCode == "" {
+			cli.PrintError("请使用 --code 参数指定有效的待办标识码")
 			os.Exit(1)
 		}
 
@@ -29,7 +29,7 @@ var todoDeleteCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewTodoHandler(bs)
-		if err := handler.Delete(bs.Context(), int64(todoDeleteID)); err != nil {
+		if err := handler.Delete(bs.Context(), todoDeleteCode); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}
@@ -37,8 +37,8 @@ var todoDeleteCmd = &cobra.Command{
 }
 
 func init() {
-	todoDeleteCmd.Flags().IntVarP(&todoDeleteID, "id", "i", 0, "待办ID（必填）")
-	_ = todoDeleteCmd.MarkFlagRequired("id")
+	todoDeleteCmd.Flags().StringVarP(&todoDeleteCode, "code", "c", "", "待办标识码（必填）")
+	_ = todoDeleteCmd.MarkFlagRequired("code")
 
 	todoCmd.AddCommand(todoDeleteCmd)
 }

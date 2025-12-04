@@ -4,6 +4,7 @@ import "time"
 
 // ToDoCreateDTO 创建待办请求
 type ToDoCreateDTO struct {
+	Code        string     `json:"code"` // 人类可读的唯一标识码（必填）
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Priority    int        `json:"priority"` // 1-4，默认 2
@@ -14,7 +15,7 @@ type ToDoCreateDTO struct {
 
 // ToDoUpdateDTO 更新待办请求
 type ToDoUpdateDTO struct {
-	ID          int64      `json:"id"`
+	Code        string     `json:"code"` // 通过 code 定位待办
 	Title       *string    `json:"title,omitempty"`
 	Description *string    `json:"description,omitempty"`
 	Priority    *int       `json:"priority,omitempty"`
@@ -26,6 +27,7 @@ type ToDoUpdateDTO struct {
 // ToDoResponseDTO 待办响应
 type ToDoResponseDTO struct {
 	ID          int64      `json:"id"`
+	Code        string     `json:"code"` // 人类可读的唯一标识码
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Priority    int        `json:"priority"`
@@ -44,6 +46,7 @@ type ToDoResponseDTO struct {
 // ToDoListDTO 待办列表项
 type ToDoListDTO struct {
 	ID          int64      `json:"id"`
+	Code        string     `json:"code"` // 人类可读的唯一标识码
 	Title       string     `json:"title"`
 	Priority    int        `json:"priority"`
 	PriorityStr string     `json:"priority_str"`
@@ -66,18 +69,18 @@ type ToDoBatchUpdateDTO struct {
 
 // ToDoBatchCompleteDTO 批量完成待办请求
 type ToDoBatchCompleteDTO struct {
-	IDs []int64 `json:"ids"` // 最多 100 个
+	Codes []string `json:"codes"` // 通过 code 批量完成，最多 100 个
 }
 
 // ToDoBatchDeleteDTO 批量删除待办请求
 type ToDoBatchDeleteDTO struct {
-	IDs []int64 `json:"ids"` // 最多 100 个
+	Codes []string `json:"codes"` // 通过 code 批量删除，最多 100 个
 }
 
 // ToDoBatchProgressDTO 批量更新进度请求（按状态批量更新）
 type ToDoBatchProgressDTO struct {
-	IDs    []int64 `json:"ids"`    // 最多 100 个
-	Status int     `json:"status"` // 0-3
+	Codes  []string `json:"codes"`  // 通过 code 批量更新，最多 100 个
+	Status int      `json:"status"` // 0-3
 }
 
 // ToDoBatchResultDTO 批量操作结果

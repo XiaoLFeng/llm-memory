@@ -4,6 +4,7 @@ import "time"
 
 // MemoryCreateDTO 创建记忆请求
 type MemoryCreateDTO struct {
+	Code     string   `json:"code"` // 人类可读的唯一标识码（必填）
 	Title    string   `json:"title"`
 	Content  string   `json:"content"`
 	Category string   `json:"category"`
@@ -14,7 +15,7 @@ type MemoryCreateDTO struct {
 
 // MemoryUpdateDTO 更新记忆请求
 type MemoryUpdateDTO struct {
-	ID       int64     `json:"id"`
+	Code     string    `json:"code"` // 通过 code 定位记忆
 	Title    *string   `json:"title,omitempty"`
 	Content  *string   `json:"content,omitempty"`
 	Category *string   `json:"category,omitempty"`
@@ -25,6 +26,7 @@ type MemoryUpdateDTO struct {
 // MemoryResponseDTO 记忆响应
 type MemoryResponseDTO struct {
 	ID         int64     `json:"id"`
+	Code       string    `json:"code"` // 人类可读的唯一标识码
 	Title      string    `json:"title"`
 	Content    string    `json:"content"`
 	Category   string    `json:"category"`
@@ -39,6 +41,7 @@ type MemoryResponseDTO struct {
 // MemoryListDTO 记忆列表项
 type MemoryListDTO struct {
 	ID         int64  `json:"id"`
+	Code       string `json:"code"` // 人类可读的唯一标识码
 	Title      string `json:"title"`
 	Category   string `json:"category"`
 	Priority   int    `json:"priority"`

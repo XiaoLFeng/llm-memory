@@ -1,0 +1,29 @@
+package entity
+
+import (
+	"errors"
+	"regexp"
+)
+
+// Code 格式正则表达式
+// 规则: 全小写字母，可含连字符，开头末尾必须是字母，最少3个字符
+// 示例有效值: "abc", "my-task", "hello-world-test"
+// 示例无效值: "ab", "-abc", "abc-", "ABC", "my_task"
+var codeRegex = regexp.MustCompile(`^[a-z][a-z\-]*[a-z]$`)
+
+// ValidateCode 验证 code 格式
+// 返回 nil 表示验证通过，返回 error 表示格式不正确
+func ValidateCode(code string) error {
+	if len(code) < 3 {
+		return errors.New("code 长度至少为 3 个字符")
+	}
+	if !codeRegex.MatchString(code) {
+		return errors.New("code 格式错误: 全小写字母，可含连字符，开头末尾必须是字母")
+	}
+	return nil
+}
+
+// IsValidCode 检查 code 是否有效（便捷方法）
+func IsValidCode(code string) bool {
+	return ValidateCode(code) == nil
+}

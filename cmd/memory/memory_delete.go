@@ -10,16 +10,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var memoryDeleteID int
+var memoryDeleteCode string
 
 // memoryDeleteCmd 删除记忆
 var memoryDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "删除记忆",
-	Long:  `删除指定ID的记忆条目~ 🗑️`,
+	Long:  `删除指定标识码的记忆条目~ 🗑️`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if memoryDeleteID <= 0 {
-			cli.PrintError("请使用 --id 参数指定有效的记忆ID")
+		if memoryDeleteCode == "" {
+			cli.PrintError("请使用 --code 参数指定有效的记忆标识码")
 			os.Exit(1)
 		}
 
@@ -29,7 +29,7 @@ var memoryDeleteCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewMemoryHandler(bs)
-		if err := handler.Delete(bs.Context(), int64(memoryDeleteID)); err != nil {
+		if err := handler.Delete(bs.Context(), memoryDeleteCode); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}
@@ -37,8 +37,8 @@ var memoryDeleteCmd = &cobra.Command{
 }
 
 func init() {
-	memoryDeleteCmd.Flags().IntVarP(&memoryDeleteID, "id", "i", 0, "记忆ID（必填）")
-	_ = memoryDeleteCmd.MarkFlagRequired("id")
+	memoryDeleteCmd.Flags().StringVarP(&memoryDeleteCode, "code", "c", "", "记忆标识码（必填）")
+	_ = memoryDeleteCmd.MarkFlagRequired("code")
 
 	memoryCmd.AddCommand(memoryDeleteCmd)
 }

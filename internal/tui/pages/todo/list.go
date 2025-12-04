@@ -283,7 +283,7 @@ func (p *ListPage) Meta() core.Meta {
 func (p *ListPage) doDelete() tea.Cmd {
 	return func() tea.Msg {
 		ctx := p.bs.Context()
-		if err := p.bs.ToDoService.DeleteToDo(ctx, p.deleteTarget); err != nil {
+		if err := p.bs.ToDoService.DeleteToDoByID(ctx, p.deleteTarget); err != nil {
 			p.err = err
 			p.confirmDelete = false
 			p.deleteTarget = 0

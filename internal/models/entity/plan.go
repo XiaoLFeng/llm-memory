@@ -21,9 +21,10 @@ const (
 // 用于跟踪长期目标和复杂任务的计划实体
 // 纯关联模式：PathID=0 表示 Global，PathID>0 关联 PersonalPath
 type Plan struct {
-	ID          int64      `gorm:"primaryKey"`                             // 雪花算法生成
-	Global      bool       `gorm:"index;default:false;comment:是否全局可见"`     // true=全局；false=私有/小组
-	PathID      int64      `gorm:"index;default:0;comment:路径ID（0=无绑定/全局）"` // 关联 Path.ID，0 表示未绑定
+	ID          int64      `gorm:"primaryKey"`                                 // 雪花算法生成
+	Code        string     `gorm:"index;size:100;not null;comment:人类可读的唯一标识码"` // 外部查询标识，活跃状态唯一
+	Global      bool       `gorm:"index;default:false;comment:是否全局可见"`         // true=全局；false=私有/小组
+	PathID      int64      `gorm:"index;default:0;comment:路径ID（0=无绑定/全局）"`     // 关联 Path.ID，0 表示未绑定
 	Title       string     `gorm:"index;size:255;not null;comment:标题"`
 	Description string     `gorm:"type:text;not null;comment:简要描述（摘要）"`
 	Content     string     `gorm:"type:text;not null;comment:详细内容"`

@@ -51,6 +51,30 @@ func (m *MemoryModel) FindByID(ctx context.Context, id int64) (*entity.Memory, e
 	return &memory, nil
 }
 
+// FindByCode 根据 code 查找记忆（排除已归档）
+func (m *MemoryModel) FindByCode(ctx context.Context, code string) (*entity.Memory, error) {
+	var memory entity.Memory
+	err := m.db.WithContext(ctx).
+		Preload("Tags").
+		Where("code = ? AND is_archived = ?", code, false).
+		First(&memory).Error
+	if err != nil {
+		return nil, err
+	}
+	return &memory, nil
+}
+
+// ExistsCode 检查 code 是否已存在（用于创建/更新时校验唯一性）
+func (m *MemoryModel) ExistsCode(ctx context.Context, code string, excludeID int64) (bool, error) {
+	var count int64
+	query := m.db.WithContext(ctx).Model(&entity.Memory{}).Where("code = ?", code)
+	if excludeID > 0 {
+		query = query.Where("id != ?", excludeID)
+	}
+	err := query.Count(&count).Error
+	return count > 0, err
+}
+
 // FindAll 查找所有记忆
 func (m *MemoryModel) FindAll(ctx context.Context) ([]entity.Memory, error) {
 	return m.FindByFilter(ctx, DefaultVisibilityFilter())
@@ -61,7 +85,7 @@ func (m *MemoryModel) FindByCategory(ctx context.Context, category string) ([]en
 	filter := DefaultVisibilityFilter()
 	var memories []entity.Memory
 	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("Tags"), filter).
-		Where("category = ?", category).
+		Where("category = ? AND is_archived = ?", category, false).
 		Order("created_at DESC").
 		Find(&memories).Error
 	return memories, err
@@ -81,6 +105,7 @@ func (m *MemoryModel) FindByScope(ctx context.Context, pathID int64, groupPathID
 func (m *MemoryModel) FindByFilter(ctx context.Context, filter VisibilityFilter) ([]entity.Memory, error) {
 	var memories []entity.Memory
 	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("Tags"), filter).
+		Where("is_archived = ?", false).
 		Order("created_at DESC").
 		Find(&memories).Error
 	return memories, err
@@ -110,7 +135,8 @@ func (m *MemoryModel) SearchByFilter(ctx context.Context, keyword string, filter
 		m.db.WithContext(ctx).Preload("Tags").
 			Where("title LIKE ? OR content LIKE ?", pattern, pattern),
 		filter,
-	).Order("created_at DESC").Find(&memories).Error
+	).Where("is_archived = ?", false).
+		Order("created_at DESC").Find(&memories).Error
 	return memories, err
 }
 

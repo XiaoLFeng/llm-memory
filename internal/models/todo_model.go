@@ -54,6 +54,41 @@ func (m *ToDoModel) FindByID(ctx context.Context, id int64) (*entity.ToDo, error
 	return &todo, nil
 }
 
+// FindByCode 根据 code 查找活跃的待办
+// 只查询活跃状态（待处理和进行中），排除已完成和已取消的记录
+func (m *ToDoModel) FindByCode(ctx context.Context, code string) (*entity.ToDo, error) {
+	var todo entity.ToDo
+	err := m.db.WithContext(ctx).
+		Preload("Tags").
+		Where("code = ? AND status NOT IN ?", code, []entity.ToDoStatus{entity.ToDoStatusCompleted, entity.ToDoStatusCancelled}).
+		First(&todo).Error
+	if err != nil {
+		return nil, err
+	}
+	return &todo, nil
+}
+
+// ExistsActiveCode 检查活跃记录中是否存在指定 code
+// 只检查活跃状态（待处理和进行中）
+// excludeID: 如果 > 0，则排除该 ID（用于更新时检查重复）
+func (m *ToDoModel) ExistsActiveCode(ctx context.Context, code string, excludeID int64) (bool, error) {
+	var count int64
+	query := m.db.WithContext(ctx).Model(&entity.ToDo{}).
+		Where("code = ? AND status NOT IN ?", code, []entity.ToDoStatus{entity.ToDoStatusCompleted, entity.ToDoStatusCancelled})
+
+	// 如果提供了 excludeID，则排除该 ID
+	if excludeID > 0 {
+		query = query.Where("id != ?", excludeID)
+	}
+
+	err := query.Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
 // FindAll 查找所有待办
 func (m *ToDoModel) FindAll(ctx context.Context) ([]entity.ToDo, error) {
 	return m.FindByFilter(ctx, DefaultVisibilityFilter())
@@ -75,6 +110,7 @@ func (m *ToDoModel) FindByStatus(ctx context.Context, status entity.ToDoStatus) 
 // pathID: 当前路径的 PathID（0 表示无路径）
 // groupPathIDs: 组内所有路径 ID 列表（空切片表示无组）
 // includeGlobal: 是否包含全局待办
+// 默认排除已完成和已取消的记录
 func (m *ToDoModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs []int64, includeGlobal bool) ([]entity.ToDo, error) {
 	filter := VisibilityFilter{
 		IncludeGlobal:    includeGlobal,
@@ -85,9 +121,11 @@ func (m *ToDoModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs 
 }
 
 // FindByFilter 根据统一过滤器查询待办
+// 默认排除已完成和已取消的记录
 func (m *ToDoModel) FindByFilter(ctx context.Context, filter VisibilityFilter) ([]entity.ToDo, error) {
 	var todos []entity.ToDo
 	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("Tags"), filter).
+		Where("status NOT IN ?", []entity.ToDoStatus{entity.ToDoStatusCompleted, entity.ToDoStatusCancelled}).
 		Order("priority DESC, created_at DESC").
 		Find(&todos).Error
 	return todos, err
@@ -169,11 +207,11 @@ func (m *ToDoModel) BatchUpdate(ctx context.Context, updates []dto.ToDoUpdateDTO
 
 	err := m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for i, update := range updates {
-			todo, err := m.FindByID(ctx, update.ID)
+			todo, err := m.FindByCode(ctx, update.Code)
 			if err != nil {
 				result.Failed++
 				result.Errors = append(result.Errors,
-					fmt.Sprintf("第 %d 项（ID=%d）不存在", i+1, update.ID))
+					fmt.Sprintf("第 %d 项（Code=%s）不存在", i+1, update.Code))
 				continue
 			}
 
@@ -201,7 +239,7 @@ func (m *ToDoModel) BatchUpdate(ctx context.Context, updates []dto.ToDoUpdateDTO
 			if err := tx.Save(todo).Error; err != nil {
 				result.Failed++
 				result.Errors = append(result.Errors,
-					fmt.Sprintf("第 %d 项（ID=%d）更新失败: %s", i+1, update.ID, err.Error()))
+					fmt.Sprintf("第 %d 项（Code=%s）更新失败: %s", i+1, update.Code, err.Error()))
 			} else {
 				result.Succeeded++
 			}
@@ -256,16 +294,18 @@ func (m *ToDoModel) BatchDelete(ctx context.Context, ids []int64) (*dto.ToDoBatc
 	}
 
 	err := m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		deleteResult := tx.Delete(&entity.ToDo{}, ids)
-		if deleteResult.Error != nil {
-			result.Failed = len(ids)
-			result.Errors = append(result.Errors, deleteResult.Error.Error())
-		} else {
-			result.Succeeded = int(deleteResult.RowsAffected)
-			result.Failed = len(ids) - result.Succeeded
-			if result.Failed > 0 {
+		for _, id := range ids {
+			deleteResult := tx.Where("id = ?", id).Delete(&entity.ToDo{})
+			if deleteResult.Error != nil {
+				result.Failed++
 				result.Errors = append(result.Errors,
-					fmt.Sprintf("%d 个待办不存在或已删除", result.Failed))
+					fmt.Sprintf("ID=%d 删除失败: %s", id, deleteResult.Error.Error()))
+			} else if deleteResult.RowsAffected == 0 {
+				result.Failed++
+				result.Errors = append(result.Errors,
+					fmt.Sprintf("ID=%d 不存在", id))
+			} else {
+				result.Succeeded++
 			}
 		}
 		return nil

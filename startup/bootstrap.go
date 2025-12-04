@@ -100,13 +100,7 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 	}
 	b.db = gormDB
 
-	// 4. 执行数据库迁移（表重命名等）
-	// 嘿嘿~ 在 AutoMigrate 之前处理特殊迁移！💖
-	if err := database.RunMigrations(gormDB); err != nil {
-		return fmt.Errorf("执行数据库迁移失败: %w", err)
-	}
-
-	// 5. 自动迁移表结构
+	// 4. 自动迁移表结构
 	// 呀~ 确保数据库表结构是最新的！✨
 	if err := database.AutoMigrateSQLite(gormDB,
 		&entity.Memory{},

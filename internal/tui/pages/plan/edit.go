@@ -222,7 +222,7 @@ func (p *EditPage) Meta() core.Meta {
 func (p *EditPage) loadPlan() tea.Cmd {
 	return func() tea.Msg {
 		ctx := p.bs.Context()
-		plan, err := p.bs.PlanService.GetPlan(ctx, p.planID)
+		plan, err := p.bs.PlanService.GetPlanByID(ctx, p.planID)
 		if err != nil {
 			return editLoadMsg{err: err}
 		}
@@ -307,9 +307,15 @@ func (p *EditPage) submit() tea.Cmd {
 		content := strings.TrimSpace(p.contentArea.Value())
 		progressStr := strings.TrimSpace(p.progressInput.Value())
 
+		// 先通过ID获取当前计划的Code
+		plan, err := p.bs.PlanService.GetPlanByID(ctx, p.planID)
+		if err != nil {
+			return editResultMsg{success: false, err: err}
+		}
+
 		// 构建更新 DTO
 		input := &dto.PlanUpdateDTO{
-			ID: p.planID,
+			Code: plan.Code,
 		}
 
 		// 只更新非空字段
@@ -332,8 +338,7 @@ func (p *EditPage) submit() tea.Cmd {
 		}
 
 		// 更新计划
-		err := p.bs.PlanService.UpdatePlan(ctx, input)
-		if err != nil {
+		if err := p.bs.PlanService.UpdatePlan(ctx, input); err != nil {
 			return editResultMsg{success: false, err: err}
 		}
 

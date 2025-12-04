@@ -268,7 +268,7 @@ func (p *EditPage) updateFocusedField(msg tea.Msg) tea.Cmd {
 func (p *EditPage) loadMemory() tea.Cmd {
 	return func() tea.Msg {
 		ctx := p.bs.Context()
-		memory, err := p.bs.MemoryService.GetMemory(ctx, p.memoryID)
+		memory, err := p.bs.MemoryService.GetMemoryByID(ctx, p.memoryID)
 		if err != nil {
 			return loadMemoryMsg{err: err}
 		}
@@ -320,8 +320,15 @@ func (p *EditPage) save() tea.Cmd {
 	p.saving = true
 	return func() tea.Msg {
 		ctx := p.bs.Context()
+
+		// 先通过ID获取当前记忆的Code
+		memory, err := p.bs.MemoryService.GetMemoryByID(ctx, p.memoryID)
+		if err != nil {
+			return updateErrorMsg{err: err}
+		}
+
 		input := &dto.MemoryUpdateDTO{
-			ID:       p.memoryID,
+			Code:     memory.Code,
 			Title:    &title,
 			Content:  &content,
 			Category: &category,

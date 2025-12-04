@@ -10,16 +10,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var memoryGetID int
+var memoryGetCode string
 
 // memoryGetCmd 获取记忆详情
 var memoryGetCmd = &cobra.Command{
 	Use:   "get",
 	Short: "获取记忆详情",
-	Long:  `获取指定ID的记忆详细信息~ 📝`,
+	Long:  `获取指定标识码的记忆详细信息~ 📝`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if memoryGetID <= 0 {
-			cli.PrintError("请使用 --id 参数指定有效的记忆ID")
+		if memoryGetCode == "" {
+			cli.PrintError("请使用 --code 参数指定有效的记忆标识码")
 			os.Exit(1)
 		}
 
@@ -29,7 +29,7 @@ var memoryGetCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewMemoryHandler(bs)
-		if err := handler.Get(bs.Context(), int64(memoryGetID)); err != nil {
+		if err := handler.Get(bs.Context(), memoryGetCode); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}
@@ -37,8 +37,8 @@ var memoryGetCmd = &cobra.Command{
 }
 
 func init() {
-	memoryGetCmd.Flags().IntVarP(&memoryGetID, "id", "i", 0, "记忆ID（必填）")
-	_ = memoryGetCmd.MarkFlagRequired("id")
+	memoryGetCmd.Flags().StringVarP(&memoryGetCode, "code", "c", "", "记忆标识码（必填）")
+	_ = memoryGetCmd.MarkFlagRequired("code")
 
 	memoryCmd.AddCommand(memoryGetCmd)
 }

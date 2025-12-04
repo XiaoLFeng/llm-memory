@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var planCompleteID int
+var planCompleteCode string
 
 // planCompleteCmd 完成计划
 var planCompleteCmd = &cobra.Command{
@@ -18,8 +18,8 @@ var planCompleteCmd = &cobra.Command{
 	Short: "完成计划",
 	Long:  `将指定计划标记为已完成~ 🎉`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if planCompleteID <= 0 {
-			cli.PrintError("请使用 --id 参数指定有效的计划ID")
+		if planCompleteCode == "" {
+			cli.PrintError("请使用 --code 参数指定有效的计划标识码")
 			os.Exit(1)
 		}
 
@@ -29,7 +29,7 @@ var planCompleteCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewPlanHandler(bs)
-		if err := handler.Complete(bs.Context(), int64(planCompleteID)); err != nil {
+		if err := handler.Complete(bs.Context(), planCompleteCode); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}
@@ -37,8 +37,8 @@ var planCompleteCmd = &cobra.Command{
 }
 
 func init() {
-	planCompleteCmd.Flags().IntVarP(&planCompleteID, "id", "i", 0, "计划ID（必填）")
-	_ = planCompleteCmd.MarkFlagRequired("id")
+	planCompleteCmd.Flags().StringVarP(&planCompleteCode, "code", "c", "", "计划标识码（必填）")
+	_ = planCompleteCmd.MarkFlagRequired("code")
 
 	planCmd.AddCommand(planCompleteCmd)
 }

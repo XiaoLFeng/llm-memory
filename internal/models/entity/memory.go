@@ -8,9 +8,10 @@ import (
 // 记忆条目，用于持久化存储重要信息
 // 纯关联模式：PathID=0 表示 Global，PathID>0 关联 PersonalPath
 type Memory struct {
-	ID         int64     `gorm:"primaryKey"`                               // 雪花算法生成
-	Global     bool      `gorm:"index;default:false;comment:是否全局可见"`       // true=全局，false=私有/小组
-	PathID     int64     `gorm:"index;default:0;comment:关联路径ID(0=无绑定/全局)"` // 关联 Path.ID，0 表示未绑定
+	ID         int64     `gorm:"primaryKey"`                                       // 雪花算法生成
+	Code       string    `gorm:"uniqueIndex;size:100;not null;comment:人类可读的唯一标识码"` // 外部查询标识，全局唯一
+	Global     bool      `gorm:"index;default:false;comment:是否全局可见"`               // true=全局，false=私有/小组
+	PathID     int64     `gorm:"index;default:0;comment:关联路径ID(0=无绑定/全局)"`         // 关联 Path.ID，0 表示未绑定
 	Title      string    `gorm:"index;size:255;not null;comment:标题"`
 	Content    string    `gorm:"type:text;not null;comment:内容"`
 	Category   string    `gorm:"index;size:100;default:'默认';comment:分类"`

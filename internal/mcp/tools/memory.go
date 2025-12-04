@@ -19,6 +19,7 @@ type MemoryListInput struct {
 
 // MemoryCreateInput memory_create 工具输入
 type MemoryCreateInput struct {
+	Code     string   `json:"code" jsonschema:"记忆唯一标识码"`
 	Title    string   `json:"title" jsonschema:"记忆标题，简洁概括内容"`
 	Content  string   `json:"content" jsonschema:"记忆的详细内容，支持多行文本"`
 	Category string   `json:"category,omitempty" jsonschema:"记忆分类，如：用户偏好、技术文档。默认为'默认'"`
@@ -29,7 +30,7 @@ type MemoryCreateInput struct {
 
 // MemoryDeleteInput memory_delete 工具输入
 type MemoryDeleteInput struct {
-	ID int64 `json:"id" jsonschema:"要删除的记忆ID"`
+	Code string `json:"code" jsonschema:"要删除的记忆code"`
 }
 
 // MemorySearchInput memory_search 工具输入
@@ -40,12 +41,12 @@ type MemorySearchInput struct {
 
 // MemoryGetInput memory_get 工具输入
 type MemoryGetInput struct {
-	ID int64 `json:"id" jsonschema:"要获取的记忆ID"`
+	Code string `json:"code" jsonschema:"要获取的记忆code"`
 }
 
 // MemoryUpdateInput memory_update 工具输入
 type MemoryUpdateInput struct {
-	ID       int64    `json:"id" jsonschema:"要更新的记忆ID"`
+	Code     string   `json:"code" jsonschema:"要更新的记忆code"`
 	Title    string   `json:"title,omitempty" jsonschema:"新标题（可选）"`
 	Content  string   `json:"content,omitempty" jsonschema:"新内容（可选）"`
 	Category string   `json:"category,omitempty" jsonschema:"新分类（可选）"`
@@ -73,7 +74,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		result := "记忆列表:\n"
 		for _, m := range memories {
 			scopeTag := getScopeTagWithContext(m.Global, m.PathID, bs.CurrentScope)
-			result += fmt.Sprintf("- [%d] %s (分类: %s) %s\n", m.ID, m.Title, m.Category, scopeTag)
+			result += fmt.Sprintf("- [%s] %s (分类: %s) %s\n", m.Code, m.Title, m.Category, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
 	})
@@ -85,6 +86,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryCreateInput) (*mcp.CallToolResult, any, error) {
 		// 构建创建 DTO
 		createDTO := &dto.MemoryCreateDTO{
+			Code:     input.Code,
 			Title:    input.Title,
 			Content:  input.Content,
 			Category: input.Category,
@@ -101,18 +103,18 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 			return NewErrorResult(err.Error()), nil, nil
 		}
 		scopeTag := getScopeTagWithContext(memory.Global, memory.PathID, bs.CurrentScope)
-		return NewTextResult(fmt.Sprintf("记忆创建成功! ID: %d, 标题: %s %s", memory.ID, memory.Title, scopeTag)), nil, nil
+		return NewTextResult(fmt.Sprintf("记忆创建成功! Code: %s, 标题: %s %s", memory.Code, memory.Title, scopeTag)), nil, nil
 	})
 
 	// memory_delete - 删除记忆
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "memory_delete",
-		Description: `删除指定ID的记忆，不可恢复。`,
+		Description: `删除指定code的记忆，不可恢复。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryDeleteInput) (*mcp.CallToolResult, any, error) {
-		if err := bs.MemoryService.DeleteMemory(ctx, input.ID); err != nil {
+		if err := bs.MemoryService.DeleteMemory(ctx, input.Code); err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		return NewTextResult(fmt.Sprintf("记忆 %d 已删除", input.ID)), nil, nil
+		return NewTextResult(fmt.Sprintf("记忆 %s 已删除", input.Code)), nil, nil
 	})
 
 	// memory_search - 搜索记忆
@@ -133,7 +135,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		result := fmt.Sprintf("搜索结果 (%d 条):\n", len(memories))
 		for _, m := range memories {
 			scopeTag := getScopeTagWithContext(m.Global, m.PathID, bs.CurrentScope)
-			result += fmt.Sprintf("- [%d] %s %s\n", m.ID, m.Title, scopeTag)
+			result += fmt.Sprintf("- [%s] %s %s\n", m.Code, m.Title, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
 	})
@@ -141,9 +143,9 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// memory_get - 获取记忆详情
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "memory_get",
-		Description: `获取指定ID记忆的完整详情，包括内容、分类、标签等。`,
+		Description: `获取指定code记忆的完整详情，包括内容、分类、标签等。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryGetInput) (*mcp.CallToolResult, any, error) {
-		memory, err := bs.MemoryService.GetMemory(ctx, input.ID)
+		memory, err := bs.MemoryService.GetMemory(ctx, input.Code)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -157,7 +159,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		scopeTag := getScopeTagWithContext(memory.Global, memory.PathID, bs.CurrentScope)
 		var sb strings.Builder
 		_, _ = fmt.Fprintf(&sb, "记忆详情:\n")
-		_, _ = fmt.Fprintf(&sb, "ID: %d\n", memory.ID)
+		_, _ = fmt.Fprintf(&sb, "Code: %s\n", memory.Code)
 		_, _ = fmt.Fprintf(&sb, "标题: %s\n", memory.Title)
 		_, _ = fmt.Fprintf(&sb, "分类: %s\n", memory.Category)
 		_, _ = fmt.Fprintf(&sb, "优先级: %d\n", memory.Priority)
@@ -177,7 +179,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryUpdateInput) (*mcp.CallToolResult, any, error) {
 		// 构建更新 DTO
 		updateDTO := &dto.MemoryUpdateDTO{
-			ID: input.ID,
+			Code: input.Code,
 		}
 
 		// 只设置提供了的字段
@@ -207,7 +209,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 			return NewErrorResult(err.Error()), nil, nil
 		}
 
-		return NewTextResult(fmt.Sprintf("记忆 %d 更新成功", input.ID)), nil, nil
+		return NewTextResult(fmt.Sprintf("记忆 %s 更新成功", input.Code)), nil, nil
 	})
 }
 

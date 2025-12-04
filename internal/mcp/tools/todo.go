@@ -18,6 +18,7 @@ type TodoListInput struct {
 
 // TodoCreateInput todo_create 工具输入
 type TodoCreateInput struct {
+	Code        string `json:"code" jsonschema:"待办唯一标识码"`
 	Title       string `json:"title" jsonschema:"待办标题，简洁描述任务"`
 	Description string `json:"description,omitempty" jsonschema:"待办的详细描述"`
 	Priority    int    `json:"priority,omitempty" jsonschema:"优先级(1低/2中/3高/4紧急)，默认2"`
@@ -27,7 +28,7 @@ type TodoCreateInput struct {
 
 // TodoCompleteInput todo_complete 工具输入
 type TodoCompleteInput struct {
-	ID int64 `json:"id" jsonschema:"要完成的待办事项ID"`
+	Code string `json:"code" jsonschema:"要完成的待办事项code"`
 }
 
 // RegisterTodoTools 注册 TODO 管理工具
@@ -52,7 +53,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 			status := getToDoStatusText(t.Status)
 			priority := getToDoPriorityText(t.Priority)
 			scopeTag := getScopeTagWithContext(t.Global, t.PathID, bs.CurrentScope)
-			result += fmt.Sprintf("- [%d] %s (%s, %s) %s\n", t.ID, t.Title, status, priority, scopeTag)
+			result += fmt.Sprintf("- [%s] %s (%s, %s) %s\n", t.Code, t.Title, status, priority, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
 	})
@@ -70,6 +71,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 		// 构建创建 DTO
 		createDTO := &dto.ToDoCreateDTO{
+			Code:        input.Code,
 			Title:       input.Title,
 			Description: input.Description,
 			Priority:    priority,
@@ -84,7 +86,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 			return NewErrorResult(err.Error()), nil, nil
 		}
 		scopeTag := getScopeTagWithContext(todo.Global, todo.PathID, bs.CurrentScope)
-		return NewTextResult(fmt.Sprintf("待办事项创建成功! ID: %d, 标题: %s %s", todo.ID, todo.Title, scopeTag)), nil, nil
+		return NewTextResult(fmt.Sprintf("待办事项创建成功! Code: %s, 标题: %s %s", todo.Code, todo.Title, scopeTag)), nil, nil
 	})
 
 	// todo_complete - 完成待办
@@ -92,10 +94,10 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		Name:        "todo_complete",
 		Description: `标记待办为已完成。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoCompleteInput) (*mcp.CallToolResult, any, error) {
-		if err := bs.ToDoService.CompleteToDo(ctx, input.ID); err != nil {
+		if err := bs.ToDoService.CompleteToDo(ctx, input.Code); err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		return NewTextResult(fmt.Sprintf("待办事项 %d 已标记为完成", input.ID)), nil, nil
+		return NewTextResult(fmt.Sprintf("待办事项 %s 已标记为完成", input.Code)), nil, nil
 	})
 }
 

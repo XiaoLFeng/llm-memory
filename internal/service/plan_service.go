@@ -13,19 +13,31 @@ import (
 
 // PlanService 计划服务层结构体
 type PlanService struct {
-	model *models.PlanModel
+	planModel *models.PlanModel
 }
 
 // NewPlanService 创建新的计划服务实例
 func NewPlanService(model *models.PlanModel) *PlanService {
 	return &PlanService{
-		model: model,
+		planModel: model,
 	}
 }
 
 // CreatePlan 创建新计划
 // 纯关联模式：数据存储时只使用 PathID
 func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, scopeCtx *types.ScopeContext) (*entity.Plan, error) {
+	// 参数验证 - code 格式验证
+	if err := entity.ValidateCode(input.Code); err != nil {
+		return nil, err
+	}
+	// 参数验证 - code 唯一性验证（活跃状态中）
+	exists, err := s.planModel.ExistsActiveCode(ctx, input.Code, 0)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, errors.New("活跃状态中已存在相同的 code，请使用不同的标识码")
+	}
 	// 参数验证 - 标题不能为空
 	if strings.TrimSpace(input.Title) == "" {
 		return nil, errors.New("计划标题不能为空")
@@ -50,6 +62,7 @@ func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, 
 
 	// 创建计划实例
 	plan := &entity.Plan{
+		Code:        input.Code,
 		Global:      input.Global,
 		PathID:      pathID,
 		Title:       strings.TrimSpace(input.Title),
@@ -60,7 +73,7 @@ func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, 
 	}
 
 	// 保存到数据库
-	if err := s.model.Create(ctx, plan); err != nil {
+	if err := s.planModel.Create(ctx, plan); err != nil {
 		return nil, err
 	}
 
@@ -70,14 +83,14 @@ func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, 
 // UpdatePlan 更新计划
 func (s *PlanService) UpdatePlan(ctx context.Context, input *dto.PlanUpdateDTO) error {
 	// 参数验证
-	if input.ID == 0 {
-		return errors.New("计划ID不能为0")
+	if strings.TrimSpace(input.Code) == "" {
+		return errors.New("计划 code 不能为空")
 	}
 
-	// 获取现有计划
-	plan, err := s.model.FindByID(ctx, input.ID)
+	// 通过 code 获取现有计划
+	plan, err := s.planModel.FindByCode(ctx, input.Code)
 	if err != nil {
-		return errors.New("计划不存在")
+		return errors.New("计划不存在或已完成/取消")
 	}
 
 	// 验证状态 - 已取消的计划不能更新
@@ -116,35 +129,71 @@ func (s *PlanService) UpdatePlan(ctx context.Context, input *dto.PlanUpdateDTO) 
 	}
 
 	// 执行更新操作
-	return s.model.Update(ctx, plan)
+	return s.planModel.Update(ctx, plan)
 }
 
-// DeletePlan 删除计划
-func (s *PlanService) DeletePlan(ctx context.Context, id int64) error {
+// DeletePlan 删除计划（通过 code）
+func (s *PlanService) DeletePlan(ctx context.Context, code string) error {
+	// 参数验证
+	if strings.TrimSpace(code) == "" {
+		return errors.New("无效的计划 code")
+	}
+
+	// 通过 code 获取计划
+	plan, err := s.planModel.FindByCode(ctx, code)
+	if err != nil {
+		return errors.New("计划不存在或已完成/取消")
+	}
+
+	// 执行删除操作
+	return s.planModel.Delete(ctx, plan.ID)
+}
+
+// DeletePlanByID 删除计划（通过 ID，TUI 内部使用）
+func (s *PlanService) DeletePlanByID(ctx context.Context, id int64) error {
 	// 参数验证
 	if id == 0 {
 		return errors.New("无效的计划ID")
 	}
 
 	// 验证计划是否存在
-	_, err := s.model.FindByID(ctx, id)
+	_, err := s.planModel.FindByID(ctx, id)
 	if err != nil {
 		return errors.New("计划不存在")
 	}
 
 	// 执行删除操作
-	return s.model.Delete(ctx, id)
+	return s.planModel.Delete(ctx, id)
 }
 
-// GetPlan 获取单个计划
-func (s *PlanService) GetPlan(ctx context.Context, id int64) (*entity.Plan, error) {
+// GetPlan 获取单个计划（通过 code）
+func (s *PlanService) GetPlan(ctx context.Context, code string) (*entity.Plan, error) {
+	// 参数验证
+	if strings.TrimSpace(code) == "" {
+		return nil, errors.New("无效的计划 code")
+	}
+
+	// 查询计划
+	plan, err := s.planModel.FindByCode(ctx, code)
+	if err != nil {
+		return nil, errors.New("计划不存在或已完成/取消")
+	}
+	if plan == nil {
+		return nil, errors.New("计划不存在")
+	}
+
+	return plan, nil
+}
+
+// GetPlanByID 获取单个计划（通过 ID，TUI 内部使用）
+func (s *PlanService) GetPlanByID(ctx context.Context, id int64) (*entity.Plan, error) {
 	// 参数验证
 	if id == 0 {
 		return nil, errors.New("无效的计划ID")
 	}
 
 	// 查询计划
-	plan, err := s.model.FindByID(ctx, id)
+	plan, err := s.planModel.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +206,7 @@ func (s *PlanService) GetPlan(ctx context.Context, id int64) (*entity.Plan, erro
 
 // ListPlans 获取所有计划列表
 func (s *PlanService) ListPlans(ctx context.Context) ([]entity.Plan, error) {
-	plans, err := s.model.FindByFilter(ctx, models.DefaultVisibilityFilter())
+	plans, err := s.planModel.FindByFilter(ctx, models.DefaultVisibilityFilter())
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +223,7 @@ func (s *PlanService) ListPlans(ctx context.Context) ([]entity.Plan, error) {
 // 纯关联模式：使用 PathID 和 GroupPathIDs 进行查询
 func (s *PlanService) ListPlansByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.Plan, error) {
 	filter := buildVisibilityFilter(scope, scopeCtx)
-	plans, err := s.model.FindByFilter(ctx, filter)
+	plans, err := s.planModel.FindByFilter(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +242,7 @@ func (s *PlanService) ListByStatus(ctx context.Context, status entity.PlanStatus
 		return nil, errors.New("无效的计划状态")
 	}
 
-	plans, err := s.model.FindByStatus(ctx, status)
+	plans, err := s.planModel.FindByStatus(ctx, status)
 	if err != nil {
 		return nil, err
 	}
@@ -206,15 +255,43 @@ func (s *PlanService) ListByStatus(ctx context.Context, status entity.PlanStatus
 	return plans, nil
 }
 
-// StartPlan 开始计划
-func (s *PlanService) StartPlan(ctx context.Context, id int64) error {
+// StartPlan 开始计划（通过 code）
+func (s *PlanService) StartPlan(ctx context.Context, code string) error {
+	// 参数验证
+	if strings.TrimSpace(code) == "" {
+		return errors.New("无效的计划 code")
+	}
+
+	// 获取计划
+	plan, err := s.planModel.FindByCode(ctx, code)
+	if err != nil {
+		return errors.New("计划不存在或已完成/取消")
+	}
+
+	// 验证状态转换是否合法
+	if plan.Status == entity.PlanStatusCompleted {
+		return errors.New("已完成的计划无法重新开始")
+	}
+	if plan.Status == entity.PlanStatusCancelled {
+		return errors.New("已取消的计划无法开始")
+	}
+
+	// 执行开始
+	plan.Start()
+
+	// 保存更新
+	return s.planModel.Update(ctx, plan)
+}
+
+// StartPlanByID 开始计划（通过 ID，TUI 内部使用）
+func (s *PlanService) StartPlanByID(ctx context.Context, id int64) error {
 	// 参数验证
 	if id == 0 {
 		return errors.New("无效的计划ID")
 	}
 
 	// 获取计划
-	plan, err := s.model.FindByID(ctx, id)
+	plan, err := s.planModel.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -231,18 +308,43 @@ func (s *PlanService) StartPlan(ctx context.Context, id int64) error {
 	plan.Start()
 
 	// 保存更新
-	return s.model.Update(ctx, plan)
+	return s.planModel.Update(ctx, plan)
 }
 
-// CompletePlan 完成计划
-func (s *PlanService) CompletePlan(ctx context.Context, id int64) error {
+// CompletePlan 完成计划（通过 code）
+func (s *PlanService) CompletePlan(ctx context.Context, code string) error {
+	// 参数验证
+	if strings.TrimSpace(code) == "" {
+		return errors.New("无效的计划 code")
+	}
+
+	// 获取计划
+	plan, err := s.planModel.FindByCode(ctx, code)
+	if err != nil {
+		return errors.New("计划不存在或已完成/取消")
+	}
+
+	// 验证状态转换是否合法
+	if plan.Status == entity.PlanStatusCancelled {
+		return errors.New("已取消的计划无法标记为完成")
+	}
+
+	// 执行完成
+	plan.Complete()
+
+	// 保存更新
+	return s.planModel.Update(ctx, plan)
+}
+
+// CompletePlanByID 完成计划（通过 ID，TUI 内部使用）
+func (s *PlanService) CompletePlanByID(ctx context.Context, id int64) error {
 	// 参数验证
 	if id == 0 {
 		return errors.New("无效的计划ID")
 	}
 
 	// 获取计划
-	plan, err := s.model.FindByID(ctx, id)
+	plan, err := s.planModel.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -256,16 +358,41 @@ func (s *PlanService) CompletePlan(ctx context.Context, id int64) error {
 	plan.Complete()
 
 	// 保存更新
-	return s.model.Update(ctx, plan)
+	return s.planModel.Update(ctx, plan)
 }
 
-// CancelPlan 取消计划
-func (s *PlanService) CancelPlan(ctx context.Context, id int64) error {
+// CancelPlan 取消计划（通过 code）
+func (s *PlanService) CancelPlan(ctx context.Context, code string) error {
+	// 参数验证
+	if strings.TrimSpace(code) == "" {
+		return errors.New("无效的计划 code")
+	}
+
+	// 获取计划
+	plan, err := s.planModel.FindByCode(ctx, code)
+	if err != nil {
+		return errors.New("计划不存在或已完成/取消")
+	}
+
+	// 验证状态
+	if plan.Status == entity.PlanStatusCompleted {
+		return errors.New("已完成的计划无法取消")
+	}
+
+	// 执行取消
+	plan.Cancel()
+
+	// 保存更新
+	return s.planModel.Update(ctx, plan)
+}
+
+// CancelPlanByID 取消计划（通过 ID，TUI 内部使用）
+func (s *PlanService) CancelPlanByID(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.New("无效的计划ID")
 	}
 
-	plan, err := s.model.FindByID(ctx, id)
+	plan, err := s.planModel.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -275,11 +402,39 @@ func (s *PlanService) CancelPlan(ctx context.Context, id int64) error {
 	}
 
 	plan.Cancel()
-	return s.model.Update(ctx, plan)
+	return s.planModel.Update(ctx, plan)
 }
 
-// UpdateProgress 更新计划进度
-func (s *PlanService) UpdateProgress(ctx context.Context, id int64, progress int) error {
+// UpdateProgress 更新计划进度（通过 code）
+func (s *PlanService) UpdateProgress(ctx context.Context, code string, progress int) error {
+	// 参数验证
+	if strings.TrimSpace(code) == "" {
+		return errors.New("无效的计划 code")
+	}
+	if progress < 0 || progress > 100 {
+		return errors.New("进度值必须在0-100之间")
+	}
+
+	// 获取计划
+	plan, err := s.planModel.FindByCode(ctx, code)
+	if err != nil {
+		return errors.New("计划不存在或已完成/取消")
+	}
+
+	// 验证状态 - 已取消的计划不能更新进度
+	if plan.Status == entity.PlanStatusCancelled {
+		return errors.New("已取消的计划无法更新进度")
+	}
+
+	// 使用 Plan 类型的 UpdateProgress 方法
+	plan.UpdateProgress(progress)
+
+	// 保存更新
+	return s.planModel.Update(ctx, plan)
+}
+
+// UpdateProgressByID 更新计划进度（通过 ID，TUI 内部使用）
+func (s *PlanService) UpdateProgressByID(ctx context.Context, id int64, progress int) error {
 	// 参数验证
 	if id == 0 {
 		return errors.New("无效的计划ID")
@@ -289,7 +444,7 @@ func (s *PlanService) UpdateProgress(ctx context.Context, id int64, progress int
 	}
 
 	// 获取计划
-	plan, err := s.model.FindByID(ctx, id)
+	plan, err := s.planModel.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -303,7 +458,7 @@ func (s *PlanService) UpdateProgress(ctx context.Context, id int64, progress int
 	plan.UpdateProgress(progress)
 
 	// 保存更新
-	return s.model.Update(ctx, plan)
+	return s.planModel.Update(ctx, plan)
 }
 
 // AddSubTask 添加子任务
@@ -316,12 +471,12 @@ func (s *PlanService) AddSubTask(ctx context.Context, planID int64, title, descr
 	}
 
 	// 验证计划存在
-	_, err := s.model.FindByID(ctx, planID)
+	_, err := s.planModel.FindByID(ctx, planID)
 	if err != nil {
 		return nil, errors.New("计划不存在")
 	}
 
-	return s.model.AddSubTask(ctx, planID, strings.TrimSpace(title), strings.TrimSpace(description))
+	return s.planModel.AddSubTask(ctx, planID, strings.TrimSpace(title), strings.TrimSpace(description))
 }
 
 // UpdateSubTask 更新子任务
@@ -330,7 +485,7 @@ func (s *PlanService) UpdateSubTask(ctx context.Context, input *dto.SubTaskUpdat
 		return errors.New("无效的子任务ID")
 	}
 
-	subTask, err := s.model.GetSubTask(ctx, input.ID)
+	subTask, err := s.planModel.GetSubTask(ctx, input.ID)
 	if err != nil {
 		return errors.New("子任务不存在")
 	}
@@ -356,7 +511,7 @@ func (s *PlanService) UpdateSubTask(ctx context.Context, input *dto.SubTaskUpdat
 		subTask.Progress = progress
 	}
 
-	return s.model.UpdateSubTask(ctx, subTask)
+	return s.planModel.UpdateSubTask(ctx, subTask)
 }
 
 // DeleteSubTask 删除子任务
@@ -364,7 +519,7 @@ func (s *PlanService) DeleteSubTask(ctx context.Context, subTaskID int64) error 
 	if subTaskID == 0 {
 		return errors.New("无效的子任务ID")
 	}
-	return s.model.DeleteSubTask(ctx, subTaskID)
+	return s.planModel.DeleteSubTask(ctx, subTaskID)
 }
 
 // isValidPlanStatus 验证计划状态是否有效
@@ -411,6 +566,7 @@ func ToPlanResponseDTO(plan *entity.Plan, scopeCtx *types.ScopeContext) *dto.Pla
 
 	return &dto.PlanResponseDTO{
 		ID:          plan.ID,
+		Code:        plan.Code,
 		Title:       plan.Title,
 		Description: plan.Description,
 		Content:     plan.Content,
@@ -431,6 +587,7 @@ func ToPlanListDTO(plan *entity.Plan) *dto.PlanListDTO {
 
 	return &dto.PlanListDTO{
 		ID:          plan.ID,
+		Code:        plan.Code,
 		Title:       plan.Title,
 		Description: plan.Description,
 		Status:      string(plan.Status),

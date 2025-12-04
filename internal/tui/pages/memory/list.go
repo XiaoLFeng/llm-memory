@@ -296,7 +296,7 @@ func (p *ListPage) Meta() core.Meta {
 func (p *ListPage) doDelete() tea.Cmd {
 	return func() tea.Msg {
 		ctx := p.bs.Context()
-		if err := p.bs.MemoryService.DeleteMemory(ctx, p.deleteTarget); err != nil {
+		if err := p.bs.MemoryService.DeleteMemoryByID(ctx, p.deleteTarget); err != nil {
 			return deleteErrorMsg{err: err}
 		}
 		return deleteSuccessMsg{}

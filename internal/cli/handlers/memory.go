@@ -35,10 +35,10 @@ func (h *MemoryHandler) List(ctx context.Context) error {
 	}
 
 	cli.PrintTitle(cli.IconMemory + " 记忆列表")
-	table := output.NewTable("ID", "标题", "分类", "创建时间")
+	table := output.NewTable("标识码", "标题", "分类", "创建时间")
 	for _, m := range memories {
 		table.AddRow(
-			fmt.Sprintf("%d", m.ID),
+			m.Code,
 			m.Title,
 			m.Category,
 			m.CreatedAt.Format("2006-01-02 15:04"),
@@ -50,12 +50,13 @@ func (h *MemoryHandler) List(ctx context.Context) error {
 }
 
 // Create 创建记忆
-func (h *MemoryHandler) Create(ctx context.Context, title, content, category string, tags []string, global bool) error {
+func (h *MemoryHandler) Create(ctx context.Context, code, title, content, category string, tags []string, global bool) error {
 	if category == "" {
 		category = "默认"
 	}
 
 	createDTO := &dto.MemoryCreateDTO{
+		Code:     code,
 		Title:    title,
 		Content:  content,
 		Category: category,
@@ -68,7 +69,7 @@ func (h *MemoryHandler) Create(ctx context.Context, title, content, category str
 		return err
 	}
 
-	cli.PrintSuccess(fmt.Sprintf("记忆创建成功！ID: %d, 标题: %s", memory.ID, memory.Title))
+	cli.PrintSuccess(fmt.Sprintf("记忆创建成功！标识码: %s, 标题: %s", memory.Code, memory.Title))
 	return nil
 }
 
@@ -85,10 +86,10 @@ func (h *MemoryHandler) Search(ctx context.Context, keyword string) error {
 	}
 
 	cli.PrintTitle(fmt.Sprintf("%s 搜索结果 (%d 条)", cli.IconSearch, len(memories)))
-	table := output.NewTable("ID", "标题", "分类")
+	table := output.NewTable("标识码", "标题", "分类")
 	for _, m := range memories {
 		table.AddRow(
-			fmt.Sprintf("%d", m.ID),
+			m.Code,
 			m.Title,
 			m.Category,
 		)
@@ -99,24 +100,24 @@ func (h *MemoryHandler) Search(ctx context.Context, keyword string) error {
 }
 
 // Delete 删除记忆
-func (h *MemoryHandler) Delete(ctx context.Context, id int64) error {
-	if err := h.bs.MemoryService.DeleteMemory(ctx, id); err != nil {
+func (h *MemoryHandler) Delete(ctx context.Context, code string) error {
+	if err := h.bs.MemoryService.DeleteMemory(ctx, code); err != nil {
 		return err
 	}
 
-	cli.PrintSuccess(fmt.Sprintf("记忆 %d 已删除", id))
+	cli.PrintSuccess(fmt.Sprintf("记忆 %s 已删除", code))
 	return nil
 }
 
 // Get 获取单个记忆详情
-func (h *MemoryHandler) Get(ctx context.Context, id int64) error {
-	memory, err := h.bs.MemoryService.GetMemory(ctx, id)
+func (h *MemoryHandler) Get(ctx context.Context, code string) error {
+	memory, err := h.bs.MemoryService.GetMemory(ctx, code)
 	if err != nil {
 		return err
 	}
 
 	cli.PrintTitle(cli.IconEdit + " 记忆详情")
-	fmt.Printf("ID:       %d\n", memory.ID)
+	fmt.Printf("标识码:   %s\n", memory.Code)
 	fmt.Printf("标题:     %s\n", memory.Title)
 	fmt.Printf("分类:     %s\n", memory.Category)
 	if len(memory.Tags) > 0 {

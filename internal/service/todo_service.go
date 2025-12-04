@@ -15,13 +15,13 @@ import (
 // ToDoService 待办事项服务
 // 注意：类型名使用 ToDo，MCP 工具名保持 todo_*
 type ToDoService struct {
-	model *models.ToDoModel
+	todoModel *models.ToDoModel
 }
 
 // NewToDoService 创建新的待办事项服务实例
 func NewToDoService(model *models.ToDoModel) *ToDoService {
 	return &ToDoService{
-		model: model,
+		todoModel: model,
 	}
 }
 
@@ -31,6 +31,20 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 	// 验证标题不能为空
 	if strings.TrimSpace(input.Title) == "" {
 		return nil, errors.New("标题不能为空")
+	}
+
+	// 验证 code 格式
+	if err := entity.ValidateCode(input.Code); err != nil {
+		return nil, err
+	}
+
+	// 检查活跃状态中 code 唯一性
+	exists, err := s.todoModel.ExistsActiveCode(ctx, input.Code, 0)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, errors.New("代码已被活跃待办使用")
 	}
 
 	// 默认优先级
@@ -52,6 +66,7 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 	todo := &entity.ToDo{
 		Global:      input.Global,
 		PathID:      pathID,
+		Code:        input.Code,
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
 		Priority:    priority,
@@ -60,17 +75,17 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 	}
 
 	// 保存到数据库
-	if err := s.model.Create(ctx, todo); err != nil {
+	if err := s.todoModel.Create(ctx, todo); err != nil {
 		return nil, err
 	}
 
 	// 更新标签
 	if len(input.Tags) > 0 {
-		if err := s.model.UpdateTags(ctx, todo.ID, input.Tags); err != nil {
+		if err := s.todoModel.UpdateTags(ctx, todo.ID, input.Tags); err != nil {
 			return nil, err
 		}
 		// 重新获取以包含标签
-		todo, _ = s.model.FindByID(ctx, todo.ID)
+		todo, _ = s.todoModel.FindByID(ctx, todo.ID)
 	}
 
 	return todo, nil
@@ -78,13 +93,13 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 
 // UpdateToDo 更新待办事项
 func (s *ToDoService) UpdateToDo(ctx context.Context, input *dto.ToDoUpdateDTO) error {
-	// 验证ID
-	if input.ID == 0 {
-		return errors.New("待办事项ID不能为0")
+	// 验证 Code
+	if input.Code == "" {
+		return errors.New("待办事项 Code 不能为空")
 	}
 
-	// 获取现有待办
-	todo, err := s.model.FindByID(ctx, input.ID)
+	// 通过 Code 获取现有待办
+	todo, err := s.todoModel.FindByCode(ctx, input.Code)
 	if err != nil {
 		return errors.New("待办事项不存在")
 	}
@@ -120,13 +135,13 @@ func (s *ToDoService) UpdateToDo(ctx context.Context, input *dto.ToDoUpdateDTO) 
 	}
 
 	// 执行更新
-	if err := s.model.Update(ctx, todo); err != nil {
+	if err := s.todoModel.Update(ctx, todo); err != nil {
 		return err
 	}
 
 	// 更新标签（如果提供）
 	if input.Tags != nil {
-		if err := s.model.UpdateTags(ctx, todo.ID, *input.Tags); err != nil {
+		if err := s.todoModel.UpdateTags(ctx, todo.ID, *input.Tags); err != nil {
 			return err
 		}
 	}
@@ -135,53 +150,77 @@ func (s *ToDoService) UpdateToDo(ctx context.Context, input *dto.ToDoUpdateDTO) 
 }
 
 // DeleteToDo 删除待办事项
-func (s *ToDoService) DeleteToDo(ctx context.Context, id int64) error {
+func (s *ToDoService) DeleteToDo(ctx context.Context, code string) error {
+	if code == "" {
+		return errors.New("无效的待办事项 Code")
+	}
+
+	// 通过 Code 获取待办
+	todo, err := s.todoModel.FindByCode(ctx, code)
+	if err != nil {
+		return errors.New("待办事项不存在")
+	}
+
+	return s.todoModel.Delete(ctx, todo.ID)
+}
+
+// DeleteToDoByID 根据 ID 删除待办（TUI 内部使用）
+func (s *ToDoService) DeleteToDoByID(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.New("无效的待办事项ID")
 	}
 
 	// 检查是否存在
-	_, err := s.model.FindByID(ctx, id)
+	_, err := s.todoModel.FindByID(ctx, id)
 	if err != nil {
 		return errors.New("待办事项不存在")
 	}
 
-	return s.model.Delete(ctx, id)
+	return s.todoModel.Delete(ctx, id)
 }
 
-// GetToDo 获取指定ID的待办事项
-func (s *ToDoService) GetToDo(ctx context.Context, id int64) (*entity.ToDo, error) {
+// GetToDo 获取指定 Code 的待办事项
+func (s *ToDoService) GetToDo(ctx context.Context, code string) (*entity.ToDo, error) {
+	if code == "" {
+		return nil, errors.New("无效的待办事项 Code")
+	}
+
+	return s.todoModel.FindByCode(ctx, code)
+}
+
+// GetToDoByID 根据 ID 获取待办（TUI 内部使用）
+func (s *ToDoService) GetToDoByID(ctx context.Context, id int64) (*entity.ToDo, error) {
 	if id == 0 {
 		return nil, errors.New("无效的待办事项ID")
 	}
 
-	return s.model.FindByID(ctx, id)
+	return s.todoModel.FindByID(ctx, id)
 }
 
 // ListToDos 获取所有待办事项
 func (s *ToDoService) ListToDos(ctx context.Context) ([]entity.ToDo, error) {
-	return s.model.FindByFilter(ctx, models.DefaultVisibilityFilter())
+	return s.todoModel.FindByFilter(ctx, models.DefaultVisibilityFilter())
 }
 
 // ListToDosByScope 根据作用域列出待办事项
 // 纯关联模式：使用 PathID 和 GroupPathIDs 进行查询
 func (s *ToDoService) ListToDosByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.ToDo, error) {
 	filter := buildVisibilityFilter(scope, scopeCtx)
-	return s.model.FindByFilter(ctx, filter)
+	return s.todoModel.FindByFilter(ctx, filter)
 }
 
 // ListByStatus 根据状态获取待办事项列表
 func (s *ToDoService) ListByStatus(ctx context.Context, status entity.ToDoStatus) ([]entity.ToDo, error) {
-	return s.model.FindByStatus(ctx, status)
+	return s.todoModel.FindByStatus(ctx, status)
 }
 
 // CompleteToDo 标记待办事项为已完成
-func (s *ToDoService) CompleteToDo(ctx context.Context, id int64) error {
-	if id == 0 {
-		return errors.New("无效的待办事项ID")
+func (s *ToDoService) CompleteToDo(ctx context.Context, code string) error {
+	if code == "" {
+		return errors.New("无效的待办事项 Code")
 	}
 
-	todo, err := s.model.FindByID(ctx, id)
+	todo, err := s.todoModel.FindByCode(ctx, code)
 	if err != nil {
 		return err
 	}
@@ -193,16 +232,37 @@ func (s *ToDoService) CompleteToDo(ctx context.Context, id int64) error {
 		return errors.New("已取消的待办事项无法完成")
 	}
 
-	return s.model.Complete(ctx, id)
+	return s.todoModel.Complete(ctx, todo.ID)
 }
 
-// StartToDo 标记待办事项为进行中
-func (s *ToDoService) StartToDo(ctx context.Context, id int64) error {
+// CompleteToDoByID 根据 ID 完成待办（TUI 内部使用）
+func (s *ToDoService) CompleteToDoByID(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.New("无效的待办事项ID")
 	}
 
-	todo, err := s.model.FindByID(ctx, id)
+	todo, err := s.todoModel.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if todo.Status == entity.ToDoStatusCompleted {
+		return errors.New("待办事项已经完成")
+	}
+	if todo.Status == entity.ToDoStatusCancelled {
+		return errors.New("已取消的待办事项无法完成")
+	}
+
+	return s.todoModel.Complete(ctx, id)
+}
+
+// StartToDo 标记待办事项为进行中
+func (s *ToDoService) StartToDo(ctx context.Context, code string) error {
+	if code == "" {
+		return errors.New("无效的待办事项 Code")
+	}
+
+	todo, err := s.todoModel.FindByCode(ctx, code)
 	if err != nil {
 		return err
 	}
@@ -214,16 +274,37 @@ func (s *ToDoService) StartToDo(ctx context.Context, id int64) error {
 		return errors.New("已取消的待办事项无法开始")
 	}
 
-	return s.model.Start(ctx, id)
+	return s.todoModel.Start(ctx, todo.ID)
 }
 
-// CancelToDo 取消待办事项
-func (s *ToDoService) CancelToDo(ctx context.Context, id int64) error {
+// StartToDoByID 根据 ID 开始待办（TUI 内部使用）
+func (s *ToDoService) StartToDoByID(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.New("无效的待办事项ID")
 	}
 
-	todo, err := s.model.FindByID(ctx, id)
+	todo, err := s.todoModel.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if todo.Status == entity.ToDoStatusCompleted {
+		return errors.New("已完成的待办事项无法开始")
+	}
+	if todo.Status == entity.ToDoStatusCancelled {
+		return errors.New("已取消的待办事项无法开始")
+	}
+
+	return s.todoModel.Start(ctx, id)
+}
+
+// CancelToDo 取消待办事项
+func (s *ToDoService) CancelToDo(ctx context.Context, code string) error {
+	if code == "" {
+		return errors.New("无效的待办事项 Code")
+	}
+
+	todo, err := s.todoModel.FindByCode(ctx, code)
 	if err != nil {
 		return err
 	}
@@ -232,7 +313,25 @@ func (s *ToDoService) CancelToDo(ctx context.Context, id int64) error {
 		return errors.New("已完成的待办事项无法取消")
 	}
 
-	return s.model.Cancel(ctx, id)
+	return s.todoModel.Cancel(ctx, todo.ID)
+}
+
+// CancelToDoByID 根据 ID 取消待办（TUI 内部使用）
+func (s *ToDoService) CancelToDoByID(ctx context.Context, id int64) error {
+	if id == 0 {
+		return errors.New("无效的待办事项ID")
+	}
+
+	todo, err := s.todoModel.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if todo.Status == entity.ToDoStatusCompleted {
+		return errors.New("已完成的待办事项无法取消")
+	}
+
+	return s.todoModel.Cancel(ctx, id)
 }
 
 // BatchCreateToDos 批量创建待办事项
@@ -283,7 +382,7 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 		return nil, errors.New("没有有效的待创建项目")
 	}
 
-	return s.model.BatchCreate(ctx, todos)
+	return s.todoModel.BatchCreate(ctx, todos)
 }
 
 // BatchUpdateToDos 批量更新待办事项
@@ -295,31 +394,57 @@ func (s *ToDoService) BatchUpdateToDos(ctx context.Context, input *dto.ToDoBatch
 		return nil, errors.New("批量操作最多支持 100 条记录")
 	}
 
-	return s.model.BatchUpdate(ctx, input.Items)
+	return s.todoModel.BatchUpdate(ctx, input.Items)
 }
 
 // BatchCompleteToDos 批量完成待办事项
 func (s *ToDoService) BatchCompleteToDos(ctx context.Context, input *dto.ToDoBatchCompleteDTO) (*dto.ToDoBatchResultDTO, error) {
-	if len(input.IDs) == 0 {
+	if len(input.Codes) == 0 {
 		return nil, errors.New("没有待完成的项目")
 	}
-	if len(input.IDs) > dto.MaxBatchSize {
+	if len(input.Codes) > dto.MaxBatchSize {
 		return nil, errors.New("批量操作最多支持 100 条记录")
 	}
 
-	return s.model.BatchComplete(ctx, input.IDs)
+	// 将 Codes 转换为 IDs
+	ids := make([]int64, 0, len(input.Codes))
+	for _, code := range input.Codes {
+		todo, err := s.todoModel.FindByCode(ctx, code)
+		if err == nil && todo != nil {
+			ids = append(ids, todo.ID)
+		}
+	}
+
+	if len(ids) == 0 {
+		return nil, errors.New("未找到有效的待办事项")
+	}
+
+	return s.todoModel.BatchComplete(ctx, ids)
 }
 
 // BatchDeleteToDos 批量删除待办事项
 func (s *ToDoService) BatchDeleteToDos(ctx context.Context, input *dto.ToDoBatchDeleteDTO) (*dto.ToDoBatchResultDTO, error) {
-	if len(input.IDs) == 0 {
+	if len(input.Codes) == 0 {
 		return nil, errors.New("没有待删除的项目")
 	}
-	if len(input.IDs) > dto.MaxBatchSize {
+	if len(input.Codes) > dto.MaxBatchSize {
 		return nil, errors.New("批量操作最多支持 100 条记录")
 	}
 
-	return s.model.BatchDelete(ctx, input.IDs)
+	// 将 Codes 转换为 IDs
+	ids := make([]int64, 0, len(input.Codes))
+	for _, code := range input.Codes {
+		todo, err := s.todoModel.FindByCode(ctx, code)
+		if err == nil && todo != nil {
+			ids = append(ids, todo.ID)
+		}
+	}
+
+	if len(ids) == 0 {
+		return nil, errors.New("未找到有效的待办事项")
+	}
+
+	return s.todoModel.BatchDelete(ctx, ids)
 }
 
 // BatchUpdateStatus 批量更新状态
@@ -331,7 +456,7 @@ func (s *ToDoService) BatchUpdateStatus(ctx context.Context, ids []int64, status
 		return nil, errors.New("批量操作最多支持 100 条记录")
 	}
 
-	return s.model.BatchUpdateStatus(ctx, ids, status)
+	return s.todoModel.BatchUpdateStatus(ctx, ids, status)
 }
 
 // ToToDoResponseDTO 将 ToDo entity 转换为 ResponseDTO

@@ -19,6 +19,7 @@ type PlanListInput struct {
 
 // PlanCreateInput plan_create 工具输入
 type PlanCreateInput struct {
+	Code        string `json:"code" jsonschema:"计划唯一标识码"`
 	Title       string `json:"title" jsonschema:"计划标题，简洁描述计划目标"`
 	Description string `json:"description" jsonschema:"计划的详细描述，包含具体步骤和目标"`
 	Content     string `json:"content" jsonschema:"计划的详细内容，支持 Markdown 格式"`
@@ -28,12 +29,12 @@ type PlanCreateInput struct {
 
 // PlanGetInput plan_get 工具输入
 type PlanGetInput struct {
-	ID int64 `json:"id" jsonschema:"要获取的计划ID"`
+	Code string `json:"code" jsonschema:"要获取的计划code"`
 }
 
 // PlanUpdateInput plan_update 工具输入
 type PlanUpdateInput struct {
-	ID          int64   `json:"id" jsonschema:"要更新的计划ID"`
+	Code        string  `json:"code" jsonschema:"要更新的计划code"`
 	Title       *string `json:"title,omitempty" jsonschema:"新标题（可选）"`
 	Description *string `json:"description,omitempty" jsonschema:"新描述（可选）"`
 	Content     *string `json:"content,omitempty" jsonschema:"新内容（可选），支持 Markdown 格式"`
@@ -61,7 +62,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		for _, p := range plans {
 			status := getPlanStatusText(p.Status)
 			scopeTag := getScopeTagWithContext(p.Global, p.PathID, bs.CurrentScope)
-			result += fmt.Sprintf("- [%d] %s (%s, 进度: %d%%) %s\n", p.ID, p.Title, status, p.Progress, scopeTag)
+			result += fmt.Sprintf("- [%s] %s (%s, 进度: %d%%) %s\n", p.Code, p.Title, status, p.Progress, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
 	})
@@ -73,6 +74,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanCreateInput) (*mcp.CallToolResult, any, error) {
 		// 构建创建 DTO
 		createDTO := &dto.PlanCreateDTO{
+			Code:        input.Code,
 			Title:       input.Title,
 			Description: input.Description,
 			Content:     input.Content,
@@ -87,15 +89,15 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 			return NewErrorResult(err.Error()), nil, nil
 		}
 		scopeTag := getScopeTagWithContext(plan.Global, plan.PathID, bs.CurrentScope)
-		return NewTextResult(fmt.Sprintf("计划创建成功! ID: %d, 标题: %s %s", plan.ID, plan.Title, scopeTag)), nil, nil
+		return NewTextResult(fmt.Sprintf("计划创建成功! Code: %s, 标题: %s %s", plan.Code, plan.Title, scopeTag)), nil, nil
 	})
 
 	// plan_get - 获取计划详情
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "plan_get",
-		Description: `获取指定ID计划的完整详情，包括标题、描述、内容、进度、子任务等。`,
+		Description: `获取指定code计划的完整详情，包括标题、描述、内容、进度、子任务等。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanGetInput) (*mcp.CallToolResult, any, error) {
-		plan, err := bs.PlanService.GetPlan(ctx, input.ID)
+		plan, err := bs.PlanService.GetPlan(ctx, input.Code)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
@@ -104,7 +106,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 		var sb strings.Builder
 		sb.WriteString("计划详情:\n")
-		sb.WriteString(fmt.Sprintf("ID: %d\n", plan.ID))
+		sb.WriteString(fmt.Sprintf("Code: %s\n", plan.Code))
 		sb.WriteString(fmt.Sprintf("标题: %s\n", plan.Title))
 		sb.WriteString(fmt.Sprintf("状态: %s\n", getPlanStatusText(plan.Status)))
 		sb.WriteString(fmt.Sprintf("进度: %d%%\n", plan.Progress))
@@ -139,7 +141,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 		// 构建更新 DTO
 		updateDTO := &dto.PlanUpdateDTO{
-			ID:          input.ID,
+			Code:        input.Code,
 			Title:       input.Title,
 			Description: input.Description,
 			Content:     input.Content,
@@ -166,7 +168,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 			parts = append(parts, fmt.Sprintf("进度(%d%%)", *input.Progress))
 		}
 
-		return NewTextResult(fmt.Sprintf("计划 %d 更新成功: %s", input.ID, strings.Join(parts, "、"))), nil, nil
+		return NewTextResult(fmt.Sprintf("计划 %s 更新成功: %s", input.Code, strings.Join(parts, "、"))), nil, nil
 	})
 }
 

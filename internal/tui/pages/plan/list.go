@@ -296,7 +296,7 @@ func statusText(status string, progress int) string {
 func (p *ListPage) doDelete() tea.Cmd {
 	return func() tea.Msg {
 		ctx := p.bs.Context()
-		err := p.bs.PlanService.DeletePlan(ctx, p.deleteTarget)
+		err := p.bs.PlanService.DeletePlanByID(ctx, p.deleteTarget)
 		p.confirmDelete = false
 		p.deleteTarget = 0
 		if err != nil {

@@ -14,13 +14,13 @@ import (
 // MemoryService 记忆服务结构体
 // 负责验证、处理和协调各种记忆操作
 type MemoryService struct {
-	model *models.MemoryModel
+	memoryModel *models.MemoryModel
 }
 
 // NewMemoryService 创建新的记忆服务实例
 func NewMemoryService(model *models.MemoryModel) *MemoryService {
 	return &MemoryService{
-		model: model,
+		memoryModel: model,
 	}
 }
 
@@ -28,6 +28,20 @@ func NewMemoryService(model *models.MemoryModel) *MemoryService {
 // scope 参数: personal/group/global，留空则使用默认作用域
 // 纯关联模式：数据存储时只使用 PathID
 func (s *MemoryService) CreateMemory(ctx context.Context, input *dto.MemoryCreateDTO, scopeCtx *types.ScopeContext) (*entity.Memory, error) {
+	// 验证 Code 格式
+	if err := entity.ValidateCode(input.Code); err != nil {
+		return nil, err
+	}
+
+	// 检查 Code 唯一性
+	exists, err := s.memoryModel.ExistsCode(ctx, input.Code, 0)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, errors.New("记忆标识码已存在，请使用其他唯一标识")
+	}
+
 	// 验证标题不能为空
 	if strings.TrimSpace(input.Title) == "" {
 		return nil, errors.New("标题不能为空")
@@ -61,6 +75,7 @@ func (s *MemoryService) CreateMemory(ctx context.Context, input *dto.MemoryCreat
 
 	// 创建记忆实例
 	memory := &entity.Memory{
+		Code:     input.Code,
 		Global:   input.Global,
 		PathID:   pathID,
 		Title:    strings.TrimSpace(input.Title),
@@ -70,31 +85,31 @@ func (s *MemoryService) CreateMemory(ctx context.Context, input *dto.MemoryCreat
 	}
 
 	// 保存到数据库
-	if err := s.model.Create(ctx, memory); err != nil {
+	if err := s.memoryModel.Create(ctx, memory); err != nil {
 		return nil, err
 	}
 
 	// 更新标签
 	if len(input.Tags) > 0 {
-		if err := s.model.UpdateTags(ctx, memory.ID, input.Tags); err != nil {
+		if err := s.memoryModel.UpdateTags(ctx, memory.ID, input.Tags); err != nil {
 			return nil, err
 		}
 		// 重新获取以包含标签
-		memory, _ = s.model.FindByID(ctx, memory.ID)
+		memory, _ = s.memoryModel.FindByID(ctx, memory.ID)
 	}
 
 	return memory, nil
 }
 
-// UpdateMemory 更新记忆
+// UpdateMemory 更新记忆（通过 Code 定位）
 func (s *MemoryService) UpdateMemory(ctx context.Context, input *dto.MemoryUpdateDTO) error {
-	// 验证ID必须大于0
-	if input.ID == 0 {
-		return errors.New("记忆ID必须大于 0")
+	// 验证 Code 不能为空
+	if strings.TrimSpace(input.Code) == "" {
+		return errors.New("记忆标识码不能为空")
 	}
 
-	// 获取现有记忆
-	memory, err := s.model.FindByID(ctx, input.ID)
+	// 通过 Code 获取记忆
+	memory, err := s.memoryModel.FindByCode(ctx, input.Code)
 	if err != nil {
 		return errors.New("记忆不存在，无法更新")
 	}
@@ -130,13 +145,13 @@ func (s *MemoryService) UpdateMemory(ctx context.Context, input *dto.MemoryUpdat
 	}
 
 	// 执行更新操作
-	if err := s.model.Update(ctx, memory); err != nil {
+	if err := s.memoryModel.Update(ctx, memory); err != nil {
 		return err
 	}
 
 	// 更新标签（如果提供）
 	if input.Tags != nil {
-		if err := s.model.UpdateTags(ctx, memory.ID, *input.Tags); err != nil {
+		if err := s.memoryModel.UpdateTags(ctx, memory.ID, *input.Tags); err != nil {
 			return err
 		}
 	}
@@ -144,44 +159,72 @@ func (s *MemoryService) UpdateMemory(ctx context.Context, input *dto.MemoryUpdat
 	return nil
 }
 
-// DeleteMemory 删除记忆
-func (s *MemoryService) DeleteMemory(ctx context.Context, id int64) error {
+// DeleteMemory 删除记忆（通过 Code 定位）
+func (s *MemoryService) DeleteMemory(ctx context.Context, code string) error {
+	// 验证 Code 不能为空
+	if strings.TrimSpace(code) == "" {
+		return errors.New("记忆标识码不能为空")
+	}
+
+	// 通过 Code 获取记忆
+	memory, err := s.memoryModel.FindByCode(ctx, code)
+	if err != nil {
+		return errors.New("记忆不存在，无法删除")
+	}
+
+	// 执行删除操作（通过 ID）
+	return s.memoryModel.Delete(ctx, memory.ID)
+}
+
+// DeleteMemoryByID 删除记忆（TUI 内部使用）
+func (s *MemoryService) DeleteMemoryByID(ctx context.Context, id int64) error {
 	// 验证ID必须大于0
 	if id == 0 {
 		return errors.New("记忆ID必须大于 0")
 	}
 
 	// 检查记忆是否存在
-	_, err := s.model.FindByID(ctx, id)
+	_, err := s.memoryModel.FindByID(ctx, id)
 	if err != nil {
 		return errors.New("记忆不存在，无法删除")
 	}
 
 	// 执行删除操作
-	return s.model.Delete(ctx, id)
+	return s.memoryModel.Delete(ctx, id)
 }
 
-// GetMemory 获取单个记忆
-func (s *MemoryService) GetMemory(ctx context.Context, id int64) (*entity.Memory, error) {
+// GetMemory 获取单个记忆（通过 Code 定位）
+func (s *MemoryService) GetMemory(ctx context.Context, code string) (*entity.Memory, error) {
+	// 验证 Code 不能为空
+	if strings.TrimSpace(code) == "" {
+		return nil, errors.New("记忆标识码不能为空")
+	}
+
+	// 从模型层获取记忆
+	return s.memoryModel.FindByCode(ctx, code)
+}
+
+// GetMemoryByID 根据 ID 获取记忆（TUI 内部使用）
+func (s *MemoryService) GetMemoryByID(ctx context.Context, id int64) (*entity.Memory, error) {
 	// 验证ID必须大于0
 	if id == 0 {
 		return nil, errors.New("记忆ID必须大于 0")
 	}
 
 	// 从模型层获取记忆
-	return s.model.FindByID(ctx, id)
+	return s.memoryModel.FindByID(ctx, id)
 }
 
 // ListMemories 列出所有记忆
 func (s *MemoryService) ListMemories(ctx context.Context) ([]entity.Memory, error) {
-	return s.model.FindByFilter(ctx, models.DefaultVisibilityFilter())
+	return s.memoryModel.FindByFilter(ctx, models.DefaultVisibilityFilter())
 }
 
 // ListMemoriesByScope 根据作用域列出记忆
 // scope 参数: personal/group/global/all
 func (s *MemoryService) ListMemoriesByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.Memory, error) {
 	filter := buildVisibilityFilter(scope, scopeCtx)
-	return s.model.FindByFilter(ctx, filter)
+	return s.memoryModel.FindByFilter(ctx, filter)
 }
 
 // ListByCategory 根据分类列出记忆
@@ -191,7 +234,7 @@ func (s *MemoryService) ListByCategory(ctx context.Context, category string) ([]
 		return nil, errors.New("分类名称不能为空")
 	}
 
-	return s.model.FindByCategory(ctx, category)
+	return s.memoryModel.FindByCategory(ctx, category)
 }
 
 // SearchMemories 搜索记忆
@@ -201,7 +244,7 @@ func (s *MemoryService) SearchMemories(ctx context.Context, keyword string) ([]e
 		return nil, errors.New("搜索关键词不能为空")
 	}
 
-	return s.model.SearchByFilter(ctx, keyword, models.DefaultVisibilityFilter())
+	return s.memoryModel.SearchByFilter(ctx, keyword, models.DefaultVisibilityFilter())
 }
 
 // SearchMemoriesByScope 根据作用域搜索记忆
@@ -213,7 +256,7 @@ func (s *MemoryService) SearchMemoriesByScope(ctx context.Context, keyword strin
 	}
 
 	filter := buildVisibilityFilter(scope, scopeCtx)
-	return s.model.SearchByFilter(ctx, keyword, filter)
+	return s.memoryModel.SearchByFilter(ctx, keyword, filter)
 }
 
 // ArchiveMemory 归档记忆
@@ -224,7 +267,7 @@ func (s *MemoryService) ArchiveMemory(ctx context.Context, id int64) error {
 	}
 
 	// 获取记忆实例
-	memory, err := s.model.FindByID(ctx, id)
+	memory, err := s.memoryModel.FindByID(ctx, id)
 	if err != nil {
 		return errors.New("记忆不存在，无法归档")
 	}
@@ -235,7 +278,7 @@ func (s *MemoryService) ArchiveMemory(ctx context.Context, id int64) error {
 	}
 
 	// 执行归档
-	return s.model.Archive(ctx, id)
+	return s.memoryModel.Archive(ctx, id)
 }
 
 // UnarchiveMemory 取消归档记忆
@@ -244,7 +287,7 @@ func (s *MemoryService) UnarchiveMemory(ctx context.Context, id int64) error {
 		return errors.New("记忆ID必须大于 0")
 	}
 
-	memory, err := s.model.FindByID(ctx, id)
+	memory, err := s.memoryModel.FindByID(ctx, id)
 	if err != nil {
 		return errors.New("记忆不存在")
 	}
@@ -253,7 +296,7 @@ func (s *MemoryService) UnarchiveMemory(ctx context.Context, id int64) error {
 		return errors.New("记忆未归档")
 	}
 
-	return s.model.Unarchive(ctx, id)
+	return s.memoryModel.Unarchive(ctx, id)
 }
 
 // ToMemoryResponseDTO 将 Memory entity 转换为 ResponseDTO
@@ -272,6 +315,7 @@ func ToMemoryResponseDTO(memory *entity.Memory, scopeCtx *types.ScopeContext) *d
 
 	return &dto.MemoryResponseDTO{
 		ID:         memory.ID,
+		Code:       memory.Code,
 		Title:      memory.Title,
 		Content:    memory.Content,
 		Category:   memory.Category,
@@ -292,6 +336,7 @@ func ToMemoryListDTO(memory *entity.Memory) *dto.MemoryListDTO {
 
 	return &dto.MemoryListDTO{
 		ID:         memory.ID,
+		Code:       memory.Code,
 		Title:      memory.Title,
 		Category:   memory.Category,
 		Priority:   memory.Priority,
