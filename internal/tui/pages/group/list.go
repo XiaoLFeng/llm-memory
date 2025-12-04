@@ -8,6 +8,7 @@ import (
 	"github.com/XiaoLFeng/llm-memory/internal/tui/core"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/layout"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/theme"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -133,8 +134,8 @@ func (p *ListPage) renderList(width int) string {
 			desc = "暂无描述"
 		}
 		line := fmt.Sprintf("%s · 路径 %d · %s", g.Name, g.PathCount, desc)
-		if lipWidth(line) > width {
-			line = truncate(line, width)
+		if utils.LipWidth(line) > width {
+			line = utils.Truncate(line, width)
 		}
 		if i == p.cursor {
 			line = lipgloss.NewStyle().Foreground(theme.Info).Render("▶ " + line)
@@ -164,8 +165,8 @@ func (p *ListPage) renderDetail(width int) string {
 		fmt.Sprintf("描述: %s", desc),
 	}
 	for i, l := range lines {
-		if lipWidth(l) > width {
-			lines[i] = truncate(l, width)
+		if utils.LipWidth(l) > width {
+			lines[i] = utils.Truncate(l, width)
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -184,17 +185,4 @@ func (p *ListPage) Meta() core.Meta {
 			{Key: "↑/↓", Desc: "移动"},
 		},
 	}
-}
-
-func lipWidth(s string) int { return len([]rune(s)) }
-
-func truncate(s string, limit int) string {
-	runes := []rune(s)
-	if len(runes) <= limit {
-		return s
-	}
-	if limit <= 1 {
-		return string(runes[:limit])
-	}
-	return string(runes[:limit-1]) + "…"
 }

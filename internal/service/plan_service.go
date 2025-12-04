@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/XiaoLFeng/llm-memory/internal/models"
 	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
@@ -30,6 +29,14 @@ func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, 
 	// 参数验证 - 标题不能为空
 	if strings.TrimSpace(input.Title) == "" {
 		return nil, errors.New("计划标题不能为空")
+	}
+	// 参数验证 - 描述不能为空
+	if strings.TrimSpace(input.Description) == "" {
+		return nil, errors.New("计划描述不能为空")
+	}
+	// 参数验证 - 内容不能为空
+	if strings.TrimSpace(input.Content) == "" {
+		return nil, errors.New("计划内容不能为空")
 	}
 
 	// 解析作用域 -> PathID（global=true 则存储到全局，否则使用当前路径）
@@ -73,6 +80,11 @@ func (s *PlanService) UpdatePlan(ctx context.Context, input *dto.PlanUpdateDTO) 
 		return errors.New("计划不存在")
 	}
 
+	// 验证状态 - 已取消的计划不能更新
+	if plan.Status == entity.PlanStatusCancelled {
+		return errors.New("已取消的计划无法更新")
+	}
+
 	// 应用更新
 	if input.Title != nil {
 		title := strings.TrimSpace(*input.Title)
@@ -82,17 +94,18 @@ func (s *PlanService) UpdatePlan(ctx context.Context, input *dto.PlanUpdateDTO) 
 		plan.Title = title
 	}
 	if input.Description != nil {
-		plan.Description = strings.TrimSpace(*input.Description)
+		desc := strings.TrimSpace(*input.Description)
+		if desc == "" {
+			return errors.New("计划描述不能为空")
+		}
+		plan.Description = desc
 	}
 	if input.Content != nil {
-		plan.Content = strings.TrimSpace(*input.Content)
-	}
-	if input.Status != nil {
-		status := entity.PlanStatus(*input.Status)
-		if !isValidPlanStatus(status) {
-			return errors.New("无效的计划状态")
+		content := strings.TrimSpace(*input.Content)
+		if content == "" {
+			return errors.New("计划内容不能为空")
 		}
-		plan.Status = status
+		plan.Content = content
 	}
 	if input.Progress != nil {
 		progress := *input.Progress
@@ -100,12 +113,6 @@ func (s *PlanService) UpdatePlan(ctx context.Context, input *dto.PlanUpdateDTO) 
 			return errors.New("进度值必须在0-100之间")
 		}
 		plan.UpdateProgress(progress)
-	}
-	if input.StartDate != nil {
-		plan.StartDate = input.StartDate
-	}
-	if input.EndDate != nil {
-		plan.EndDate = input.EndDate
 	}
 
 	// 执行更新操作
@@ -295,12 +302,6 @@ func (s *PlanService) UpdateProgress(ctx context.Context, id int64, progress int
 	// 使用 Plan 类型的 UpdateProgress 方法
 	plan.UpdateProgress(progress)
 
-	// 如果进度达到100%，设置结束时间
-	if progress == 100 {
-		now := time.Now()
-		plan.EndDate = &now
-	}
-
 	// 保存更新
 	return s.model.Update(ctx, plan)
 }
@@ -414,8 +415,6 @@ func ToPlanResponseDTO(plan *entity.Plan, scopeCtx *types.ScopeContext) *dto.Pla
 		Description: plan.Description,
 		Content:     plan.Content,
 		Status:      string(plan.Status),
-		StartDate:   plan.StartDate,
-		EndDate:     plan.EndDate,
 		Progress:    plan.Progress,
 		SubTasks:    subTasks,
 		Scope:       string(scope),

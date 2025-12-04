@@ -25,11 +25,9 @@ type Plan struct {
 	Global      bool       `gorm:"index;default:false;comment:是否全局可见"`     // true=全局；false=私有/小组
 	PathID      int64      `gorm:"index;default:0;comment:路径ID（0=无绑定/全局）"` // 关联 Path.ID，0 表示未绑定
 	Title       string     `gorm:"index;size:255;not null;comment:标题"`
-	Description string     `gorm:"type:text;comment:简要描述（摘要）"`
-	Content     string     `gorm:"type:text;comment:详细内容（新增字段）"` // 新增：详细内容
+	Description string     `gorm:"type:text;not null;comment:简要描述（摘要）"`
+	Content     string     `gorm:"type:text;not null;comment:详细内容"`
 	Status      PlanStatus `gorm:"index;size:20;default:'pending'"`
-	StartDate   *time.Time `gorm:"comment:开始日期"`
-	EndDate     *time.Time `gorm:"comment:结束日期"`
 	Progress    int        `gorm:"default:0;comment:进度 0-100"`
 	CreatedAt   time.Time  `gorm:"index;autoCreateTime"`
 	UpdatedAt   time.Time  `gorm:"autoUpdateTime"`
@@ -93,8 +91,6 @@ func (p *Plan) UpdateProgress(progress int) {
 		p.Status = PlanStatusPending
 	} else if progress == 100 {
 		p.Status = PlanStatusCompleted
-		now := time.Now()
-		p.EndDate = &now
 	} else {
 		p.Status = PlanStatusInProgress
 	}
@@ -102,8 +98,6 @@ func (p *Plan) UpdateProgress(progress int) {
 
 // Start 开始计划
 func (p *Plan) Start() {
-	now := time.Now()
-	p.StartDate = &now
 	p.Status = PlanStatusInProgress
 	if p.Progress == 0 {
 		p.Progress = 1
@@ -112,8 +106,6 @@ func (p *Plan) Start() {
 
 // Complete 完成计划
 func (p *Plan) Complete() {
-	now := time.Now()
-	p.EndDate = &now
 	p.Status = PlanStatusCompleted
 	p.Progress = 100
 }

@@ -12,14 +12,11 @@ type PlanCreateDTO struct {
 
 // PlanUpdateDTO 更新计划请求
 type PlanUpdateDTO struct {
-	ID          int64      `json:"id"`
-	Title       *string    `json:"title,omitempty"`
-	Description *string    `json:"description,omitempty"`
-	Content     *string    `json:"content,omitempty"`
-	Status      *string    `json:"status,omitempty"`
-	Progress    *int       `json:"progress,omitempty"`
-	StartDate   *time.Time `json:"start_date,omitempty"`
-	EndDate     *time.Time `json:"end_date,omitempty"`
+	ID          int64   `json:"id"`
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Content     *string `json:"content,omitempty"`
+	Progress    *int    `json:"progress,omitempty"`
 }
 
 // PlanProgressDTO 更新计划进度请求
@@ -37,8 +34,6 @@ type PlanResponseDTO struct {
 	Status      string       `json:"status"`
 	StatusStr   string       `json:"status_str"` // 状态显示文本
 	Progress    int          `json:"progress"`
-	StartDate   *time.Time   `json:"start_date"`
-	EndDate     *time.Time   `json:"end_date"`
 	SubTasks    []SubTaskDTO `json:"sub_tasks"`
 	Scope       string       `json:"scope"`
 	CreatedAt   time.Time    `json:"created_at"`

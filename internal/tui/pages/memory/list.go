@@ -9,6 +9,7 @@ import (
 	"github.com/XiaoLFeng/llm-memory/internal/tui/core"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/layout"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/theme"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -33,15 +34,16 @@ type typesMemory struct {
 }
 
 type ListPage struct {
-	bs      *startup.Bootstrap
-	frame   *layout.Frame
-	width   int
-	height  int
-	loading bool
-	err     error
-	items   []typesMemory
-	cursor  int
-	showing bool // true 展示详情，false 展示列表
+	bs          *startup.Bootstrap
+	frame       *layout.Frame
+	width       int
+	height      int
+	loading     bool
+	err         error
+	items       []typesMemory
+	cursor      int
+	showing     bool              // true 展示详情，false 展示列表
+	scopeFilter utils.ScopeFilter // 作用域过滤状态
 }
 
 func NewListPage(bs *startup.Bootstrap, _ func(core.PageID) tea.Cmd) *ListPage {
@@ -61,7 +63,8 @@ func (p *ListPage) Init() tea.Cmd {
 func (p *ListPage) load() tea.Cmd {
 	return func() tea.Msg {
 		ctx := p.bs.Context()
-		memories, err := p.bs.MemoryService.ListMemories(ctx)
+		scopeStr := p.scopeFilter.String()
+		memories, err := p.bs.MemoryService.ListMemoriesByScope(ctx, scopeStr, p.bs.CurrentScope)
 		if err != nil {
 			return loadMsg{err: err}
 		}
@@ -90,6 +93,11 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.KeyMsg:
 		switch v.String() {
+		case "tab":
+			p.scopeFilter = p.scopeFilter.Next()
+			p.loading = true
+			p.cursor = 0
+			return p, p.load()
 		case "r":
 			p.loading = true
 			p.err = nil
@@ -123,21 +131,23 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 func (p *ListPage) View() string {
 	cw, _ := p.frame.ContentSize()
 	cardWidth := layout.FitCardWidth(cw)
+	scopeLabel := p.scopeFilter.Label()
+	titleWithScope := fmt.Sprintf("%s 记忆列表 [%s]", theme.IconMemory, scopeLabel)
 
 	switch {
 	case p.loading:
-		return components.LoadingState(theme.IconMemory+" 记忆列表", "努力加载中...", cardWidth)
+		return components.LoadingState(titleWithScope, "努力加载中...", cardWidth)
 	case p.err != nil:
-		return components.ErrorState(theme.IconMemory+" 记忆列表", p.err.Error(), cardWidth)
+		return components.ErrorState(titleWithScope, p.err.Error(), cardWidth)
 	case len(p.items) == 0:
-		return components.EmptyState(theme.IconMemory+" 记忆列表", "暂无记忆，按 c 创建一条吧~", cardWidth)
+		return components.EmptyState(titleWithScope, "暂无记忆，按 c 创建一条吧~", cardWidth)
 	default:
 		if p.showing {
 			body := p.renderDetail(cardWidth - 6)
 			return components.Card(theme.IconMemory+" 记忆详情", body, cardWidth)
 		}
 		body := p.renderList(cardWidth - 6)
-		return components.Card(theme.IconMemory+" 记忆列表", body, cardWidth)
+		return components.Card(titleWithScope, body, cardWidth)
 	}
 }
 
@@ -149,7 +159,7 @@ func (p *ListPage) renderList(width int) string {
 	}
 	for i := 0; i < max; i++ {
 		m := p.items[i]
-		scope := scopeTag(m.Global, m.PathID, p.bs)
+		scope := utils.ScopeTag(m.Global, m.PathID, p.bs)
 		tagStr := ""
 		if len(m.Tags) > 0 {
 			tagStr = " #" + strings.Join(m.Tags, " #")
@@ -157,8 +167,8 @@ func (p *ListPage) renderList(width int) string {
 		line := fmt.Sprintf("%s %s · %s · P%d · %s%s",
 			scope, m.Title, m.Category, m.Priority,
 			m.CreatedAt.Format("01-02 15:04"), tagStr)
-		if lipWidth(line) > width {
-			line = truncate(line, width)
+		if utils.LipWidth(line) > width {
+			line = utils.Truncate(line, width)
 		}
 		if i == p.cursor {
 			line = lipgloss.NewStyle().Foreground(theme.Info).Render("▶ " + line)
@@ -178,7 +188,7 @@ func (p *ListPage) renderDetail(width int) string {
 		return "暂无数据"
 	}
 	m := p.items[p.cursor]
-	scope := scopeTag(m.Global, m.PathID, p.bs)
+	scope := utils.ScopeTag(m.Global, m.PathID, p.bs)
 	tagStr := "无"
 	if len(m.Tags) > 0 {
 		tagStr = strings.Join(m.Tags, ", ")
@@ -192,8 +202,8 @@ func (p *ListPage) renderDetail(width int) string {
 		fmt.Sprintf("创建时间: %s", m.CreatedAt.Format("2006-01-02 15:04:05")),
 	}
 	for i, l := range lines {
-		if lipWidth(l) > width {
-			lines[i] = truncate(l, width)
+		if utils.LipWidth(l) > width {
+			lines[i] = utils.Truncate(l, width)
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -203,50 +213,14 @@ func (p *ListPage) Meta() core.Meta {
 	return core.Meta{
 		Title:      "记忆列表",
 		Breadcrumb: "记忆管理 > 列表",
-		Extra:      "r 刷新",
+		Extra:      fmt.Sprintf("[%s] Tab切换 r刷新", p.scopeFilter.Label()),
 		Keys: []components.KeyHint{
-			{Key: "Enter", Desc: "切换详情/列表"},
+			{Key: "Tab", Desc: "切换作用域"},
+			{Key: "Enter", Desc: "详情"},
 			{Key: "c", Desc: "新建"},
 			{Key: "r", Desc: "刷新"},
 			{Key: "Esc", Desc: "返回"},
 			{Key: "↑/↓", Desc: "移动"},
 		},
 	}
-}
-
-// 工具函数：作用域标签
-func scopeTag(global bool, pathID int64, bs *startup.Bootstrap) string {
-	if global {
-		return "[全局]"
-	}
-	ctx := bs.CurrentScope
-	if ctx != nil {
-		for _, gid := range ctx.GroupPathIDs {
-			if pathID == gid {
-				return "[小组]"
-			}
-		}
-		if ctx.PathID == pathID {
-			return "[私有]"
-		}
-	}
-	if pathID > 0 {
-		return "[私有]"
-	}
-	return "[未知]"
-}
-
-// 文本宽度（ASCII 安全）
-func lipWidth(s string) int { return len([]rune(s)) }
-
-// truncate 简单截断并添加 …
-func truncate(s string, limit int) string {
-	runes := []rune(s)
-	if len(runes) <= limit {
-		return s
-	}
-	if limit <= 1 {
-		return string(runes[:limit])
-	}
-	return string(runes[:limit-1]) + "…"
 }

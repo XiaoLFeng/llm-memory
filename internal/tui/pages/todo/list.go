@@ -10,6 +10,7 @@ import (
 	"github.com/XiaoLFeng/llm-memory/internal/tui/core"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/layout"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/theme"
+	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -31,13 +32,14 @@ type todoItem struct {
 }
 
 type ListPage struct {
-	bs      *startup.Bootstrap
-	frame   *layout.Frame
-	loading bool
-	err     error
-	items   []todoItem
-	cursor  int
-	showing bool
+	bs          *startup.Bootstrap
+	frame       *layout.Frame
+	loading     bool
+	err         error
+	items       []todoItem
+	cursor      int
+	showing     bool
+	scopeFilter utils.ScopeFilter // 作用域过滤状态
 }
 
 func NewListPage(bs *startup.Bootstrap, _ func(core.PageID) tea.Cmd) *ListPage {
@@ -53,7 +55,8 @@ func (p *ListPage) Init() tea.Cmd { return p.load() }
 func (p *ListPage) load() tea.Cmd {
 	return func() tea.Msg {
 		ctx := p.bs.Context()
-		todos, err := p.bs.ToDoService.ListToDos(ctx)
+		scopeStr := p.scopeFilter.String()
+		todos, err := p.bs.ToDoService.ListToDosByScope(ctx, scopeStr, p.bs.CurrentScope)
 		if err != nil {
 			return loadMsg{err: err}
 		}
@@ -78,12 +81,16 @@ func (p *ListPage) Resize(w, h int) { p.frame.Resize(w, h) }
 func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.KeyMsg:
-		if v.String() == "r" {
+		switch v.String() {
+		case "tab":
+			p.scopeFilter = p.scopeFilter.Next()
+			p.loading = true
+			p.cursor = 0
+			return p, p.load()
+		case "r":
 			p.loading = true
 			p.err = nil
 			return p, p.load()
-		}
-		switch v.String() {
 		case "up", "k":
 			if p.cursor > 0 {
 				p.cursor--
@@ -113,20 +120,23 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 func (p *ListPage) View() string {
 	cw, _ := p.frame.ContentSize()
 	cardW := layout.FitCardWidth(cw)
+	scopeLabel := p.scopeFilter.Label()
+	titleWithScope := fmt.Sprintf("%s 待办列表 [%s]", theme.IconTodo, scopeLabel)
+
 	switch {
 	case p.loading:
-		return components.LoadingState(theme.IconTodo+" 待办列表", "加载待办中...", cardW)
+		return components.LoadingState(titleWithScope, "加载待办中...", cardW)
 	case p.err != nil:
-		return components.ErrorState(theme.IconTodo+" 待办列表", p.err.Error(), cardW)
+		return components.ErrorState(titleWithScope, p.err.Error(), cardW)
 	case len(p.items) == 0:
-		return components.EmptyState(theme.IconTodo+" 待办列表", "暂无待办，按 c 创建吧~", cardW)
+		return components.EmptyState(titleWithScope, "暂无待办，按 c 创建吧~", cardW)
 	default:
 		if p.showing {
 			body := p.renderDetail(cardW - 6)
 			return components.Card(theme.IconTodo+" 待办详情", body, cardW)
 		}
 		body := p.renderList(cardW - 6)
-		return components.Card(theme.IconTodo+" 待办列表", body, cardW)
+		return components.Card(titleWithScope, body, cardW)
 	}
 }
 
@@ -138,7 +148,7 @@ func (p *ListPage) renderList(width int) string {
 	}
 	for i := 0; i < max; i++ {
 		t := p.items[i]
-		scope := scopeTag(t.Global, t.PathID, p.bs)
+		scope := utils.ScopeTag(t.Global, t.PathID, p.bs)
 		status := statusText(t.Status)
 		priority := priorityText(t.Priority)
 		due := ""
@@ -147,8 +157,8 @@ func (p *ListPage) renderList(width int) string {
 		}
 		line := fmt.Sprintf("%s %s · %s · %s%s",
 			scope, t.Title, priority, status, due)
-		if lipWidth(line) > width {
-			line = truncate(line, width)
+		if utils.LipWidth(line) > width {
+			line = utils.Truncate(line, width)
 		}
 		if i == p.cursor {
 			line = lipgloss.NewStyle().Foreground(theme.Info).Render("▶ " + line)
@@ -168,7 +178,7 @@ func (p *ListPage) renderDetail(width int) string {
 		return "暂无数据"
 	}
 	t := p.items[p.cursor]
-	scope := scopeTag(t.Global, t.PathID, p.bs)
+	scope := utils.ScopeTag(t.Global, t.PathID, p.bs)
 	due := "无"
 	if t.DueDate != nil {
 		due = t.DueDate.Format("2006-01-02 15:04")
@@ -186,8 +196,8 @@ func (p *ListPage) renderDetail(width int) string {
 		fmt.Sprintf("完成时间: %s", comp),
 	}
 	for i, l := range lines {
-		if lipWidth(l) > width {
-			lines[i] = truncate(l, width)
+		if utils.LipWidth(l) > width {
+			lines[i] = utils.Truncate(l, width)
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -197,9 +207,10 @@ func (p *ListPage) Meta() core.Meta {
 	return core.Meta{
 		Title:      "待办列表",
 		Breadcrumb: "待办管理 > 列表",
-		Extra:      "r 刷新",
+		Extra:      fmt.Sprintf("[%s] Tab切换 r刷新", p.scopeFilter.Label()),
 		Keys: []components.KeyHint{
-			{Key: "Enter", Desc: "切换详情/列表"},
+			{Key: "Tab", Desc: "切换作用域"},
+			{Key: "Enter", Desc: "详情"},
 			{Key: "c", Desc: "新建"},
 			{Key: "r", Desc: "刷新"},
 			{Key: "Esc", Desc: "返回"},
@@ -208,27 +219,7 @@ func (p *ListPage) Meta() core.Meta {
 	}
 }
 
-func scopeTag(global bool, pathID int64, bs *startup.Bootstrap) string {
-	if global {
-		return "[全局]"
-	}
-	ctx := bs.CurrentScope
-	if ctx != nil {
-		for _, gid := range ctx.GroupPathIDs {
-			if pathID == gid {
-				return "[小组]"
-			}
-		}
-		if ctx.PathID == pathID {
-			return "[私有]"
-		}
-	}
-	if pathID > 0 {
-		return "[私有]"
-	}
-	return "[未知]"
-}
-
+// statusText 将待办状态转换为中文显示
 func statusText(status entity.ToDoStatus) string {
 	switch status {
 	case entity.ToDoStatusCompleted:
@@ -242,6 +233,7 @@ func statusText(status entity.ToDoStatus) string {
 	}
 }
 
+// priorityText 将待办优先级转换为中文显示
 func priorityText(p entity.ToDoPriority) string {
 	switch p {
 	case entity.ToDoPriorityUrgent:
@@ -253,17 +245,4 @@ func priorityText(p entity.ToDoPriority) string {
 	default:
 		return "低"
 	}
-}
-
-func lipWidth(s string) int { return len([]rune(s)) }
-
-func truncate(s string, limit int) string {
-	runes := []rune(s)
-	if len(runes) <= limit {
-		return s
-	}
-	if limit <= 1 {
-		return string(runes[:limit])
-	}
-	return string(runes[:limit-1]) + "…"
 }

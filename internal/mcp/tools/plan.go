@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -19,16 +20,24 @@ type PlanListInput struct {
 // PlanCreateInput plan_create 工具输入
 type PlanCreateInput struct {
 	Title       string `json:"title" jsonschema:"计划标题，简洁描述计划目标"`
-	Description string `json:"description,omitempty" jsonschema:"计划的详细描述，包含具体步骤和目标"`
-	Content     string `json:"content,omitempty" jsonschema:"计划的详细内容（新增），支持 Markdown 格式"`
+	Description string `json:"description" jsonschema:"计划的详细描述，包含具体步骤和目标"`
+	Content     string `json:"content" jsonschema:"计划的详细内容，支持 Markdown 格式"`
 	Global      bool   `json:"global,omitempty" jsonschema:"是否写入全局（true 全局；false/省略 当前路径/组内）"`
 	Scope       string `json:"scope,omitempty" jsonschema:"查询筛选仍可用的作用域 personal/group/global/all"`
 }
 
-// PlanUpdateProgressInput plan_update_progress 工具输入
-type PlanUpdateProgressInput struct {
-	ID       int64 `json:"id" jsonschema:"要更新的计划ID"`
-	Progress int   `json:"progress" jsonschema:"完成进度(0-100)，系统会自动更新状态"`
+// PlanGetInput plan_get 工具输入
+type PlanGetInput struct {
+	ID int64 `json:"id" jsonschema:"要获取的计划ID"`
+}
+
+// PlanUpdateInput plan_update 工具输入
+type PlanUpdateInput struct {
+	ID          int64   `json:"id" jsonschema:"要更新的计划ID"`
+	Title       *string `json:"title,omitempty" jsonschema:"新标题（可选）"`
+	Description *string `json:"description,omitempty" jsonschema:"新描述（可选）"`
+	Content     *string `json:"content,omitempty" jsonschema:"新内容（可选），支持 Markdown 格式"`
+	Progress    *int    `json:"progress,omitempty" jsonschema:"完成进度 0-100（可选），系统自动调整状态：0=待开始，1-99=进行中，100=已完成"`
 }
 
 // RegisterPlanTools 注册计划管理工具
@@ -60,7 +69,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// plan_create - 创建新计划
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "plan_create",
-		Description: `创建计划，用于“需要跟踪进度的多步骤目标”。必填: title。可选: description、content(Markdown)、global。global=true 存入全局；省略/false 存当前路径(私有，若在组内则组可见)。短动作请用 todo_create；长期事实请用 memory_create。scope 参数仅用于列表筛选。`,
+		Description: `创建计划，用于"需要跟踪进度的多步骤目标"。必填: title、description、content(Markdown)。可选: global。global=true 存入全局；省略/false 存当前路径(私有，若在组内则组可见)。短动作请用 todo_create；长期事实请用 memory_create。scope 参数仅用于列表筛选。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanCreateInput) (*mcp.CallToolResult, any, error) {
 		// 构建创建 DTO
 		createDTO := &dto.PlanCreateDTO{
@@ -81,15 +90,83 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		return NewTextResult(fmt.Sprintf("计划创建成功! ID: %d, 标题: %s %s", plan.ID, plan.Title, scopeTag)), nil, nil
 	})
 
-	// plan_update_progress - 更新计划进度
+	// plan_get - 获取计划详情
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "plan_update_progress",
-		Description: `更新计划进度(0-100)，状态自动调整：0=待开始，1-99=进行中，100=已完成。`,
-	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanUpdateProgressInput) (*mcp.CallToolResult, any, error) {
-		if err := bs.PlanService.UpdateProgress(ctx, input.ID, input.Progress); err != nil {
+		Name:        "plan_get",
+		Description: `获取指定ID计划的完整详情，包括标题、描述、内容、进度、子任务等。`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanGetInput) (*mcp.CallToolResult, any, error) {
+		plan, err := bs.PlanService.GetPlan(ctx, input.ID)
+		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		return NewTextResult(fmt.Sprintf("计划 %d 进度已更新为 %d%%", input.ID, input.Progress)), nil, nil
+
+		scopeTag := getScopeTagWithContext(plan.Global, plan.PathID, bs.CurrentScope)
+
+		var sb strings.Builder
+		sb.WriteString("计划详情:\n")
+		sb.WriteString(fmt.Sprintf("ID: %d\n", plan.ID))
+		sb.WriteString(fmt.Sprintf("标题: %s\n", plan.Title))
+		sb.WriteString(fmt.Sprintf("状态: %s\n", getPlanStatusText(plan.Status)))
+		sb.WriteString(fmt.Sprintf("进度: %d%%\n", plan.Progress))
+		sb.WriteString(fmt.Sprintf("作用域: %s\n", scopeTag))
+		sb.WriteString(fmt.Sprintf("创建时间: %s\n", plan.CreatedAt.Format("2006-01-02 15:04:05")))
+		sb.WriteString(fmt.Sprintf("更新时间: %s\n", plan.UpdatedAt.Format("2006-01-02 15:04:05")))
+		sb.WriteString(fmt.Sprintf("\n描述:\n%s\n", plan.Description))
+		sb.WriteString(fmt.Sprintf("\n内容:\n%s", plan.Content))
+
+		// 如果有子任务，也显示出来
+		if len(plan.SubTasks) > 0 {
+			sb.WriteString("\n\n子任务:\n")
+			for _, st := range plan.SubTasks {
+				stStatus := getPlanStatusText(st.Status)
+				sb.WriteString(fmt.Sprintf("  - [%d] %s (%s, %d%%)\n", st.ID, st.Title, stStatus, st.Progress))
+			}
+		}
+
+		return NewTextResult(sb.String()), nil, nil
+	})
+
+	// plan_update - 更新计划
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "plan_update",
+		Description: `更新计划，只更新提供的字段（title/description/content/progress）；至少提供一个字段，否则返回错误。progress: 0=待开始，1-99=进行中，100=已完成（状态自动调整）。`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanUpdateInput) (*mcp.CallToolResult, any, error) {
+		// 检查是否有更新（至少一个字段）
+		if input.Title == nil && input.Description == nil &&
+			input.Content == nil && input.Progress == nil {
+			return NewErrorResult("至少提供一个要更新的字段"), nil, nil
+		}
+
+		// 构建更新 DTO
+		updateDTO := &dto.PlanUpdateDTO{
+			ID:          input.ID,
+			Title:       input.Title,
+			Description: input.Description,
+			Content:     input.Content,
+			Progress:    input.Progress,
+		}
+
+		// 执行更新
+		if err := bs.PlanService.UpdatePlan(ctx, updateDTO); err != nil {
+			return NewErrorResult(err.Error()), nil, nil
+		}
+
+		// 构建响应消息
+		var parts []string
+		if input.Title != nil {
+			parts = append(parts, "标题")
+		}
+		if input.Description != nil {
+			parts = append(parts, "描述")
+		}
+		if input.Content != nil {
+			parts = append(parts, "内容")
+		}
+		if input.Progress != nil {
+			parts = append(parts, fmt.Sprintf("进度(%d%%)", *input.Progress))
+		}
+
+		return NewTextResult(fmt.Sprintf("计划 %d 更新成功: %s", input.ID, strings.Join(parts, "、"))), nil, nil
 	})
 }
 

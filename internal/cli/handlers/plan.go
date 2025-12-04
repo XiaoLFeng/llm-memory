@@ -116,16 +116,15 @@ func (h *PlanHandler) Get(ctx context.Context, id int64) error {
 	fmt.Printf("标题:     %s\n", plan.Title)
 	fmt.Printf("状态:     %s\n", getPlanStatusText(plan.Status))
 	fmt.Printf("进度:     %d%%\n", plan.Progress)
-	if plan.StartDate != nil {
-		fmt.Printf("开始时间: %s\n", plan.StartDate.Format("2006-01-02 15:04:05"))
-	}
-	if plan.EndDate != nil {
-		fmt.Printf("结束时间: %s\n", plan.EndDate.Format("2006-01-02 15:04:05"))
-	}
 	fmt.Printf("创建时间: %s\n", plan.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("更新时间: %s\n", plan.UpdatedAt.Format("2006-01-02 15:04:05"))
 	if plan.Description != "" {
 		fmt.Println("\n描述:")
 		fmt.Println(plan.Description)
+	}
+	if plan.Content != "" {
+		fmt.Println("\n内容:")
+		fmt.Println(plan.Content)
 	}
 
 	return nil
