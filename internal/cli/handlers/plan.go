@@ -55,7 +55,6 @@ func (h *PlanHandler) Create(ctx context.Context, code, title, description strin
 		Code:        code,
 		Title:       title,
 		Description: description,
-		Global:      global,
 	}
 	plan, err := h.bs.PlanService.CreatePlan(ctx, createDTO, h.bs.CurrentScope)
 	if err != nil {

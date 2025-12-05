@@ -95,12 +95,11 @@ func ToDoPriorityFromString(s string) ToDoPriority {
 // ToDo 待办事项实体（数据表结构）
 // 注意：类型名使用 ToDo（不是 Todo），避免 IDE 命名规范问题
 // 用于管理短期任务的待办实体
-// 纯关联模式：PathID=0 表示 Global，PathID>0 关联 PersonalPath
+// PathID 关联 PersonalPath 或 Group 中的路径
 type ToDo struct {
 	ID          int64        `gorm:"primaryKey"`                                 // 雪花算法生成
 	Code        string       `gorm:"index;size:100;not null;comment:人类可读的唯一标识码"` // 外部查询标识，活跃状态唯一
-	Global      bool         `gorm:"index;default:false;comment:是否全局可见"`         // true=全局；false=私有/小组
-	PathID      int64        `gorm:"index;default:0;comment:路径ID（0=无绑定/全局）"`     // 关联 Path.ID，0 表示未绑定
+	PathID      int64        `gorm:"index;not null;comment:路径ID（关联个人或小组路径）"`     // 关联 Path.ID
 	Title       string       `gorm:"index;size:255;not null;comment:标题"`
 	Description string       `gorm:"type:text;comment:描述"`
 	Priority    ToDoPriority `gorm:"index;default:2;comment:优先级 1-4"`
@@ -132,23 +131,15 @@ func (ToDoTag) TableName() string {
 	return "todo_tags"
 }
 
-// IsGlobal 检查是否为全局待办
-func (t *ToDo) IsGlobal() bool {
-	return t.Global
-}
-
 // IsPersonal 检查是否为 Personal 作用域
-// 纯关联模式下，PathID > 0 表示关联某个路径
+// PathID > 0 表示关联某个路径（个人或小组）
 func (t *ToDo) IsPersonal() bool {
-	return !t.Global && t.PathID > 0
+	return t.PathID > 0
 }
 
 // GetScope 获取作用域类型字符串
-// 注意：纯关联模式下只有 personal 和 global，group 通过 join 查询实现
+// 注意：group 通过上下文判断，此处只能返回 personal 或 unknown
 func (t *ToDo) GetScope() string {
-	if t.Global {
-		return "global"
-	}
 	if t.PathID > 0 {
 		return "personal"
 	}

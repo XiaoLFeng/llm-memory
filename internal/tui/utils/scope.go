@@ -2,9 +2,29 @@ package utils
 
 import "github.com/XiaoLFeng/llm-memory/startup"
 
-// ScopeTag 根据 global 标记和 pathID 返回作用域标签
+// ScopeTag 根据 pathID 返回作用域标签（供 Todo/Plan 使用，无 Global 支持）
 // 用于在 TUI 列表中显示数据的归属范围
-func ScopeTag(global bool, pathID int64, bs *startup.Bootstrap) string {
+func ScopeTag(pathID int64, bs *startup.Bootstrap) string {
+	ctx := bs.CurrentScope
+	if ctx != nil {
+		for _, gid := range ctx.GroupPathIDs {
+			if pathID == gid {
+				return "[小组]"
+			}
+		}
+		if ctx.PathID == pathID {
+			return "[私有]"
+		}
+	}
+	if pathID > 0 {
+		return "[私有]"
+	}
+	return "[未知]"
+}
+
+// ScopeTagWithGlobal 根据 global 标记和 pathID 返回作用域标签（供 Memory 使用）
+// 用于在 TUI 列表中显示数据的归属范围
+func ScopeTagWithGlobal(global bool, pathID int64, bs *startup.Bootstrap) string {
 	if global {
 		return "[全局]"
 	}
@@ -31,7 +51,6 @@ type ScopeFilter int
 
 const (
 	ScopeAll      ScopeFilter = iota // 全部（默认）
-	ScopeGlobal                      // 仅全局
 	ScopePersonal                    // 仅私有
 	ScopeGroup                       // 仅小组
 )
@@ -39,8 +58,6 @@ const (
 // String 返回用于 Service 层查询的作用域字符串
 func (s ScopeFilter) String() string {
 	switch s {
-	case ScopeGlobal:
-		return "global"
 	case ScopePersonal:
 		return "personal"
 	case ScopeGroup:
@@ -53,8 +70,6 @@ func (s ScopeFilter) String() string {
 // Label 返回用于 UI 显示的作用域标签
 func (s ScopeFilter) Label() string {
 	switch s {
-	case ScopeGlobal:
-		return "全局"
 	case ScopePersonal:
 		return "私有"
 	case ScopeGroup:
@@ -66,5 +81,5 @@ func (s ScopeFilter) Label() string {
 
 // Next 循环切换到下一个作用域
 func (s ScopeFilter) Next() ScopeFilter {
-	return (s + 1) % 4
+	return (s + 1) % 3
 }

@@ -315,7 +315,6 @@ func (p *CreatePage) submit() tea.Cmd {
 			Priority:    p.prioritySelect.Value().(int),
 			DueDate:     dueDate,
 			Tags:        tags,
-			Global:      p.globalSelect.Value().(bool),
 		}
 
 		// 调用服务创建待办

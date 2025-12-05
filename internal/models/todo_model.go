@@ -54,13 +54,13 @@ func (m *ToDoModel) FindByID(ctx context.Context, id int64) (*entity.ToDo, error
 	return &todo, nil
 }
 
-// FindByCode 根据 code 查找活跃的待办
-// 只查询活跃状态（待处理和进行中），排除已完成和已取消的记录
+// FindByCode 根据 code 查找待办（所有状态）
+// 返回所有状态的记录，包括已完成和已取消的
 func (m *ToDoModel) FindByCode(ctx context.Context, code string) (*entity.ToDo, error) {
 	var todo entity.ToDo
 	err := m.db.WithContext(ctx).
 		Preload("Tags").
-		Where("code = ? AND status NOT IN ?", code, []entity.ToDoStatus{entity.ToDoStatusCompleted, entity.ToDoStatusCancelled}).
+		Where("code = ?", code).
 		First(&todo).Error
 	if err != nil {
 		return nil, err
@@ -89,43 +89,47 @@ func (m *ToDoModel) ExistsActiveCode(ctx context.Context, code string, excludeID
 	return count > 0, nil
 }
 
-// FindAll 查找所有待办
-func (m *ToDoModel) FindAll(ctx context.Context) ([]entity.ToDo, error) {
-	return m.FindByFilter(ctx, DefaultVisibilityFilter())
+// FindAll 查找所有待办（需要提供路径过滤器）
+func (m *ToDoModel) FindAll(ctx context.Context, filter PathOnlyVisibilityFilter) ([]entity.ToDo, error) {
+	return m.FindByPathOnlyFilter(ctx, filter)
 }
 
 // FindByStatus 根据状态查找待办
-func (m *ToDoModel) FindByStatus(ctx context.Context, status entity.ToDoStatus) ([]entity.ToDo, error) {
-	filter := DefaultVisibilityFilter()
+func (m *ToDoModel) FindByStatus(ctx context.Context, status entity.ToDoStatus, filter PathOnlyVisibilityFilter) ([]entity.ToDo, error) {
 	var todos []entity.ToDo
-	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("Tags"), filter).
+	err := ApplyPathOnlyFilter(m.db.WithContext(ctx).Preload("Tags"), filter).
 		Where("status = ?", status).
 		Order("priority DESC, created_at DESC").
 		Find(&todos).Error
 	return todos, err
 }
 
-// FindByScope 根据作用域查找待办
-// 纯关联模式：基于 PathID 进行查询
-// pathID: 当前路径的 PathID（0 表示无路径）
-// groupPathIDs: 组内所有路径 ID 列表（空切片表示无组）
-// includeGlobal: 是否包含全局待办
-// 默认排除已完成和已取消的记录
-func (m *ToDoModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs []int64, includeGlobal bool) ([]entity.ToDo, error) {
-	filter := VisibilityFilter{
-		IncludeGlobal:    includeGlobal,
-		IncludeNonGlobal: true,
-		PathIDs:          MergePathIDs(pathID, groupPathIDs),
+// FindByScope 根据作用域查找待办（无 Global 支持）
+// pathIDs: 路径 ID 列表（个人路径 + 组内路径）
+// 显示所有状态的记录（不再隐藏已完成/已取消）
+func (m *ToDoModel) FindByScope(ctx context.Context, pathIDs []int64) ([]entity.ToDo, error) {
+	filter := PathOnlyVisibilityFilter{
+		PathIDs: pathIDs,
 	}
-	return m.FindByFilter(ctx, filter)
+	return m.FindByPathOnlyFilter(ctx, filter)
 }
 
-// FindByFilter 根据统一过滤器查询待办
+// FindByFilter 根据统一过滤器查询待办（兼容旧接口，供 Memory 使用）
 // 默认排除已完成和已取消的记录
 func (m *ToDoModel) FindByFilter(ctx context.Context, filter VisibilityFilter) ([]entity.ToDo, error) {
 	var todos []entity.ToDo
 	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("Tags"), filter).
 		Where("status NOT IN ?", []entity.ToDoStatus{entity.ToDoStatusCompleted, entity.ToDoStatusCancelled}).
+		Order("priority DESC, created_at DESC").
+		Find(&todos).Error
+	return todos, err
+}
+
+// FindByPathOnlyFilter 根据路径过滤器查询待办（供 Todo 使用）
+// 显示所有状态的记录（不再隐藏已完成/已取消）
+func (m *ToDoModel) FindByPathOnlyFilter(ctx context.Context, filter PathOnlyVisibilityFilter) ([]entity.ToDo, error) {
+	var todos []entity.ToDo
+	err := ApplyPathOnlyFilter(m.db.WithContext(ctx).Preload("Tags"), filter).
 		Order("priority DESC, created_at DESC").
 		Find(&todos).Error
 	return todos, err
@@ -348,4 +352,45 @@ func (m *ToDoModel) Count(ctx context.Context) (int64, error) {
 	var count int64
 	err := m.db.WithContext(ctx).Model(&entity.ToDo{}).Count(&count).Error
 	return count, err
+}
+
+// BatchDeleteByPathIDs 批量删除指定路径下的所有待办（用于 todo_final）
+// 返回删除的记录数量
+func (m *ToDoModel) BatchDeleteByPathIDs(ctx context.Context, pathIDs []int64) (int64, error) {
+	if len(pathIDs) == 0 {
+		return 0, nil
+	}
+
+	var deletedCount int64
+
+	err := m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. 获取要删除的 todo IDs
+		var todoIDs []int64
+		if err := tx.Model(&entity.ToDo{}).
+			Where("path_id IN ?", pathIDs).
+			Pluck("id", &todoIDs).Error; err != nil {
+			return err
+		}
+
+		if len(todoIDs) == 0 {
+			return nil
+		}
+
+		// 2. 删除关联标签
+		if err := tx.Where("to_do_id IN ?", todoIDs).
+			Delete(&entity.ToDoTag{}).Error; err != nil {
+			return err
+		}
+
+		// 3. 删除待办
+		result := tx.Where("id IN ?", todoIDs).Delete(&entity.ToDo{})
+		if result.Error != nil {
+			return result.Error
+		}
+
+		deletedCount = result.RowsAffected
+		return nil
+	})
+
+	return deletedCount, err
 }

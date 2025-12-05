@@ -14,7 +14,7 @@ import (
 
 // PlanListInput plan_list 工具输入
 type PlanListInput struct {
-	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤(personal/group/global/all)，默认all显示全部"`
+	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤(personal/group/all)，默认all显示全部"`
 }
 
 // PlanCreateInput plan_create 工具输入
@@ -23,8 +23,7 @@ type PlanCreateInput struct {
 	Title       string `json:"title" jsonschema:"计划标题，简洁描述计划目标"`
 	Description string `json:"description" jsonschema:"计划的详细描述，包含具体步骤和目标"`
 	Content     string `json:"content" jsonschema:"计划的详细内容，支持 Markdown 格式"`
-	Global      bool   `json:"global,omitempty" jsonschema:"是否写入全局（true 全局；false/省略 当前路径/组内）"`
-	Scope       string `json:"scope,omitempty" jsonschema:"查询筛选仍可用的作用域 personal/group/global/all"`
+	Scope       string `json:"scope,omitempty" jsonschema:"查询筛选仍可用的作用域 personal/group/all"`
 }
 
 // PlanGetInput plan_get 工具输入
@@ -49,8 +48,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		Description: `列出所有计划及进度状态。scope参数说明（安全隔离）：
   - personal: 仅当前路径的私有数据
   - group: 仅当前小组的数据（需已加入小组）
-  - global: 仅全局可见数据
-  - all/省略: 全局 + 当前路径相关（默认，权限隔离）`,
+  - all/省略: 当前路径 + 小组数据（默认，权限隔离）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -65,7 +63,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		result := "计划列表:\n"
 		for _, p := range plans {
 			status := getPlanStatusText(p.Status)
-			scopeTag := getScopeTagWithContext(p.Global, p.PathID, bs.CurrentScope)
+			scopeTag := getScopeTagWithContext(p.PathID, bs.CurrentScope)
 			result += fmt.Sprintf("- [%s] %s (%s, 进度: %d%%) %s\n", p.Code, p.Title, status, p.Progress, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -74,7 +72,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// plan_create - 创建新计划
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "plan_create",
-		Description: `创建计划，用于"需要跟踪进度的多步骤目标"。必填: title、description、content(Markdown)。可选: global。global=true 存入全局；省略/false 存当前路径(私有，若在组内则组可见)。短动作请用 todo_create；长期事实请用 memory_create。scope 参数仅用于列表筛选。`,
+		Description: `创建计划，用于"需要跟踪进度的多步骤目标"。必填: title、description、content(Markdown)。短动作请用 todo_create；长期事实请用 memory_create。scope 参数仅用于列表筛选。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanCreateInput) (*mcp.CallToolResult, any, error) {
 		// 构建创建 DTO
 		createDTO := &dto.PlanCreateDTO{
@@ -82,7 +80,6 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 			Title:       input.Title,
 			Description: input.Description,
 			Content:     input.Content,
-			Global:      input.Global,
 		}
 
 		// 构建作用域上下文
@@ -92,7 +89,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTagWithContext(plan.Global, plan.PathID, bs.CurrentScope)
+		scopeTag := getScopeTagWithContext(plan.PathID, bs.CurrentScope)
 		return NewTextResult(fmt.Sprintf("计划创建成功! Code: %s, 标题: %s %s", plan.Code, plan.Title, scopeTag)), nil, nil
 	})
 
@@ -106,7 +103,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 			return NewErrorResult(err.Error()), nil, nil
 		}
 
-		scopeTag := getScopeTagWithContext(plan.Global, plan.PathID, bs.CurrentScope)
+		scopeTag := getScopeTagWithContext(plan.PathID, bs.CurrentScope)
 
 		var sb strings.Builder
 		sb.WriteString("计划详情:\n")

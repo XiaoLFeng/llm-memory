@@ -8,7 +8,6 @@ type PlanCreateDTO struct {
 	Title       string `json:"title"`
 	Description string `json:"description"` // 摘要
 	Content     string `json:"content"`     // 详细内容
-	Global      bool   `json:"global"`      // true=全局；false=当前路径(私有/组内)
 }
 
 // PlanUpdateDTO 更新计划请求

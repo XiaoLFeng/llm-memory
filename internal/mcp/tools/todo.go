@@ -14,7 +14,7 @@ import (
 
 // TodoListInput todo_list 工具输入
 type TodoListInput struct {
-	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤 personal group global all 默认all显示全部"`
+	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤 personal group all 默认all显示全部"`
 }
 
 // TodoCreateItem 批量创建的待办项
@@ -23,13 +23,12 @@ type TodoCreateItem struct {
 	Title       string `json:"title" jsonschema:"待办标题 简洁描述任务"`
 	Description string `json:"description,omitempty" jsonschema:"待办的详细描述"`
 	Priority    int    `json:"priority,omitempty" jsonschema:"优先级 1低2中3高4紧急 默认2"`
-	Global      bool   `json:"global,omitempty" jsonschema:"是否写入全局 true 全局 false 省略 当前路径组内"`
 }
 
 // TodoBatchCreateInput todo_batch_create 工具输入
 type TodoBatchCreateInput struct {
 	Items []TodoCreateItem `json:"items" jsonschema:"待办事项列表最多100个"`
-	Scope string           `json:"scope,omitempty" jsonschema:"查询筛选仍可用的作用域 personal/group/global/all"`
+	Scope string           `json:"scope,omitempty" jsonschema:"查询筛选仍可用的作用域 personal/group/all"`
 }
 
 // TodoBatchOperationInput 批量操作输入（完成/取消/删除）
@@ -69,7 +68,7 @@ type TodoBatchStartInput struct {
 
 // TodoFinalInput todo_final 工具输入
 type TodoFinalInput struct {
-	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤 personal group global all 默认all显示全部"`
+	Scope string `json:"scope,omitempty" jsonschema:"作用域过滤 personal group all 默认all显示全部"`
 }
 
 // validateTodoOwnership 验证待办所有权权限
@@ -85,13 +84,8 @@ func validateTodoOwnership(ctx context.Context, bs *startup.Bootstrap, code stri
 		return nil, fmt.Errorf("当前作用域为空")
 	}
 
-	// 检查全局权限
-	if todo.Global && scope.IncludeGlobal {
-		return todo, nil
-	}
-
 	// 检查个人权限
-	if !todo.Global && todo.PathID > 0 {
+	if todo.PathID > 0 {
 		if scope.IncludePersonal && todo.PathID == scope.PathID {
 			return todo, nil
 		}
@@ -149,8 +143,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		Description: `列出所有待办及状态。scope参数说明（安全隔离）：
   - personal: 仅当前路径的私有数据
   - group: 仅当前小组的数据（需已加入小组）
-  - global: 仅全局可见数据
-  - all/省略: 全局 + 当前路径相关（默认，权限隔离）`,
+  - all/省略: 当前路径 + 小组数据（默认，权限隔离）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
@@ -166,7 +159,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		for _, t := range todos {
 			status := getToDoStatusText(t.Status)
 			priority := getToDoPriorityText(t.Priority)
-			scopeTag := getScopeTagWithContext(t.Global, t.PathID, bs.CurrentScope)
+			scopeTag := getScopeTagWithContext(t.PathID, bs.CurrentScope)
 			result += fmt.Sprintf("- [%s] %s (%s, %s) %s\n", t.Code, t.Title, status, priority, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -198,7 +191,6 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 				Title:       item.Title,
 				Description: item.Description,
 				Priority:    priority,
-				Global:      item.Global,
 			}
 
 			_, err := bs.ToDoService.CreateToDo(ctx, createDTO, scopeCtx)
@@ -413,62 +405,28 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		return NewTextResult(response), result, nil
 	})
 
-	// todo_final - 完成所有待办
+	// todo_final - 删除所有待办
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "todo_final",
-		Description: `完成所有当前作用域内的待办事项。这是一个快速清理工具，会将指定作用域内的所有待办标记为已完成。`,
+		Name: "todo_final",
+		Description: `删除当前作用域内的所有待办事项。这是一个清理工具，会直接删除指定作用域内的所有待办（不可恢复）。
+删除逻辑：
+  - 未加入小组：删除当前路径的私有待办
+  - 已加入小组：删除小组内所有路径的待办`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoFinalInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)
 
-		// 获取所有待办
-		todos, err := bs.ToDoService.ListToDosByScope(ctx, input.Scope, scopeCtx)
+		// 删除所有待办
+		deletedCount, err := bs.ToDoService.DeleteAllByScope(ctx, input.Scope, scopeCtx)
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
 
-		if len(todos) == 0 {
-			return NewTextResult("当前作用域内没有待办事项需要完成"), nil, nil
+		if deletedCount == 0 {
+			return NewTextResult("当前作用域内没有待办事项需要删除"), nil, nil
 		}
 
-		// 过滤出未完成的待办
-		var pendingTodos []string
-		for _, todo := range todos {
-			if todo.Status != entity.ToDoStatusCompleted && todo.Status != entity.ToDoStatusCancelled {
-				pendingTodos = append(pendingTodos, todo.Code)
-			}
-		}
-
-		if len(pendingTodos) == 0 {
-			return NewTextResult("当前作用域内没有需要完成的待办事项（所有待办已完成或已取消）"), nil, nil
-		}
-
-		// 批量完成所有待办
-		successCount := 0
-		failCount := 0
-		var failures []TodoBatchFailure
-
-		for _, code := range pendingTodos {
-			// 标记完成
-			if err := bs.ToDoService.CompleteToDo(ctx, code); err != nil {
-				failCount++
-				failures = append(failures, TodoBatchFailure{
-					Code:  code,
-					Error: err.Error(),
-				})
-			} else {
-				successCount++
-			}
-		}
-
-		result := &TodoBatchOperationResult{
-			SuccessCount: successCount,
-			FailCount:    failCount,
-			Failures:     failures,
-		}
-
-		response := formatBatchResult(result, "完成所有待办")
-		return NewTextResult(response), result, nil
+		return NewTextResult(fmt.Sprintf("已删除 %d 个待办事项", deletedCount)), nil, nil
 	})
 }
 

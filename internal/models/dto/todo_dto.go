@@ -10,7 +10,6 @@ type ToDoCreateDTO struct {
 	Priority    int        `json:"priority"` // 1-4，默认 2
 	DueDate     *time.Time `json:"due_date"`
 	Tags        []string   `json:"tags"`
-	Global      bool       `json:"global"` // true=全局；false=当前路径(私有/组内)
 }
 
 // ToDoUpdateDTO 更新待办请求

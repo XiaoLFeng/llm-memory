@@ -26,7 +26,7 @@ func NewToDoService(model *models.ToDoModel) *ToDoService {
 }
 
 // CreateToDo 创建新的待办事项
-// 纯关联模式：数据存储时只使用 PathID
+// PathID 关联个人或小组路径
 func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, scopeCtx *types.ScopeContext) (*entity.ToDo, error) {
 	// 验证标题不能为空
 	if strings.TrimSpace(input.Title) == "" {
@@ -53,18 +53,14 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 		priority = entity.ToDoPriorityMedium
 	}
 
-	// 解析作用域 -> PathID（global=true 存全局；否则使用当前路径）
-	pathID := int64(0)
-	if !input.Global {
-		pathID = resolveDefaultPathID(scopeCtx)
-		if pathID == 0 {
-			return nil, errors.New("无法确定私有/小组作用域，请先初始化 paths 或选择全局")
-		}
+	// 解析作用域 -> PathID（必须指定路径）
+	pathID := resolveDefaultPathID(scopeCtx)
+	if pathID == 0 {
+		return nil, errors.New("无法确定作用域，请先初始化 paths")
 	}
 
 	// 创建待办事项实例
 	todo := &entity.ToDo{
-		Global:      input.Global,
 		PathID:      pathID,
 		Code:        input.Code,
 		Title:       strings.TrimSpace(input.Title),
@@ -197,22 +193,24 @@ func (s *ToDoService) GetToDoByID(ctx context.Context, id int64) (*entity.ToDo, 
 	return s.todoModel.FindByID(ctx, id)
 }
 
-// ListToDos 获取所有待办事项（已废弃，仅返回全局数据）
-// ⚠️ 为保持兼容性，此方法仅返回全局数据，建议使用 ListToDosByScope
-func (s *ToDoService) ListToDos(ctx context.Context) ([]entity.ToDo, error) {
-	return s.todoModel.FindByFilter(ctx, models.DefaultVisibilityFilter())
+// ListToDos 获取所有待办事项（需要提供作用域上下文）
+// 使用 PathOnlyFilter 进行过滤
+func (s *ToDoService) ListToDos(ctx context.Context, scopeCtx *types.ScopeContext) ([]entity.ToDo, error) {
+	filter := buildPathOnlyFilter("all", scopeCtx)
+	return s.todoModel.FindByPathOnlyFilter(ctx, filter)
 }
 
 // ListToDosByScope 根据作用域列出待办事项
-// 纯关联模式：使用 PathID 和 GroupPathIDs 进行查询
+// 使用 PathOnlyFilter 进行过滤（无 Global 支持）
 func (s *ToDoService) ListToDosByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.ToDo, error) {
-	filter := buildVisibilityFilter(scope, scopeCtx)
-	return s.todoModel.FindByFilter(ctx, filter)
+	filter := buildPathOnlyFilter(scope, scopeCtx)
+	return s.todoModel.FindByPathOnlyFilter(ctx, filter)
 }
 
 // ListByStatus 根据状态获取待办事项列表
-func (s *ToDoService) ListByStatus(ctx context.Context, status entity.ToDoStatus) ([]entity.ToDo, error) {
-	return s.todoModel.FindByStatus(ctx, status)
+func (s *ToDoService) ListByStatus(ctx context.Context, status entity.ToDoStatus, scopeCtx *types.ScopeContext) ([]entity.ToDo, error) {
+	filter := buildPathOnlyFilter("all", scopeCtx)
+	return s.todoModel.FindByStatus(ctx, status, filter)
 }
 
 // CompleteToDo 标记待办事项为已完成
@@ -336,7 +334,7 @@ func (s *ToDoService) CancelToDoByID(ctx context.Context, id int64) error {
 }
 
 // BatchCreateToDos 批量创建待办事项
-// 纯关联模式：使用 PathID
+// PathID 关联个人或小组路径
 func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatchCreateDTO, scopeCtx *types.ScopeContext) (*dto.ToDoBatchResultDTO, error) {
 	// 验证数量限制
 	if len(input.Items) == 0 {
@@ -346,20 +344,17 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 		return nil, errors.New("批量操作最多支持 100 条记录")
 	}
 
+	// 解析作用域 -> PathID（必须指定路径）
+	pathID := resolveDefaultPathID(scopeCtx)
+	if pathID == 0 {
+		return nil, errors.New("无法确定作用域，请先初始化 paths")
+	}
+
 	// 转换为 entity 列表
 	todos := make([]entity.ToDo, 0, len(input.Items))
 	for _, item := range input.Items {
 		if strings.TrimSpace(item.Title) == "" {
 			continue // 跳过空标题
-		}
-
-		// 解析作用域 -> PathID
-		pathID := int64(0)
-		if !item.Global {
-			pathID = resolveDefaultPathID(scopeCtx)
-			if pathID == 0 {
-				continue // 跳过无法确定作用域的条目
-			}
 		}
 
 		priority := entity.ToDoPriority(item.Priority)
@@ -368,8 +363,8 @@ func (s *ToDoService) BatchCreateToDos(ctx context.Context, input *dto.ToDoBatch
 		}
 
 		todo := entity.ToDo{
-			Global:      item.Global,
 			PathID:      pathID,
+			Code:        item.Code,
 			Title:       strings.TrimSpace(item.Title),
 			Description: strings.TrimSpace(item.Description),
 			Priority:    priority,
@@ -460,8 +455,15 @@ func (s *ToDoService) BatchUpdateStatus(ctx context.Context, ids []int64, status
 	return s.todoModel.BatchUpdateStatus(ctx, ids, status)
 }
 
+// DeleteAllByScope 删除当前作用域内的所有待办事项（用于 todo_final）
+// 返回删除的记录数量
+func (s *ToDoService) DeleteAllByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) (int64, error) {
+	filter := buildPathOnlyFilter(scope, scopeCtx)
+	return s.todoModel.BatchDeleteByPathIDs(ctx, filter.PathIDs)
+}
+
 // ToToDoResponseDTO 将 ToDo entity 转换为 ResponseDTO
-// 纯关联模式：使用 PathID 判断作用域
+// 使用 PathID 判断作用域（无 Global 支持）
 func ToToDoResponseDTO(todo *entity.ToDo, scopeCtx *types.ScopeContext) *dto.ToDoResponseDTO {
 	if todo == nil {
 		return nil
@@ -472,7 +474,7 @@ func ToToDoResponseDTO(todo *entity.ToDo, scopeCtx *types.ScopeContext) *dto.ToD
 		tags = append(tags, t.Tag)
 	}
 
-	scope := types.GetScopeForDisplayWithGlobal(todo.Global, todo.PathID, scopeCtx)
+	scope := types.GetScopeForDisplayNoGlobal(todo.PathID, scopeCtx)
 
 	return &dto.ToDoResponseDTO{
 		ID:          todo.ID,

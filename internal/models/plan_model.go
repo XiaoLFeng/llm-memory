@@ -91,41 +91,48 @@ func (m *PlanModel) ExistsActiveCode(ctx context.Context, code string, excludeID
 	return count > 0, nil
 }
 
-// FindAll 查找所有计划
-func (m *PlanModel) FindAll(ctx context.Context) ([]entity.Plan, error) {
-	return m.FindByFilter(ctx, DefaultVisibilityFilter())
+// FindAll 查找所有计划（需要提供路径过滤器）
+func (m *PlanModel) FindAll(ctx context.Context, filter PathOnlyVisibilityFilter) ([]entity.Plan, error) {
+	return m.FindByPathOnlyFilter(ctx, filter)
 }
 
 // FindByStatus 根据状态查找计划
-func (m *PlanModel) FindByStatus(ctx context.Context, status entity.PlanStatus) ([]entity.Plan, error) {
-	filter := DefaultVisibilityFilter()
+func (m *PlanModel) FindByStatus(ctx context.Context, status entity.PlanStatus, filter PathOnlyVisibilityFilter) ([]entity.Plan, error) {
 	var plans []entity.Plan
-	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
+	err := ApplyPathOnlyFilter(m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
 		return db.Order("sort_order ASC")
 	}), filter).Where("status = ?", status).Order("created_at DESC").Find(&plans).Error
 	return plans, err
 }
 
-// FindByScope 根据作用域查找计划
-// 纯关联模式：基于 PathID 进行查询
-// pathID: 当前路径的 PathID（0 表示无路径）
-// groupPathIDs: 组内所有路径 ID 列表（空切片表示无组）
-// includeGlobal: 是否包含全局计划
+// FindByScope 根据作用域查找计划（无 Global 支持）
+// pathIDs: 路径 ID 列表（个人路径 + 组内路径）
 // 默认排除已完成和已取消的计划
-func (m *PlanModel) FindByScope(ctx context.Context, pathID int64, groupPathIDs []int64, includeGlobal bool) ([]entity.Plan, error) {
-	filter := VisibilityFilter{
-		IncludeGlobal:    includeGlobal,
-		IncludeNonGlobal: true,
-		PathIDs:          MergePathIDs(pathID, groupPathIDs),
+func (m *PlanModel) FindByScope(ctx context.Context, pathIDs []int64) ([]entity.Plan, error) {
+	filter := PathOnlyVisibilityFilter{
+		PathIDs: pathIDs,
 	}
-	return m.FindByFilter(ctx, filter)
+	return m.FindByPathOnlyFilter(ctx, filter)
 }
 
-// FindByFilter 统一过滤器查询计划
+// FindByFilter 根据统一过滤器查询计划（兼容旧接口，供 Memory 使用）
 // 默认排除已完成和已取消的计划
 func (m *PlanModel) FindByFilter(ctx context.Context, filter VisibilityFilter) ([]entity.Plan, error) {
 	var plans []entity.Plan
 	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
+		return db.Order("sort_order ASC")
+	}), filter).
+		Where("status NOT IN ?", []entity.PlanStatus{entity.PlanStatusCompleted, entity.PlanStatusCancelled}).
+		Order("created_at DESC").
+		Find(&plans).Error
+	return plans, err
+}
+
+// FindByPathOnlyFilter 根据路径过滤器查询计划（供 Plan 使用）
+// 默认排除已完成和已取消的计划（Plan 保持隐藏机制）
+func (m *PlanModel) FindByPathOnlyFilter(ctx context.Context, filter PathOnlyVisibilityFilter) ([]entity.Plan, error) {
+	var plans []entity.Plan
+	err := ApplyPathOnlyFilter(m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
 		return db.Order("sort_order ASC")
 	}), filter).
 		Where("status NOT IN ?", []entity.PlanStatus{entity.PlanStatusCompleted, entity.PlanStatusCancelled}).

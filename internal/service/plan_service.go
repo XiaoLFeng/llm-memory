@@ -24,7 +24,7 @@ func NewPlanService(model *models.PlanModel) *PlanService {
 }
 
 // CreatePlan 创建新计划
-// 纯关联模式：数据存储时只使用 PathID
+// PathID 关联个人或小组路径
 func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, scopeCtx *types.ScopeContext) (*entity.Plan, error) {
 	// 参数验证 - code 格式验证
 	if err := entity.ValidateCode(input.Code); err != nil {
@@ -51,19 +51,15 @@ func (s *PlanService) CreatePlan(ctx context.Context, input *dto.PlanCreateDTO, 
 		return nil, errors.New("计划内容不能为空")
 	}
 
-	// 解析作用域 -> PathID（global=true 则存储到全局，否则使用当前路径）
-	pathID := int64(0)
-	if !input.Global {
-		pathID = resolveDefaultPathID(scopeCtx)
-		if pathID == 0 {
-			return nil, errors.New("无法确定私有/小组作用域，请先初始化 paths 或选择全局")
-		}
+	// 解析作用域 -> PathID（必须指定路径）
+	pathID := resolveDefaultPathID(scopeCtx)
+	if pathID == 0 {
+		return nil, errors.New("无法确定作用域，请先初始化 paths")
 	}
 
 	// 创建计划实例
 	plan := &entity.Plan{
 		Code:        input.Code,
-		Global:      input.Global,
 		PathID:      pathID,
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
@@ -204,10 +200,11 @@ func (s *PlanService) GetPlanByID(ctx context.Context, id int64) (*entity.Plan, 
 	return plan, nil
 }
 
-// ListPlans 获取所有计划列表（已废弃，仅返回全局数据）
-// ⚠️ 为保持兼容性，此方法仅返回全局数据，建议使用 ListPlansByScope
-func (s *PlanService) ListPlans(ctx context.Context) ([]entity.Plan, error) {
-	plans, err := s.planModel.FindByFilter(ctx, models.DefaultVisibilityFilter())
+// ListPlans 获取所有计划列表（需要提供作用域上下文）
+// 使用 PathOnlyFilter 进行过滤
+func (s *PlanService) ListPlans(ctx context.Context, scopeCtx *types.ScopeContext) ([]entity.Plan, error) {
+	filter := buildPathOnlyFilter("all", scopeCtx)
+	plans, err := s.planModel.FindByPathOnlyFilter(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -221,10 +218,10 @@ func (s *PlanService) ListPlans(ctx context.Context) ([]entity.Plan, error) {
 }
 
 // ListPlansByScope 根据作用域列出计划
-// 纯关联模式：使用 PathID 和 GroupPathIDs 进行查询
+// 使用 PathOnlyFilter 进行过滤（无 Global 支持）
 func (s *PlanService) ListPlansByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) ([]entity.Plan, error) {
-	filter := buildVisibilityFilter(scope, scopeCtx)
-	plans, err := s.planModel.FindByFilter(ctx, filter)
+	filter := buildPathOnlyFilter(scope, scopeCtx)
+	plans, err := s.planModel.FindByPathOnlyFilter(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -237,13 +234,14 @@ func (s *PlanService) ListPlansByScope(ctx context.Context, scope string, scopeC
 }
 
 // ListByStatus 根据状态获取计划列表
-func (s *PlanService) ListByStatus(ctx context.Context, status entity.PlanStatus) ([]entity.Plan, error) {
+func (s *PlanService) ListByStatus(ctx context.Context, status entity.PlanStatus, scopeCtx *types.ScopeContext) ([]entity.Plan, error) {
 	// 验证状态值是否有效
 	if !isValidPlanStatus(status) {
 		return nil, errors.New("无效的计划状态")
 	}
 
-	plans, err := s.planModel.FindByStatus(ctx, status)
+	filter := buildPathOnlyFilter("all", scopeCtx)
+	plans, err := s.planModel.FindByStatus(ctx, status, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -542,13 +540,13 @@ func isValidPlanStatus(status entity.PlanStatus) bool {
 }
 
 // ToPlanResponseDTO 将 Plan entity 转换为 ResponseDTO
-// 纯关联模式：使用 PathID 判断作用域
+// 使用 PathID 判断作用域（无 Global 支持）
 func ToPlanResponseDTO(plan *entity.Plan, scopeCtx *types.ScopeContext) *dto.PlanResponseDTO {
 	if plan == nil {
 		return nil
 	}
 
-	scope := types.GetScopeForDisplayWithGlobal(plan.Global, plan.PathID, scopeCtx)
+	scope := types.GetScopeForDisplayNoGlobal(plan.PathID, scopeCtx)
 
 	// 转换子任务
 	subTasks := make([]dto.SubTaskDTO, 0, len(plan.SubTasks))

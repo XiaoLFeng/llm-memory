@@ -77,7 +77,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := "记忆列表:\n"
 		for _, m := range memories {
-			scopeTag := getScopeTagWithContext(m.Global, m.PathID, bs.CurrentScope)
+			scopeTag := getScopeTagWithGlobal(m.Global, m.PathID, bs.CurrentScope)
 			result += fmt.Sprintf("- [%s] %s (分类: %s) %s\n", m.Code, m.Title, m.Category, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -106,7 +106,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		if err != nil {
 			return NewErrorResult(err.Error()), nil, nil
 		}
-		scopeTag := getScopeTagWithContext(memory.Global, memory.PathID, bs.CurrentScope)
+		scopeTag := getScopeTagWithGlobal(memory.Global, memory.PathID, bs.CurrentScope)
 		return NewTextResult(fmt.Sprintf("记忆创建成功! Code: %s, 标题: %s %s", memory.Code, memory.Title, scopeTag)), nil, nil
 	})
 
@@ -138,7 +138,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 		result := fmt.Sprintf("搜索结果 (%d 条):\n", len(memories))
 		for _, m := range memories {
-			scopeTag := getScopeTagWithContext(m.Global, m.PathID, bs.CurrentScope)
+			scopeTag := getScopeTagWithGlobal(m.Global, m.PathID, bs.CurrentScope)
 			result += fmt.Sprintf("- [%s] %s %s\n", m.Code, m.Title, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
@@ -160,7 +160,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 			tags = append(tags, t.Tag)
 		}
 
-		scopeTag := getScopeTagWithContext(memory.Global, memory.PathID, bs.CurrentScope)
+		scopeTag := getScopeTagWithGlobal(memory.Global, memory.PathID, bs.CurrentScope)
 		var sb strings.Builder
 		_, _ = fmt.Fprintf(&sb, "记忆详情:\n")
 		_, _ = fmt.Fprintf(&sb, "Code: %s\n", memory.Code)

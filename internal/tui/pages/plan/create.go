@@ -268,7 +268,6 @@ func (p *CreatePage) submit() tea.Cmd {
 		title := strings.TrimSpace(p.titleInput.Value())
 		description := strings.TrimSpace(p.descriptionArea.Value())
 		content := strings.TrimSpace(p.contentArea.Value())
-		global := p.scopeSelect.Value().(bool)
 
 		// 创建计划
 		input := &dto.PlanCreateDTO{
@@ -276,7 +275,6 @@ func (p *CreatePage) submit() tea.Cmd {
 			Title:       title,
 			Description: description,
 			Content:     content,
-			Global:      global,
 		}
 
 		_, err := p.bs.PlanService.CreatePlan(ctx, input, p.bs.CurrentScope)

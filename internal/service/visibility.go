@@ -15,8 +15,8 @@ func resolveDefaultPathID(scopeCtx *types.ScopeContext) int64 {
 	return 0
 }
 
-// buildVisibilityFilter 将 scope 字符串解析为统一的查询过滤器
-// 默认（空字符串）返回“全局 + 所有非全局”结果，避免遗漏数据
+// buildVisibilityFilter 将 scope 字符串解析为统一的查询过滤器（供 Memory 使用）
+// 默认（空字符串）返回"全局 + 所有非全局"结果，避免遗漏数据
 func buildVisibilityFilter(scope string, scopeCtx *types.ScopeContext) models.VisibilityFilter {
 	filter := models.DefaultVisibilityFilter()
 
@@ -54,6 +54,31 @@ func buildVisibilityFilter(scope string, scopeCtx *types.ScopeContext) models.Vi
 		// 未知 scope：只显示全局（安全优先）
 		filter.IncludeGlobal = true
 		filter.IncludeNonGlobal = false
+	}
+
+	return filter
+}
+
+// buildPathOnlyFilter 将 scope 字符串解析为路径过滤器（供 Todo/Plan 使用，无 Global 支持）
+// 嘿嘿~ Todo 和 Plan 不需要全局，只用路径过滤就够啦！＼(^o^)／
+func buildPathOnlyFilter(scope string, scopeCtx *types.ScopeContext) models.PathOnlyVisibilityFilter {
+	filter := models.DefaultPathOnlyFilter()
+
+	switch strings.ToLower(scope) {
+	case "personal":
+		pathID := resolveDefaultPathID(scopeCtx)
+		if pathID > 0 {
+			filter.PathIDs = []int64{pathID}
+		}
+	case "group":
+		if scopeCtx != nil && len(scopeCtx.GroupPathIDs) > 0 {
+			filter.PathIDs = scopeCtx.GroupPathIDs
+		}
+	case "all", "":
+		// 默认：当前路径 + 组路径（无全局）
+		if scopeCtx != nil {
+			filter.PathIDs = models.MergePathIDs(scopeCtx.PathID, scopeCtx.GroupPathIDs)
+		}
 	}
 
 	return filter

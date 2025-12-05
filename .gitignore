@@ -32,7 +32,6 @@ go.work.sum
 .vscode/
 
 # build
-llm-memory
 main
 
 # AI

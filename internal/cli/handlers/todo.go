@@ -60,7 +60,6 @@ func (h *TodoHandler) Create(ctx context.Context, code, title, description strin
 		Title:       title,
 		Description: description,
 		Priority:    priority,
-		Global:      global,
 	}
 
 	todo, err := h.bs.ToDoService.CreateToDo(ctx, createDTO, h.bs.CurrentScope)
@@ -99,6 +98,22 @@ func (h *TodoHandler) Delete(ctx context.Context, code string) error {
 	}
 
 	cli.PrintSuccess(fmt.Sprintf("待办 %s 已删除", code))
+	return nil
+}
+
+// Final 删除当前作用域的所有待办（清理功能）
+func (h *TodoHandler) Final(ctx context.Context) error {
+	deletedCount, err := h.bs.ToDoService.DeleteAllByScope(ctx, "all", h.bs.CurrentScope)
+	if err != nil {
+		return err
+	}
+
+	if deletedCount == 0 {
+		cli.PrintInfo("当前作用域内没有待办事项需要删除")
+		return nil
+	}
+
+	cli.PrintSuccess(fmt.Sprintf("已删除 %d 个待办事项", deletedCount))
 	return nil
 }
 

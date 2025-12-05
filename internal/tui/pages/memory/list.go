@@ -11,6 +11,7 @@ import (
 	"github.com/XiaoLFeng/llm-memory/internal/tui/theme"
 	"github.com/XiaoLFeng/llm-memory/internal/tui/utils"
 	"github.com/XiaoLFeng/llm-memory/startup"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -28,6 +29,7 @@ type (
 type typesMemory struct {
 	ID        int64
 	Title     string
+	Content   string // 记忆内容
 	Category  string
 	Priority  int
 	Global    bool
@@ -47,6 +49,7 @@ type ListPage struct {
 	cursor           int
 	showing          bool              // true 展示详情，false 展示列表
 	scopeFilter      utils.ScopeFilter // 作用域过滤状态
+	detailViewport   viewport.Model    // 详情页滚动视图
 	push             func(core.PageID) tea.Cmd
 	pushWithData     func(core.PageID, interface{}) tea.Cmd
 	confirmDelete    bool  // 是否在删除确认模式
@@ -55,14 +58,19 @@ type ListPage struct {
 }
 
 func NewListPage(bs *startup.Bootstrap, push func(core.PageID) tea.Cmd, pushWithData func(core.PageID, interface{}) tea.Cmd) *ListPage {
+	// 初始化 viewport（初始尺寸，后续动态调整）
+	vp := viewport.New(60, 10)
+	vp.Style = lipgloss.NewStyle()
+
 	return &ListPage{
-		bs:           bs,
-		frame:        layout.NewFrame(80, 24),
-		width:        80,
-		height:       24,
-		loading:      true,
-		push:         push,
-		pushWithData: pushWithData,
+		bs:             bs,
+		frame:          layout.NewFrame(80, 24),
+		width:          80,
+		height:         24,
+		loading:        true,
+		detailViewport: vp,
+		push:           push,
+		pushWithData:   pushWithData,
 	}
 }
 
@@ -83,6 +91,7 @@ func (p *ListPage) load() tea.Cmd {
 			items = append(items, typesMemory{
 				ID:        m.ID,
 				Title:     m.Title,
+				Content:   m.Content,
 				Category:  m.Category,
 				Priority:  m.Priority,
 				Global:    m.Global,
@@ -118,6 +127,35 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 			return p, nil
 		}
 
+		// 详情页模式：处理滚动
+		if p.showing {
+			switch v.String() {
+			case "esc", "q":
+				p.showing = false
+				return p, nil
+			case "up", "k":
+				p.detailViewport.LineUp(1)
+				return p, nil
+			case "down", "j":
+				p.detailViewport.LineDown(1)
+				return p, nil
+			case "pgup":
+				p.detailViewport.HalfViewUp()
+				return p, nil
+			case "pgdown":
+				p.detailViewport.HalfViewDown()
+				return p, nil
+			case "home":
+				p.detailViewport.GotoTop()
+				return p, nil
+			case "end":
+				p.detailViewport.GotoBottom()
+				return p, nil
+			}
+			return p, nil
+		}
+
+		// 列表模式
 		switch v.String() {
 		case "tab":
 			p.scopeFilter = p.scopeFilter.Next()
@@ -137,7 +175,13 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 				p.cursor++
 			}
 		case "enter":
-			p.showing = !p.showing
+			if len(p.items) > 0 {
+				p.showing = !p.showing
+				// 进入详情页时重置滚动位置
+				if p.showing {
+					p.detailViewport.GotoTop()
+				}
+			}
 		case "esc":
 			p.showing = false
 		case "c":
@@ -176,6 +220,14 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 		p.deleteProcessing = false
 		p.deleteTarget = 0
 		p.err = v.err
+	case tea.WindowSizeMsg:
+		// 动态调整 viewport 尺寸
+		if p.showing {
+			const headerHeight = 4 // 标题 + 空行
+			const footerHeight = 3 // 空行 + 操作提示
+			p.detailViewport.Width = v.Width - 4
+			p.detailViewport.Height = v.Height - headerHeight - footerHeight
+		}
 	}
 	return p, nil
 }
@@ -208,8 +260,39 @@ func (p *ListPage) View() string {
 		return components.EmptyState(titleWithScope, "暂无记忆，按 c 创建一条吧~", cardWidth)
 	default:
 		if p.showing {
-			body := p.renderDetail(cardWidth - 6)
-			return components.Card(theme.IconMemory+" 记忆详情", body, cardWidth)
+			// === 使用 viewport 渲染详情页 ===
+			// 动态计算并设置 viewport 尺寸
+			cw, ch := p.frame.ContentSize()
+			const headerHeight = 4 // 标题 + 空行
+			const footerHeight = 3 // 空行 + 操作提示
+
+			viewportWidth := cw - 4
+			viewportHeight := ch - headerHeight - footerHeight
+
+			p.detailViewport.Width = viewportWidth
+			p.detailViewport.Height = viewportHeight
+
+			// 生成详情内容并设置到 viewport
+			detailContent := p.renderDetail(p.detailViewport.Width)
+			p.detailViewport.SetContent(detailContent)
+
+			// 滚动进度指示器
+			scrollPercent := p.detailViewport.ScrollPercent() * 100
+			scrollInfo := fmt.Sprintf("%.0f%%", scrollPercent)
+			scrollHint := theme.TextDim.Render(fmt.Sprintf(
+				"滚动: %s | ↑/↓ j/k PgUp/PgDn Home/End | Esc 返回", scrollInfo))
+
+			// 组合视图
+			title := theme.Title.Render(theme.IconMemory + " 记忆详情")
+			viewportView := p.detailViewport.View()
+
+			return lipgloss.JoinVertical(lipgloss.Left,
+				title,
+				"",
+				viewportView,
+				"",
+				scrollHint,
+			)
 		}
 		body := p.renderList(cardWidth - 6)
 		return components.Card(titleWithScope, body, cardWidth)
@@ -224,7 +307,7 @@ func (p *ListPage) renderList(width int) string {
 	}
 	for i := 0; i < max; i++ {
 		m := p.items[i]
-		scope := utils.ScopeTag(m.Global, m.PathID, p.bs)
+		scope := utils.ScopeTagWithGlobal(m.Global, m.PathID, p.bs)
 		tagStr := ""
 		if len(m.Tags) > 0 {
 			tagStr = " #" + strings.Join(m.Tags, " #")
@@ -252,29 +335,64 @@ func (p *ListPage) renderDetail(width int) string {
 	if len(p.items) == 0 {
 		return "暂无数据"
 	}
+
 	m := p.items[p.cursor]
-	scope := utils.ScopeTag(m.Global, m.PathID, p.bs)
+	scope := utils.ScopeTagWithGlobal(m.Global, m.PathID, p.bs)
+
+	var lines []string
+
+	// === 区块 1：标题 ===
+	titleLine := theme.FormLabel.Bold(true).Render("标题: ") + theme.TextMain.Render(m.Title)
+	lines = append(lines, titleLine)
+	lines = append(lines, "")
+
+	// === 区块 2：元数据 ===
+	metaStyle := theme.TextDim
 	tagStr := "无"
 	if len(m.Tags) > 0 {
 		tagStr = strings.Join(m.Tags, ", ")
 	}
-	lines := []string{
-		fmt.Sprintf("标题: %s", m.Title),
-		fmt.Sprintf("分类: %s", m.Category),
-		fmt.Sprintf("优先级: P%d", m.Priority),
-		fmt.Sprintf("作用域: %s", scope),
-		fmt.Sprintf("标签: %s", tagStr),
-		fmt.Sprintf("创建时间: %s", m.CreatedAt.Format("2006-01-02 15:04:05")),
+	lines = append(lines, metaStyle.Render(fmt.Sprintf(
+		"分类: %s | 优先级: P%d | 作用域: %s",
+		m.Category, m.Priority, scope)))
+	lines = append(lines, metaStyle.Render(fmt.Sprintf(
+		"标签: %s", tagStr)))
+	lines = append(lines, metaStyle.Render(fmt.Sprintf(
+		"创建时间: %s", m.CreatedAt.Format("2006-01-02 15:04:05"))))
+
+	// === 分隔线 ===
+	lines = append(lines, "")
+	separatorLine := lipgloss.NewStyle().
+		Foreground(theme.Border).
+		Render(strings.Repeat("─", width))
+	lines = append(lines, separatorLine)
+
+	// === 区块 3：内容 ===
+	if m.Content != "" {
+		lines = append(lines, "")
+		contentLines := utils.RenderDetailSection("📄", "内容", m.Content, width)
+		lines = append(lines, contentLines...)
 	}
-	for i, l := range lines {
-		if utils.LipWidth(l) > width {
-			lines[i] = utils.Truncate(l, width)
-		}
-	}
+
 	return strings.Join(lines, "\n")
 }
 
 func (p *ListPage) Meta() core.Meta {
+	// 详情页模式
+	if p.showing {
+		return core.Meta{
+			Title:      "记忆详情",
+			Breadcrumb: "记忆管理 > 详情",
+			Keys: []components.KeyHint{
+				{Key: "↑/↓ j/k", Desc: "滚动"},
+				{Key: "PgUp/PgDn", Desc: "翻页"},
+				{Key: "Home/End", Desc: "首/尾"},
+				{Key: "Esc", Desc: "返回列表"},
+			},
+		}
+	}
+
+	// 列表模式
 	return core.Meta{
 		Title:      "记忆列表",
 		Breadcrumb: "记忆管理 > 列表",

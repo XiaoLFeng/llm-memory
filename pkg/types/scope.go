@@ -171,3 +171,15 @@ func GetScopeForDisplayWithGlobal(global bool, pathID int64, scopeCtx *ScopeCont
 	}
 	return GetScopeForDisplay(pathID, currentPathID, groupPathIDs)
 }
+
+// GetScopeForDisplayNoGlobal 仅基于 PathID 计算展示用作用域（供 Todo/Plan 使用）
+// 嘿嘿~ 不需要 Global 参数，只看路径就够啦！＼(^o^)／
+func GetScopeForDisplayNoGlobal(pathID int64, scopeCtx *ScopeContext) Scope {
+	currentPathID := int64(0)
+	groupPathIDs := []int64{}
+	if scopeCtx != nil {
+		currentPathID = scopeCtx.PathID
+		groupPathIDs = scopeCtx.GroupPathIDs
+	}
+	return GetScopeForDisplay(pathID, currentPathID, groupPathIDs)
+}
