@@ -455,6 +455,62 @@ func (s *ToDoService) BatchUpdateStatus(ctx context.Context, ids []int64, status
 	return s.todoModel.BatchUpdateStatus(ctx, ids, status)
 }
 
+// BatchUpdateProgress 批量更新待办事项进度（状态）
+// 用于批量 start/cancel 操作，接受 codes 列表和目标状态
+func (s *ToDoService) BatchUpdateProgress(ctx context.Context, input *dto.ToDoBatchProgressDTO) (*dto.ToDoBatchResultDTO, error) {
+	if len(input.Codes) == 0 {
+		return nil, errors.New("没有待更新的项目")
+	}
+	if len(input.Codes) > dto.MaxBatchSize {
+		return nil, errors.New("批量操作最多支持 100 条记录")
+	}
+
+	result := &dto.ToDoBatchResultDTO{
+		Total:  len(input.Codes),
+		Errors: make([]string, 0),
+	}
+
+	targetStatus := entity.ToDoStatus(input.Status)
+
+	for _, code := range input.Codes {
+		// 查找待办事项
+		todo, err := s.todoModel.FindByCode(ctx, code)
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, code+": 待办不存在")
+			continue
+		}
+
+		// 根据目标状态执行相应操作
+		var operationErr error
+		switch targetStatus {
+		case entity.ToDoStatusInProgress:
+			operationErr = s.todoModel.Start(ctx, todo.ID)
+		case entity.ToDoStatusCancelled:
+			operationErr = s.todoModel.Cancel(ctx, todo.ID)
+		case entity.ToDoStatusCompleted:
+			// 也可以支持批量完成
+			now := time.Now()
+			todo.Status = entity.ToDoStatusCompleted
+			todo.CompletedAt = &now
+			operationErr = s.todoModel.Update(ctx, todo)
+		default:
+			result.Failed++
+			result.Errors = append(result.Errors, code+": 不支持的状态")
+			continue
+		}
+
+		if operationErr != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, code+": "+operationErr.Error())
+		} else {
+			result.Succeeded++
+		}
+	}
+
+	return result, nil
+}
+
 // DeleteAllByScope 删除当前作用域内的所有待办事项（用于 todo_final）
 // 返回删除的记录数量
 func (s *ToDoService) DeleteAllByScope(ctx context.Context, scope string, scopeCtx *types.ScopeContext) (int64, error) {

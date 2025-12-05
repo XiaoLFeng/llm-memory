@@ -14,6 +14,7 @@ var (
 	planCode        string
 	planTitle       string
 	planDescription string
+	planContent     string
 	planGlobal      bool
 )
 
@@ -39,7 +40,7 @@ var planCreateCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewPlanHandler(bs)
-		if err := handler.Create(bs.Context(), planCode, planTitle, planDescription, planGlobal); err != nil {
+		if err := handler.Create(bs.Context(), planCode, planTitle, planDescription, planContent, planGlobal); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}
@@ -50,10 +51,12 @@ func init() {
 	planCreateCmd.Flags().StringVarP(&planCode, "code", "c", "", "计划标识码（必填）")
 	planCreateCmd.Flags().StringVarP(&planTitle, "title", "t", "", "计划标题（必填）")
 	planCreateCmd.Flags().StringVarP(&planDescription, "description", "d", "", "计划描述")
+	planCreateCmd.Flags().StringVar(&planContent, "content", "", "计划详细内容（Markdown格式，必填）")
 	planCreateCmd.Flags().BoolVar(&planGlobal, "global", false, "将计划保存为全局（默认当前路径/组内可见）")
 
 	_ = planCreateCmd.MarkFlagRequired("code")
 	_ = planCreateCmd.MarkFlagRequired("title")
+	_ = planCreateCmd.MarkFlagRequired("content")
 
 	planCmd.AddCommand(planCreateCmd)
 }

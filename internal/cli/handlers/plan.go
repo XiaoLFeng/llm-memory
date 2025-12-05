@@ -50,11 +50,12 @@ func (h *PlanHandler) List(ctx context.Context) error {
 }
 
 // Create 创建计划
-func (h *PlanHandler) Create(ctx context.Context, code, title, description string, global bool) error {
+func (h *PlanHandler) Create(ctx context.Context, code, title, description, content string, global bool) error {
 	createDTO := &dto.PlanCreateDTO{
 		Code:        code,
 		Title:       title,
 		Description: description,
+		Content:     content,
 	}
 	plan, err := h.bs.PlanService.CreatePlan(ctx, createDTO, h.bs.CurrentScope)
 	if err != nil {

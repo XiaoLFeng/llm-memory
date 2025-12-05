@@ -175,3 +175,151 @@ func getToDoStatusPriorityText(priority entity.ToDoPriority) string {
 		return "未知"
 	}
 }
+
+// BatchCreate 批量创建待办
+func (h *TodoHandler) BatchCreate(ctx context.Context, items []dto.ToDoCreateDTO) error {
+	if err := h.validateBatchItems(len(items)); err != nil {
+		return err
+	}
+
+	batchDTO := &dto.ToDoBatchCreateDTO{Items: items}
+	result, err := h.bs.ToDoService.BatchCreateToDos(ctx, batchDTO, h.bs.CurrentScope)
+	if err != nil {
+		return err
+	}
+
+	h.printBatchResult(result, "批量创建")
+	return nil
+}
+
+// BatchComplete 批量完成待办
+func (h *TodoHandler) BatchComplete(ctx context.Context, codes []string) error {
+	if err := h.validateBatchCodes(codes); err != nil {
+		return err
+	}
+
+	batchDTO := &dto.ToDoBatchCompleteDTO{Codes: codes}
+	result, err := h.bs.ToDoService.BatchCompleteToDos(ctx, batchDTO)
+	if err != nil {
+		return err
+	}
+
+	h.printBatchResult(result, "批量完成")
+	return nil
+}
+
+// BatchStart 批量开始待办
+func (h *TodoHandler) BatchStart(ctx context.Context, codes []string) error {
+	if err := h.validateBatchCodes(codes); err != nil {
+		return err
+	}
+
+	progressDTO := &dto.ToDoBatchProgressDTO{
+		Codes:  codes,
+		Status: int(entity.ToDoStatusInProgress),
+	}
+	result, err := h.bs.ToDoService.BatchUpdateProgress(ctx, progressDTO)
+	if err != nil {
+		return err
+	}
+
+	h.printBatchResult(result, "批量开始")
+	return nil
+}
+
+// BatchCancel 批量取消待办
+func (h *TodoHandler) BatchCancel(ctx context.Context, codes []string) error {
+	if err := h.validateBatchCodes(codes); err != nil {
+		return err
+	}
+
+	progressDTO := &dto.ToDoBatchProgressDTO{
+		Codes:  codes,
+		Status: int(entity.ToDoStatusCancelled),
+	}
+	result, err := h.bs.ToDoService.BatchUpdateProgress(ctx, progressDTO)
+	if err != nil {
+		return err
+	}
+
+	h.printBatchResult(result, "批量取消")
+	return nil
+}
+
+// BatchDelete 批量删除待办
+func (h *TodoHandler) BatchDelete(ctx context.Context, codes []string) error {
+	if err := h.validateBatchCodes(codes); err != nil {
+		return err
+	}
+
+	batchDTO := &dto.ToDoBatchDeleteDTO{Codes: codes}
+	result, err := h.bs.ToDoService.BatchDeleteToDos(ctx, batchDTO)
+	if err != nil {
+		return err
+	}
+
+	h.printBatchResult(result, "批量删除")
+	return nil
+}
+
+// BatchUpdate 批量更新待办
+func (h *TodoHandler) BatchUpdate(ctx context.Context, items []dto.ToDoUpdateDTO) error {
+	if err := h.validateBatchItems(len(items)); err != nil {
+		return err
+	}
+
+	batchDTO := &dto.ToDoBatchUpdateDTO{Items: items}
+	result, err := h.bs.ToDoService.BatchUpdateToDos(ctx, batchDTO)
+	if err != nil {
+		return err
+	}
+
+	h.printBatchResult(result, "批量更新")
+	return nil
+}
+
+// validateBatchCodes 验证批量 codes
+func (h *TodoHandler) validateBatchCodes(codes []string) error {
+	if len(codes) == 0 {
+		return fmt.Errorf("批量操作至少需要1个项目")
+	}
+	if len(codes) > 100 {
+		return fmt.Errorf("批量操作最多支持100个项目")
+	}
+	return nil
+}
+
+// validateBatchItems 验证批量项目数量
+func (h *TodoHandler) validateBatchItems(count int) error {
+	if count == 0 {
+		return fmt.Errorf("批量操作至少需要1个项目")
+	}
+	if count > 100 {
+		return fmt.Errorf("批量操作最多支持100个项目")
+	}
+	return nil
+}
+
+// printBatchResult 打印批量操作结果（混合模式）
+func (h *TodoHandler) printBatchResult(result *dto.ToDoBatchResultDTO, operation string) {
+	if result.Failed == 0 {
+		// 全部成功
+		cli.PrintSuccess(fmt.Sprintf("%s成功! 共处理 %d 个待办事项", operation, result.Succeeded))
+		return
+	}
+
+	if result.Succeeded == 0 {
+		// 全部失败
+		cli.PrintError(fmt.Sprintf("%s失败! 所有 %d 个待办事项都无法处理:", operation, result.Failed))
+		for _, errMsg := range result.Errors {
+			fmt.Printf("  • %s\n", errMsg)
+		}
+		return
+	}
+
+	// 部分成功
+	cli.PrintWarning(fmt.Sprintf("%s部分完成! 成功 %d 个，失败 %d 个:", operation, result.Succeeded, result.Failed))
+	for _, errMsg := range result.Errors {
+		fmt.Printf("  • %s\n", errMsg)
+	}
+}
