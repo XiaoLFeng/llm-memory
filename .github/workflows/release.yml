@@ -20,7 +20,6 @@ jobs:
           - goos: linux
             goarch: arm64
             runner: ubuntu-latest
-            cross_compile: true
           - goos: darwin
             goarch: arm64
             runner: macos-latest
@@ -46,14 +45,6 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
-      - name: Install cross-compilation tools (Linux)
-        if: matrix.runner == 'ubuntu-latest' && matrix.cross_compile
-        run: |
-          if [ "${{ matrix.goarch }}" = "arm64" ]; then
-            sudo apt-get update
-            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          fi
-
       - name: Build binary
         shell: bash
         env:
@@ -70,18 +61,8 @@ jobs:
           # 设置二进制文件名
           BINARY_NAME="llm-memory-${GOOS}-${GOARCH}${EXT}"
 
-          # 设置 CGO 和交叉编译环境
-          export CGO_ENABLED=1
-
-          # 根据平台设置交叉编译工具
-          if [ "$GOOS" = "linux" ] && [ "$GOARCH" = "arm64" ]; then
-            export CC=aarch64-linux-gnu-gcc
-            export CXX=aarch64-linux-gnu-g++
-          elif [ "$GOOS" = "freebsd" ]; then
-            # FreeBSD 交叉编译比较复杂，暂时禁用 CGO
-            export CGO_ENABLED=0
-            echo "⚠️  FreeBSD 构建禁用了 CGO（交叉编译限制）"
-          fi
+          # 纯 Go 编译（无需 CGO）
+          export CGO_ENABLED=0
 
           # 构建二进制
           go build \
