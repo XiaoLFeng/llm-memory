@@ -60,7 +60,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "memory_list",
 		Description: `列出可见记忆。scope参数说明（安全隔离）：
-  - personal: 仅当前路径的私有数据
+  - personal: 仅当前路径的项目数据
   - group: 仅当前小组的数据（需已加入小组）
   - global: 仅全局可见数据
   - all/省略: 全局 + 当前路径相关（默认，权限隔离）`,
@@ -86,7 +86,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// memory_create - 创建新记忆
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "memory_create",
-		Description: `创建记忆条目，适合长期事实、偏好、上下文片段。必填: title、content。可选: category、tags、global。global=true 存入全局；省略/false 存当前路径(私有，若在组内则组可见)。短任务请用 todo_create，需要进度跟踪的多步骤目标请用 plan_create。scope 参数仅用于列表筛选。`,
+		Description: `创建记忆条目，适合长期事实、偏好、上下文片段。必填: title、content。可选: category、tags、global。global=true 存入全局；省略/false 存当前路径(项目，若在组内则组可见)。短任务请用 todo_create，需要进度跟踪的多步骤目标请用 plan_create。scope 参数仅用于列表筛选。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryCreateInput) (*mcp.CallToolResult, any, error) {
 		// 构建创建 DTO
 		createDTO := &dto.MemoryCreateDTO{
@@ -124,7 +124,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// memory_search - 搜索记忆
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "memory_search",
-		Description: `搜索记忆（标题与内容模糊匹配 keyword）。scope: personal/group/global/all；默认不填=全部（全局+私有+小组）。`,
+		Description: `搜索记忆（标题与内容模糊匹配 keyword）。scope: personal/group/global/all；默认不填=全部（全局+项目+小组）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemorySearchInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
 		scopeCtx := buildScopeContext(input.Scope, bs)

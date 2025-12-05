@@ -10,7 +10,7 @@ import (
 type Memory struct {
 	ID         int64     `gorm:"primaryKey"`                                       // 雪花算法生成
 	Code       string    `gorm:"uniqueIndex;size:100;not null;comment:人类可读的唯一标识码"` // 外部查询标识，全局唯一
-	Global     bool      `gorm:"index;default:false;comment:是否全局可见"`               // true=全局，false=私有/小组
+	Global     bool      `gorm:"index;default:false;comment:是否全局可见"`               // true=全局，false=项目/小组
 	PathID     int64     `gorm:"index;default:0;comment:关联路径ID(0=无绑定/全局)"`         // 关联 Path.ID，0 表示未绑定
 	Title      string    `gorm:"index;size:255;not null;comment:标题"`
 	Content    string    `gorm:"type:text;not null;comment:内容"`

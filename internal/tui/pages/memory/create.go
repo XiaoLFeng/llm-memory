@@ -58,7 +58,7 @@ func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *Create
 			{Label: "4-紧急", Value: 4},
 		}),
 		selectGlobal: components.NewSelect("作用域", []components.SelectOption{
-			{Label: "私有", Value: false},
+			{Label: "项目", Value: false},
 			{Label: "全局", Value: true},
 		}),
 	}

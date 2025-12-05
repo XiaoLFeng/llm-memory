@@ -117,7 +117,7 @@ func (p *Page) buildHelpContent(width int) string {
 		"",
 		sectionStyle.Render("作用域说明"),
 		theme.TextDim.Render("  [全局] - 全局可见，所有路径都可访问"),
-		theme.TextDim.Render("  [私有] - 仅当前路径可见"),
+		theme.TextDim.Render("  [项目] - 仅当前路径可见"),
 		theme.TextDim.Render("  [小组] - 组内所有路径可见"),
 		"",
 		sectionStyle.Render("优先级说明"),

@@ -47,7 +47,7 @@ func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *Create
 	descriptionArea := components.NewTextArea("描述", "请输入计划描述（摘要）", true)
 	contentArea := components.NewTextArea("详细内容", "请输入详细的计划内容，支持 Markdown 格式", true)
 	scopeSelect := components.NewSelect("作用域", []components.SelectOption{
-		{Label: "私有/组内", Value: false},
+		{Label: "项目/组内", Value: false},
 		{Label: "全局可见", Value: true},
 	})
 

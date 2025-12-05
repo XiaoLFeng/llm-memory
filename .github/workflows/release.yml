@@ -1,0 +1,205 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          # Linux builds
+          - goos: linux
+            goarch: amd64
+            runner: ubuntu-latest
+          - goos: linux
+            goarch: arm64
+            runner: ubuntu-latest
+            cross_compile: true
+          # macOS builds
+          - goos: darwin
+            goarch: amd64
+            runner: macos-13
+          - goos: darwin
+            goarch: arm64
+            runner: macos-latest
+          # Windows builds
+          - goos: windows
+            goarch: amd64
+            runner: windows-latest
+          # FreeBSD build (cross-compile on Linux)
+          - goos: freebsd
+            goarch: amd64
+            runner: ubuntu-latest
+            cross_compile: true
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Extract version
+        id: version
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Install cross-compilation tools (Linux)
+        if: matrix.runner == 'ubuntu-latest' && matrix.cross_compile
+        run: |
+          if [ "${{ matrix.goarch }}" = "arm64" ]; then
+            sudo apt-get update
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          fi
+
+      - name: Build binary
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # 设置文件扩展名
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then
+            EXT=".exe"
+          fi
+
+          # 设置二进制文件名
+          BINARY_NAME="llm-memory-${GOOS}-${GOARCH}${EXT}"
+
+          # 设置 CGO 和交叉编译环境
+          export CGO_ENABLED=1
+
+          # 根据平台设置交叉编译工具
+          if [ "$GOOS" = "linux" ] && [ "$GOARCH" = "arm64" ]; then
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+          elif [ "$GOOS" = "freebsd" ]; then
+            # FreeBSD 交叉编译比较复杂，暂时禁用 CGO
+            export CGO_ENABLED=0
+            echo "⚠️  FreeBSD 构建禁用了 CGO（交叉编译限制）"
+          fi
+
+          # 构建二进制
+          go build \
+            -trimpath \
+            -ldflags="-X 'github.com/XiaoLFeng/llm-memory/cmd.Version=${VERSION}' -s -w" \
+            -o "$BINARY_NAME"
+
+          echo "Built: $BINARY_NAME"
+          ls -lh "$BINARY_NAME"
+
+      - name: Generate checksum
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          # 设置文件扩展名
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then
+            EXT=".exe"
+          fi
+
+          BINARY_NAME="llm-memory-${GOOS}-${GOARCH}${EXT}"
+
+          # 生成 SHA256 校验和
+          sha256sum "$BINARY_NAME" > "checksum-${GOOS}-${GOARCH}.txt"
+
+          echo "Checksum generated:"
+          cat "checksum-${GOOS}-${GOARCH}.txt"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: llm-memory-*
+          if-no-files-found: error
+
+      - name: Upload checksum artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksum-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: checksum-*.txt
+          if-no-files-found: error
+
+  checksum:
+    name: Generate checksums file
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all checksum artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: checksum-*
+          merge-multiple: true
+
+      - name: Merge checksums
+        run: |
+          # 合并所有校验和文件
+          cat checksum-*.txt | sort > checksums.txt
+
+          echo "=== checksums.txt content ==="
+          cat checksums.txt
+          echo "============================="
+
+      - name: Upload checksums artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: checksums.txt
+          if-no-files-found: error
+
+  upload:
+    name: Upload release assets
+    needs: [build, checksum]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code (for scripts)
+        uses: actions/checkout@v4
+
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: Download checksums
+        uses: actions/download-artifact@v4
+        with:
+          name: checksums
+
+      - name: List all files
+        run: |
+          echo "=== Files to upload ==="
+          ls -lh
+          echo "======================="
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            llm-memory-*
+            checksums.txt
+            scripts/install.sh
+            scripts/install.ps1
+            scripts/uninstall.sh
+            scripts/uninstall.ps1
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -40,7 +40,7 @@ func buildVisibilityFilter(scope string, scopeCtx *types.ScopeContext) models.Vi
 		}
 	case "all", "":
 		// 默认：全局 + 当前路径相关（使用 scopeCtx，安全优先）
-		// 嘿嘿~ 这样就不会泄露其他路径的私有数据啦！(´∀｀)b
+		// 嘿嘿~ 这样就不会泄露其他路径的项目数据啦！(´∀｀)b
 		filter.IncludeGlobal = true
 		filter.IncludeNonGlobal = true
 		if scopeCtx != nil {

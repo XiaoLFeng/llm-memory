@@ -13,11 +13,11 @@ func ScopeTag(pathID int64, bs *startup.Bootstrap) string {
 			}
 		}
 		if ctx.PathID == pathID {
-			return "[私有]"
+			return "[项目]"
 		}
 	}
 	if pathID > 0 {
-		return "[私有]"
+		return "[项目]"
 	}
 	return "[未知]"
 }
@@ -36,11 +36,11 @@ func ScopeTagWithGlobal(global bool, pathID int64, bs *startup.Bootstrap) string
 			}
 		}
 		if ctx.PathID == pathID {
-			return "[私有]"
+			return "[项目]"
 		}
 	}
 	if pathID > 0 {
-		return "[私有]"
+		return "[项目]"
 	}
 	return "[未知]"
 }
@@ -51,7 +51,7 @@ type ScopeFilter int
 
 const (
 	ScopeAll      ScopeFilter = iota // 全部（默认）
-	ScopePersonal                    // 仅私有
+	ScopePersonal                    // 仅项目
 	ScopeGroup                       // 仅小组
 )
 
@@ -71,7 +71,7 @@ func (s ScopeFilter) String() string {
 func (s ScopeFilter) Label() string {
 	switch s {
 	case ScopePersonal:
-		return "私有"
+		return "项目"
 	case ScopeGroup:
 		return "小组"
 	default:

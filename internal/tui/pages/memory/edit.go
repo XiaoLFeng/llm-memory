@@ -70,7 +70,7 @@ func NewEditPage(bs *startup.Bootstrap, memoryID int64, pop func(core.PageID) te
 			{Label: "4-紧急", Value: 4},
 		}),
 		selectGlobal: components.NewSelect("作用域", []components.SelectOption{
-			{Label: "私有", Value: false},
+			{Label: "项目", Value: false},
 			{Label: "全局", Value: true},
 		}),
 	}

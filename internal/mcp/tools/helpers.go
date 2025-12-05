@@ -38,11 +38,11 @@ func getScopeTagWithContext(pathID int64, scopeCtx *types.ScopeContext) string {
 			}
 		}
 		if scopeCtx.PathID == pathID {
-			return "[私有]"
+			return "[项目]"
 		}
 	}
-	// 缺省认为是私有
-	return "[私有]"
+	// 缺省认为是项目
+	return "[项目]"
 }
 
 // getScopeTagWithGlobal 根据 Global 标记和 PathID 返回中文作用域标签（供 Memory 使用）
@@ -52,7 +52,7 @@ func getScopeTagWithGlobal(global bool, pathID int64, scopeCtx *types.ScopeConte
 		return "[全局]"
 	}
 	if pathID == 0 {
-		return "[私有]"
+		return "[项目]"
 	}
 	if scopeCtx != nil {
 		for _, gid := range scopeCtx.GroupPathIDs {
@@ -61,9 +61,9 @@ func getScopeTagWithGlobal(global bool, pathID int64, scopeCtx *types.ScopeConte
 			}
 		}
 		if scopeCtx.PathID == pathID {
-			return "[私有]"
+			return "[项目]"
 		}
 	}
-	// 缺省认为是私有
-	return "[私有]"
+	// 缺省认为是项目
+	return "[项目]"
 }

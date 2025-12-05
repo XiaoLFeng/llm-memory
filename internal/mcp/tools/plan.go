@@ -46,7 +46,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "plan_list",
 		Description: `列出所有计划及进度状态。scope参数说明（安全隔离）：
-  - personal: 仅当前路径的私有数据
+  - personal: 仅当前路径的项目数据
   - group: 仅当前小组的数据（需已加入小组）
   - all/省略: 当前路径 + 小组数据（默认，权限隔离）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanListInput) (*mcp.CallToolResult, any, error) {

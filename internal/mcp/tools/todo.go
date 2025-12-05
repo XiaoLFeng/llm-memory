@@ -141,7 +141,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "todo_list",
 		Description: `列出所有待办及状态。scope参数说明（安全隔离）：
-  - personal: 仅当前路径的私有数据
+  - personal: 仅当前路径的项目数据
   - group: 仅当前小组的数据（需已加入小组）
   - all/省略: 当前路径 + 小组数据（默认，权限隔离）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoListInput) (*mcp.CallToolResult, any, error) {
@@ -410,7 +410,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		Name: "todo_final",
 		Description: `删除当前作用域内的所有待办事项。这是一个清理工具，会直接删除指定作用域内的所有待办（不可恢复）。
 删除逻辑：
-  - 未加入小组：删除当前路径的私有待办
+  - 未加入小组：删除当前路径的项目待办
   - 已加入小组：删除小组内所有路径的待办`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoFinalInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文

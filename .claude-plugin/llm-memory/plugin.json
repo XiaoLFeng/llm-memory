@@ -1,9 +1,0 @@
-{
-  "name": "llm-memory",
-  "version": "1.0.0",
-  "description": "智能工作流管理助手 - 提供计划、待办、记忆的完整管理方案，支持批量操作和作用域隔离",
-  "author": {
-    "name": "xiao_lfeng",
-    "email": "gm@x-lf.cn"
-  }
-}
