@@ -20,12 +20,6 @@ jobs:
           - goos: linux
             goarch: arm64
             runner: ubuntu-latest
-          - goos: darwin
-            goarch: arm64
-            runner: macos-latest
-          - goos: windows
-            goarch: amd64
-            runner: windows-latest
       fail-fast: false
 
     steps:
