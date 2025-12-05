@@ -14,7 +14,6 @@ jobs:
     strategy:
       matrix:
         include:
-          # Linux builds
           - goos: linux
             goarch: amd64
             runner: ubuntu-latest
@@ -22,14 +21,9 @@ jobs:
             goarch: arm64
             runner: ubuntu-latest
             cross_compile: true
-          # macOS builds
-          - goos: darwin
-            goarch: amd64
-            runner: macos-15-large
           - goos: darwin
             goarch: arm64
             runner: macos-latest
-          # Windows builds
           - goos: windows
             goarch: amd64
             runner: windows-latest
