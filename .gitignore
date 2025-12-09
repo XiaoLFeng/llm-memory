@@ -33,6 +33,7 @@ go.work.sum
 
 # build
 main
+llm-memory
 
 # AI
 CLAUDE.md

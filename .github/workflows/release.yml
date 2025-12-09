@@ -180,3 +180,119 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-homebrew:
+    name: Update Homebrew Formula
+    needs: upload
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          # 生成类名后缀（去掉点，如 0.0.4 → 004）
+          CLASS_SUFFIX=$(echo "$VERSION" | tr -d '.')
+          echo "class_suffix=$CLASS_SUFFIX" >> $GITHUB_OUTPUT
+          echo "Updating Homebrew Formula to version: $VERSION"
+
+      - name: Checkout homebrew-tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: XiaoLFeng/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Get old version
+        id: old_version
+        working-directory: homebrew-tap
+        run: |
+          OLD_VERSION=$(grep -oP 'version "\K[0-9]+\.[0-9]+\.[0-9]+' Formula/l/llm-memory.rb)
+          echo "old_version=$OLD_VERSION" >> $GITHUB_OUTPUT
+          OLD_CLASS_SUFFIX=$(echo "$OLD_VERSION" | tr -d '.')
+          echo "old_class_suffix=$OLD_CLASS_SUFFIX" >> $GITHUB_OUTPUT
+          echo "Current version in Formula: $OLD_VERSION"
+
+      - name: Create versioned Formula for old version
+        working-directory: homebrew-tap
+        env:
+          OLD_VERSION: ${{ steps.old_version.outputs.old_version }}
+          OLD_CLASS_SUFFIX: ${{ steps.old_version.outputs.old_class_suffix }}
+        run: |
+          VERSIONED_FILE="Formula/l/llm-memory@${OLD_VERSION}.rb"
+
+          if [ -f "$VERSIONED_FILE" ]; then
+            echo "Versioned Formula already exists: $VERSIONED_FILE"
+            exit 0
+          fi
+
+          echo "Creating versioned Formula: $VERSIONED_FILE"
+
+          # 复制主 Formula
+          cp Formula/l/llm-memory.rb "$VERSIONED_FILE"
+
+          # 修改文件头注释
+          sed -i "s/# Formula for llm-memory/# Formula for llm-memory@${OLD_VERSION}/" "$VERSIONED_FILE"
+          sed -i "s/LLM统一记忆系统$/LLM统一记忆系统（固定版本）/" "$VERSIONED_FILE"
+
+          # 修改类名: LlmMemory → LlmMemoryATXXX
+          sed -i "s/class LlmMemory < Formula/class LlmMemoryAT${OLD_CLASS_SUFFIX} < Formula/" "$VERSIONED_FILE"
+
+          # 修改 caveats 中的提示
+          sed -i "s/llm-memory 已成功安装/llm-memory@${OLD_VERSION} 已成功安装/" "$VERSIONED_FILE"
+
+          # 在 caveats 中添加固定版本警告（在 "快速开始" 前）
+          sed -i '/快速开始/i\      ⚠️  注意：这是一个固定版本的 Formula\n      - 此版本不会自动更新到更高版本\n      - 如需最新版本，请使用：brew install llm-memory\n' "$VERSIONED_FILE"
+
+          echo "Created versioned Formula: $VERSIONED_FILE"
+
+      - name: Update main Formula version
+        working-directory: homebrew-tap
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          FORMULA_FILE="Formula/l/llm-memory.rb"
+
+          echo "Updating version to: $VERSION"
+          sed -i 's/^  version "[0-9]*\.[0-9]*\.[0-9]*"/  version "'"$VERSION"'"/' "$FORMULA_FILE"
+
+          echo "Updated Formula version:"
+          grep "version" "$FORMULA_FILE"
+
+      - name: Commit and push changes
+        working-directory: homebrew-tap
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          OLD_VERSION: ${{ steps.old_version.outputs.old_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 检查是否有变更
+          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+            echo "No changes to commit (version might already be up to date)"
+            exit 0
+          fi
+
+          git add Formula/l/
+
+          # 判断是否创建了版本化 Formula
+          if [ -f "Formula/l/llm-memory@${OLD_VERSION}.rb" ] && git diff --cached --name-only | grep -q "llm-memory@"; then
+            git commit -m "chore(llm-memory): bump to v${VERSION}, archive v${OLD_VERSION}
+
+          - Update llm-memory.rb to version ${VERSION}
+          - Create llm-memory@${OLD_VERSION}.rb for version pinning
+
+          Automated update from llm-memory release workflow.
+          Release: https://github.com/XiaoLFeng/llm-memory/releases/tag/v${VERSION}"
+          else
+            git commit -m "chore(llm-memory): bump version to ${VERSION}
+
+          Automated update from llm-memory release workflow.
+          Release: https://github.com/XiaoLFeng/llm-memory/releases/tag/v${VERSION}"
+          fi
+
+          git push origin master
+          echo "✅ Successfully updated homebrew-tap!"
