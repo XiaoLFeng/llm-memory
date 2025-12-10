@@ -1,15 +1,15 @@
-# llm-memory å¸è½½è„šæœ¬ (Windows PowerShell)
-# è‡ªåŠ¨æ¸…ç†å·²å®‰è£…çš„äºŒè¿›åˆ¶æ–‡ä»¶å’Œé…ç½®æ•°æ®
+# llm-memory Ğ¶ÔØ½Å±¾ (Windows PowerShell)
+# ×Ô¶¯ÇåÀíÒÑ°²×°µÄ¶ş½øÖÆÎÄ¼şºÍÅäÖÃÊı¾İ
 #
-# ä½¿ç”¨æ–¹æ³•ï¼š
+# Ê¹ÓÃ·½·¨£º
 #   iwr -useb https://raw.githubusercontent.com/XiaoLFeng/llm-memory/master/scripts/uninstall.ps1 | iex
-#   æˆ–ä¸‹è½½åæ‰§è¡Œï¼š
+#   »òÏÂÔØºóÖ´ĞĞ£º
 #   .\uninstall.ps1
 
-# è®¾ç½®é”™è¯¯å¤„ç†
+# ÉèÖÃ´íÎó´¦Àí
 $ErrorActionPreference = "Stop"
 
-# æ‰“å°å‡½æ•°
+# ´òÓ¡º¯Êı
 function Write-Info {
     param([string]$Message)
     Write-Host $Message -ForegroundColor Cyan
@@ -30,7 +30,7 @@ function Write-Error {
     Write-Host $Message -ForegroundColor Red
 }
 
-# è¯¢é—®ç”¨æˆ·ç¡®è®¤
+# Ñ¯ÎÊÓÃ»§È·ÈÏ
 function Confirm-Action {
     param(
         [string]$Prompt,
@@ -49,7 +49,7 @@ function Confirm-Action {
     return $decision -eq 0
 }
 
-# è·å–æ–‡ä»¶å¤§å°ï¼ˆäººç±»å¯è¯»æ ¼å¼ï¼‰
+# »ñÈ¡ÎÄ¼ş´óĞ¡£¨ÈËÀà¿É¶Á¸ñÊ½£©
 function Get-HumanReadableSize {
     param([string]$Path)
 
@@ -67,145 +67,145 @@ function Get-HumanReadableSize {
             return "$size B"
         }
     } catch {
-        return "æœªçŸ¥"
+        return "Î´Öª"
     }
 }
 
-# ä¸»å‡½æ•°
+# Ö÷º¯Êı
 function Main {
-    Write-Info "[!] llm-memory å¸è½½è„šæœ¬"
+    Write-Info "[!] llm-memory Ğ¶ÔØ½Å±¾"
     Write-Info ""
 
-    # å®šä¹‰å®‰è£…ä½ç½®
+    # ¶¨Òå°²×°Î»ÖÃ
     $InstallDir = Join-Path $env:USERPROFILE ".local\bin"
     $BinaryPath = Join-Path $InstallDir "llm-memory.exe"
     $ConfigDir = Join-Path $env:USERPROFILE ".llm-memory"
 
-    # æ£€æŸ¥æ˜¯å¦å·²å®‰è£…
+    # ¼ì²éÊÇ·ñÒÑ°²×°
     if (-not (Test-Path $BinaryPath)) {
-        Write-Warning "[!] æœªæ‰¾åˆ°å·²å®‰è£…çš„ llm-memory"
-        Write-Info "    é¢„æœŸä½ç½®: $BinaryPath"
+        Write-Warning "[!] Î´ÕÒµ½ÒÑ°²×°µÄ llm-memory"
+        Write-Info "    Ô¤ÆÚÎ»ÖÃ: $BinaryPath"
 
-        # æ£€æŸ¥æ˜¯å¦åœ¨å…¶ä»–ä½ç½®
+        # ¼ì²éÊÇ·ñÔÚÆäËûÎ»ÖÃ
         $foundPath = Get-Command llm-memory -ErrorAction SilentlyContinue
         if ($foundPath) {
-            Write-Warning "    ä½†åœ¨ PATH ä¸­æ‰¾åˆ°: $($foundPath.Source)"
+            Write-Warning "    µ«ÔÚ PATH ÖĞÕÒµ½: $($foundPath.Source)"
             Write-Info ""
 
-            if (Confirm-Action "æ˜¯å¦åˆ é™¤è¯¥ä½ç½®çš„ llm-memoryï¼Ÿ" $false) {
+            if (Confirm-Action "ÊÇ·ñÉ¾³ı¸ÃÎ»ÖÃµÄ llm-memory£¿" $false) {
                 $BinaryPath = $foundPath.Source
             } else {
-                Write-Info "å–æ¶ˆå¸è½½"
+                Write-Info "È¡ÏûĞ¶ÔØ"
                 return
             }
         } else {
             Write-Info ""
-            Write-Info "llm-memory å¯èƒ½å·²ç»å¸è½½ï¼Œæˆ–å®‰è£…åœ¨å…¶ä»–ä½ç½®"
+            Write-Info "llm-memory ¿ÉÄÜÒÑ¾­Ğ¶ÔØ£¬»ò°²×°ÔÚÆäËûÎ»ÖÃ"
             return
         }
     }
 
-    Write-Info "[*] æ‰¾åˆ°å®‰è£…ä½ç½®ï¼š"
-    Write-Info "    äºŒè¿›åˆ¶æ–‡ä»¶: $BinaryPath"
+    Write-Info "[*] ÕÒµ½°²×°Î»ÖÃ£º"
+    Write-Info "    ¶ş½øÖÆÎÄ¼ş: $BinaryPath"
 
-    # æ£€æµ‹ç‰ˆæœ¬
+    # ¼ì²â°æ±¾
     if (Test-Path $BinaryPath) {
         try {
             $version = & $BinaryPath --version 2>$null
-            Write-Info "    å½“å‰ç‰ˆæœ¬: $version"
+            Write-Info "    µ±Ç°°æ±¾: $version"
         } catch {
-            Write-Info "    å½“å‰ç‰ˆæœ¬: æœªçŸ¥"
+            Write-Info "    µ±Ç°°æ±¾: Î´Öª"
         }
     }
 
-    # æ£€æŸ¥é…ç½®ç›®å½•
+    # ¼ì²éÅäÖÃÄ¿Â¼
     if (Test-Path $ConfigDir) {
-        Write-Info "    é…ç½®ç›®å½•: $ConfigDir"
+        Write-Info "    ÅäÖÃÄ¿Â¼: $ConfigDir"
         $configSize = Get-HumanReadableSize -Path $ConfigDir
-        Write-Info "    é…ç½®å¤§å°: $configSize"
+        Write-Info "    ÅäÖÃ´óĞ¡: $configSize"
     }
 
     Write-Info ""
 
-    # è¯¢é—®æ˜¯å¦ç»§ç»­
-    if (-not (Confirm-Action "ç¡®å®šè¦å¸è½½ llm-memory å—ï¼Ÿ" $false)) {
-        Write-Info "å–æ¶ˆå¸è½½"
+    # Ñ¯ÎÊÊÇ·ñ¼ÌĞø
+    if (-not (Confirm-Action "È·¶¨ÒªĞ¶ÔØ llm-memory Âğ£¿" $false)) {
+        Write-Info "È¡ÏûĞ¶ÔØ"
         return
     }
 
     Write-Info ""
 
-    # åˆ é™¤äºŒè¿›åˆ¶æ–‡ä»¶
-    Write-Info "[!] æ­£åœ¨åˆ é™¤äºŒè¿›åˆ¶æ–‡ä»¶..."
+    # É¾³ı¶ş½øÖÆÎÄ¼ş
+    Write-Info "[!] ÕıÔÚÉ¾³ı¶ş½øÖÆÎÄ¼ş..."
     try {
         Remove-Item -Path $BinaryPath -Force -ErrorAction Stop
-        Write-Success "[+] å·²åˆ é™¤: $BinaryPath"
+        Write-Success "[+] ÒÑÉ¾³ı: $BinaryPath"
     } catch {
-        Write-Error "[x] åˆ é™¤å¤±è´¥: $BinaryPath"
-        Write-Error "    é”™è¯¯ä¿¡æ¯: $_"
-        Write-Error "    ä½ å¯èƒ½éœ€è¦æ‰‹åŠ¨åˆ é™¤è¯¥æ–‡ä»¶"
+        Write-Error "[x] É¾³ıÊ§°Ü: $BinaryPath"
+        Write-Error "    ´íÎóĞÅÏ¢: $_"
+        Write-Error "    Äã¿ÉÄÜĞèÒªÊÖ¶¯É¾³ı¸ÃÎÄ¼ş"
     }
 
-    # è¯¢é—®æ˜¯å¦åˆ é™¤é…ç½®
+    # Ñ¯ÎÊÊÇ·ñÉ¾³ıÅäÖÃ
     if (Test-Path $ConfigDir) {
         Write-Info ""
-        Write-Warning "[!] æ³¨æ„ï¼šé…ç½®ç›®å½•åŒ…å«ç”¨æˆ·æ•°æ®ï¼ˆè®°å¿†ã€è®¡åˆ’ã€å¾…åŠï¼‰"
+        Write-Warning "[!] ×¢Òâ£ºÅäÖÃÄ¿Â¼°üº¬ÓÃ»§Êı¾İ£¨¼ÇÒä¡¢¼Æ»®¡¢´ı°ì£©"
 
-        if (Confirm-Action "æ˜¯å¦åŒæ—¶åˆ é™¤é…ç½®ç›®å½•åŠæ‰€æœ‰æ•°æ®ï¼Ÿ" $false) {
-            Write-Info "[!] æ­£åœ¨åˆ é™¤é…ç½®ç›®å½•..."
+        if (Confirm-Action "ÊÇ·ñÍ¬Ê±É¾³ıÅäÖÃÄ¿Â¼¼°ËùÓĞÊı¾İ£¿" $false) {
+            Write-Info "[!] ÕıÔÚÉ¾³ıÅäÖÃÄ¿Â¼..."
             try {
                 Remove-Item -Path $ConfigDir -Recurse -Force -ErrorAction Stop
-                Write-Success "[+] å·²åˆ é™¤: $ConfigDir"
+                Write-Success "[+] ÒÑÉ¾³ı: $ConfigDir"
             } catch {
-                Write-Error "[x] åˆ é™¤å¤±è´¥: $ConfigDir"
-                Write-Error "    é”™è¯¯ä¿¡æ¯: $_"
-                Write-Error "    ä½ å¯èƒ½éœ€è¦æ‰‹åŠ¨åˆ é™¤è¯¥ç›®å½•"
+                Write-Error "[x] É¾³ıÊ§°Ü: $ConfigDir"
+                Write-Error "    ´íÎóĞÅÏ¢: $_"
+                Write-Error "    Äã¿ÉÄÜĞèÒªÊÖ¶¯É¾³ı¸ÃÄ¿Â¼"
             }
         } else {
-            Write-Info "ä¿ç•™é…ç½®ç›®å½•: $ConfigDir"
-            Write-Info "å¦‚æœä»¥åéœ€è¦åˆ é™¤ï¼Œè¯·è¿è¡Œï¼š"
+            Write-Info "±£ÁôÅäÖÃÄ¿Â¼: $ConfigDir"
+            Write-Info "Èç¹ûÒÔºóĞèÒªÉ¾³ı£¬ÇëÔËĞĞ£º"
             Write-Host "  Remove-Item -Path '$ConfigDir' -Recurse -Force" -ForegroundColor Gray
         }
     }
 
     Write-Info ""
-    Write-Success "[+] llm-memory å¸è½½å®Œæˆï¼"
+    Write-Success "[+] llm-memory Ğ¶ÔØÍê³É£¡"
 
-    # æ£€æŸ¥æ˜¯å¦è¿˜åœ¨ PATH ä¸­
+    # ¼ì²éÊÇ·ñ»¹ÔÚ PATH ÖĞ
     $stillInPath = Get-Command llm-memory -ErrorAction SilentlyContinue
     if ($stillInPath) {
         Write-Info ""
-        Write-Warning "[!] æ³¨æ„ï¼šllm-memory ä»åœ¨ PATH ä¸­"
-        Write-Warning "    ä½ç½®: $($stillInPath.Source)"
-        Write-Warning "    è¿™å¯èƒ½æ˜¯å¦ä¸€ä¸ªå®‰è£…ä½ç½®ï¼Œè¯·æ‰‹åŠ¨å¤„ç†"
+        Write-Warning "[!] ×¢Òâ£ºllm-memory ÈÔÔÚ PATH ÖĞ"
+        Write-Warning "    Î»ÖÃ: $($stillInPath.Source)"
+        Write-Warning "    Õâ¿ÉÄÜÊÇÁíÒ»¸ö°²×°Î»ÖÃ£¬ÇëÊÖ¶¯´¦Àí"
     }
 
-    # è¯¢é—®æ˜¯å¦ä» PATH ä¸­ç§»é™¤å®‰è£…ç›®å½•
+    # Ñ¯ÎÊÊÇ·ñ´Ó PATH ÖĞÒÆ³ı°²×°Ä¿Â¼
     $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
     if ($UserPath -like "*$InstallDir*") {
         Write-Info ""
-        if (Confirm-Action "æ˜¯å¦ä» PATH ç¯å¢ƒå˜é‡ä¸­ç§»é™¤ $InstallDir ï¼Ÿ" $false) {
+        if (Confirm-Action "ÊÇ·ñ´Ó PATH »·¾³±äÁ¿ÖĞÒÆ³ı $InstallDir £¿" $false) {
             try {
                 $NewPath = $UserPath -replace [regex]::Escape(";$InstallDir"), ""
                 $NewPath = $NewPath -replace [regex]::Escape("$InstallDir;"), ""
                 $NewPath = $NewPath -replace [regex]::Escape($InstallDir), ""
 
                 [Environment]::SetEnvironmentVariable("Path", $NewPath, "User")
-                Write-Success "[+] å·²ä» PATH ä¸­ç§»é™¤"
-                Write-Info "    éœ€è¦é‡å¯ PowerShell æˆ–ç»ˆç«¯æ‰èƒ½ç”Ÿæ•ˆ"
+                Write-Success "[+] ÒÑ´Ó PATH ÖĞÒÆ³ı"
+                Write-Info "    ĞèÒªÖØÆô PowerShell »òÖÕ¶Ë²ÅÄÜÉúĞ§"
             } catch {
-                Write-Error "[x] ç§»é™¤å¤±è´¥: $_"
-                Write-Info "    ä½ å¯ä»¥æ‰‹åŠ¨åœ¨ 'ç¯å¢ƒå˜é‡' ä¸­ç§»é™¤"
+                Write-Error "[x] ÒÆ³ıÊ§°Ü: $_"
+                Write-Info "    Äã¿ÉÒÔÊÖ¶¯ÔÚ '»·¾³±äÁ¿' ÖĞÒÆ³ı"
             }
         }
     }
 
     Write-Info ""
-    Write-Info "æ„Ÿè°¢ä½¿ç”¨ llm-memoryï¼(^_^)/"
+    Write-Info "¸ĞĞ»Ê¹ÓÃ llm-memory£¡(^_^)/"
     Write-Info ""
-    Write-Info "å¦‚æœä½ æœ‰ä»»ä½•é—®é¢˜æˆ–å»ºè®®ï¼Œæ¬¢è¿åé¦ˆï¼š"
+    Write-Info "Èç¹ûÄãÓĞÈÎºÎÎÊÌâ»ò½¨Òé£¬»¶Ó­·´À¡£º"
     Write-Info "  https://github.com/XiaoLFeng/llm-memory/issues"
 }
 
-# æ‰§è¡Œä¸»å‡½æ•°
+# Ö´ĞĞÖ÷º¯Êı
 Main

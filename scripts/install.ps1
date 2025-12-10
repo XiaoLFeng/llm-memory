@@ -1,19 +1,19 @@
-# llm-memory å®‰è£…è„šæœ¬ (Windows PowerShell)
-# è‡ªåŠ¨æ£€æµ‹æ¶æ„ã€ä¸‹è½½ã€æ ¡éªŒå¹¶å®‰è£… llm-memory
+# llm-memory °²×°½Å±¾ (Windows PowerShell)
+# ×Ô¶¯¼ì²â¼Ü¹¹¡¢ÏÂÔØ¡¢Ğ£Ñé²¢°²×° llm-memory
 #
-# ä½¿ç”¨æ–¹æ³•ï¼š
+# Ê¹ÓÃ·½·¨£º
 #   iwr -useb https://raw.githubusercontent.com/XiaoLFeng/llm-memory/master/scripts/install.ps1 | iex
-#   æˆ–æŒ‡å®šç‰ˆæœ¬ï¼š
+#   »òÖ¸¶¨°æ±¾£º
 #   & ([scriptblock]::Create((iwr -useb https://raw.githubusercontent.com/XiaoLFeng/llm-memory/master/scripts/install.ps1))) -Version v0.0.2
 
 param(
     [string]$Version = "latest"
 )
 
-# è®¾ç½®é”™è¯¯å¤„ç†
+# ÉèÖÃ´íÎó´¦Àí
 $ErrorActionPreference = "Stop"
 
-# æ‰“å°å‡½æ•°
+# ´òÓ¡º¯Êı
 function Write-Info {
     param([string]$Message)
     Write-Host $Message -ForegroundColor Cyan
@@ -34,24 +34,24 @@ function Write-Error {
     Write-Host $Message -ForegroundColor Red
 }
 
-# æ£€æµ‹æ¶æ„
+# ¼ì²â¼Ü¹¹
 function Get-Architecture {
     $arch = $env:PROCESSOR_ARCHITECTURE
     switch ($arch) {
         "AMD64" { return "amd64" }
         "ARM64" {
-            Write-Warning "[!] Windows ARM64 æ¶æ„å¯èƒ½ä¸æ”¯æŒå®Œæ•´ SQLite åŠŸèƒ½ï¼ˆCGO é™åˆ¶ï¼‰"
+            Write-Warning "[!] Windows ARM64 ¼Ü¹¹¿ÉÄÜ²»Ö§³ÖÍêÕû SQLite ¹¦ÄÜ£¨CGO ÏŞÖÆ£©"
             return "arm64"
         }
         default {
-            Write-Error "[x] ä¸æ”¯æŒçš„æ¶æ„: $arch"
-            Write-Error "    æ”¯æŒçš„æ¶æ„: AMD64, ARM64"
+            Write-Error "[x] ²»Ö§³ÖµÄ¼Ü¹¹: $arch"
+            Write-Error "    Ö§³ÖµÄ¼Ü¹¹: AMD64, ARM64"
             exit 1
         }
     }
 }
 
-# ä¸‹è½½æ–‡ä»¶ï¼ˆå¸¦é‡è¯•ï¼‰
+# ÏÂÔØÎÄ¼ş£¨´øÖØÊÔ£©
 function Download-WithRetry {
     param(
         [string]$Url,
@@ -65,20 +65,20 @@ function Download-WithRetry {
             return $true
         } catch {
             if ($attempt -lt $MaxAttempts) {
-                Write-Warning "[!] ä¸‹è½½å¤±è´¥ï¼Œå°è¯• $attempt/$MaxAttemptsï¼Œç­‰3 ç§’åé‡è¯•..."
+                Write-Warning "[!] ÏÂÔØÊ§°Ü£¬³¢ÊÔ $attempt/$MaxAttempts£¬µÈ3 ÃëºóÖØÊÔ..."
                 Start-Sleep -Seconds 3
             }
         }
     }
 
-    Write-Error "[x] ä¸‹è½½å¤±è´¥ï¼Œå·²é‡è¯• $MaxAttempts æ¬¡"
+    Write-Error "[x] ÏÂÔØÊ§°Ü£¬ÒÑÖØÊÔ $MaxAttempts ´Î"
     Write-Error "    URL: $Url"
     return $false
 }
 
-# è·å–æœ€æ–°ç‰ˆæœ¬
+# »ñÈ¡×îĞÂ°æ±¾
 function Get-LatestVersion {
-    Write-Info "[*] æ­£åœ¨è·å–æœ€æ–°ç‰ˆæœ¬..."
+    Write-Info "[*] ÕıÔÚ»ñÈ¡×îĞÂ°æ±¾..."
 
     try {
         $releaseUrl = "https://api.github.com/repos/XiaoLFeng/llm-memory/releases/latest"
@@ -86,144 +86,144 @@ function Get-LatestVersion {
         $version = $release.tag_name -replace '^v', ''
 
         if ([string]::IsNullOrEmpty($version)) {
-            throw "æ— æ³•è§£æç‰ˆæœ¬å·"
+            throw "ÎŞ·¨½âÎö°æ±¾ºÅ"
         }
 
         return $version
     } catch {
-        Write-Error "[x] æ— æ³•è·å–æœ€æ–°ç‰ˆæœ¬"
+        Write-Error "[x] ÎŞ·¨»ñÈ¡×îĞÂ°æ±¾"
         Write-Error "    $_"
-        Write-Error "    è¯·æ£€æŸ¥ç½‘ç»œè¿æ¥æˆ–æ‰‹åŠ¨æŒ‡å®šç‰ˆæœ¬: install.ps1 -Version v0.0.2"
+        Write-Error "    Çë¼ì²éÍøÂçÁ¬½Ó»òÊÖ¶¯Ö¸¶¨°æ±¾: install.ps1 -Version v0.0.2"
         exit 1
     }
 }
 
-# ä¸»å‡½æ•°
+# Ö÷º¯Êı
 function Main {
-    Write-Info "[*] llm-memory å®‰è£…è„šæœ¬"
+    Write-Info "[*] llm-memory °²×°½Å±¾"
     Write-Info ""
 
-    # æ£€æµ‹æ¶æ„
+    # ¼ì²â¼Ü¹¹
     $Arch = Get-Architecture
-    Write-Success "[+] æ£€æµ‹åˆ°ç³»ç»Ÿ: windows-$Arch"
+    Write-Success "[+] ¼ì²âµ½ÏµÍ³: windows-$Arch"
 
-    # è·å–ç‰ˆæœ¬
+    # »ñÈ¡°æ±¾
     if ($Version -eq "latest") {
         $Version = Get-LatestVersion
     } else {
-        # å»æ‰å¯èƒ½çš„ v å‰ç¼€
+        # È¥µô¿ÉÄÜµÄ v Ç°×º
         $Version = $Version -replace '^v', ''
     }
-    Write-Success "[+] ç›®æ ‡ç‰ˆæœ¬: v$Version"
+    Write-Success "[+] Ä¿±ê°æ±¾: v$Version"
     Write-Info ""
 
-    # æ„å»ºä¸‹è½½ URL
+    # ¹¹½¨ÏÂÔØ URL
     $BinaryName = "llm-memory-windows-$Arch.exe"
     $DownloadUrl = "https://github.com/XiaoLFeng/llm-memory/releases/download/v$Version/$BinaryName"
     $ChecksumUrl = "https://github.com/XiaoLFeng/llm-memory/releases/download/v$Version/checksums.txt"
 
-    # åˆ›å»ºä¸´æ—¶ç›®å½•
+    # ´´½¨ÁÙÊ±Ä¿Â¼
     $TmpDir = [System.IO.Path]::GetTempPath() + [System.Guid]::NewGuid().ToString()
     New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
 
     try {
-        # ä¸‹è½½äºŒè¿›åˆ¶
-        Write-Info "[*] æ­£åœ¨ä¸‹è½½ llm-memory v$Version for windows-$Arch..."
+        # ÏÂÔØ¶ş½øÖÆ
+        Write-Info "[*] ÕıÔÚÏÂÔØ llm-memory v$Version for windows-$Arch..."
         $BinaryPath = Join-Path $TmpDir $BinaryName
 
         if (-not (Download-WithRetry -Url $DownloadUrl -OutputPath $BinaryPath)) {
-            Write-Error "    æç¤ºï¼šè¯·æ£€æŸ¥ç‰ˆæœ¬å·æ˜¯å¦æ­£ç¡®ï¼Œæˆ–è®¿é—® GitHub Release é¡µé¢æ‰‹åŠ¨ä¸‹è½½"
+            Write-Error "    ÌáÊ¾£ºÇë¼ì²é°æ±¾ºÅÊÇ·ñÕıÈ·£¬»ò·ÃÎÊ GitHub Release Ò³ÃæÊÖ¶¯ÏÂÔØ"
             Write-Error "    https://github.com/XiaoLFeng/llm-memory/releases"
             exit 1
         }
-        Write-Success "[+] ä¸‹è½½å®Œæˆ"
+        Write-Success "[+] ÏÂÔØÍê³É"
 
-        # ä¸‹è½½å¹¶éªŒè¯æ ¡éªŒå’Œ
-        Write-Info "[*] éªŒè¯æ–‡ä»¶å®Œæ•´æ€§..."
+        # ÏÂÔØ²¢ÑéÖ¤Ğ£ÑéºÍ
+        Write-Info "[*] ÑéÖ¤ÎÄ¼şÍêÕûĞÔ..."
         $ChecksumPath = Join-Path $TmpDir "checksums.txt"
 
         if (Download-WithRetry -Url $ChecksumUrl -OutputPath $ChecksumPath) {
             try {
-                # è¯»å–æœŸæœ›æ ¡éªŒå’Œ
+                # ¶ÁÈ¡ÆÚÍûĞ£ÑéºÍ
                 $ChecksumContent = Get-Content $ChecksumPath
                 $ExpectedLine = $ChecksumContent | Where-Object { $_ -match $BinaryName }
 
                 if ($ExpectedLine) {
                     $ExpectedChecksum = ($ExpectedLine -split '\s+')[0].ToLower()
 
-                    # è®¡ç®—å®é™…æ ¡éªŒå’Œ
+                    # ¼ÆËãÊµ¼ÊĞ£ÑéºÍ
                     $ActualChecksum = (Get-FileHash -Path $BinaryPath -Algorithm SHA256).Hash.ToLower()
 
                     if ($ExpectedChecksum -ne $ActualChecksum) {
-                        Write-Error "[x] æ–‡ä»¶æ ¡éªŒå¤±è´¥ï¼Œæ–‡ä»¶å¯èƒ½å·²æŸåæˆ–è¢«ç¯¡æ”¹"
-                        Write-Error "    æœŸæœ›: $ExpectedChecksum"
-                        Write-Error "    å®é™…: $ActualChecksum"
+                        Write-Error "[x] ÎÄ¼şĞ£ÑéÊ§°Ü£¬ÎÄ¼ş¿ÉÄÜÒÑËğ»µ»ò±»´Û¸Ä"
+                        Write-Error "    ÆÚÍû: $ExpectedChecksum"
+                        Write-Error "    Êµ¼Ê: $ActualChecksum"
                         exit 1
                     }
 
-                    Write-Success "[+] æ–‡ä»¶æ ¡éªŒé€šè¿‡"
+                    Write-Success "[+] ÎÄ¼şĞ£ÑéÍ¨¹ı"
                 } else {
-                    Write-Warning "[!] æœªæ‰¾åˆ°å¯¹åº”çš„æ ¡éªŒå’Œï¼Œè·³è¿‡æ ¡éªŒ"
+                    Write-Warning "[!] Î´ÕÒµ½¶ÔÓ¦µÄĞ£ÑéºÍ£¬Ìø¹ıĞ£Ñé"
                 }
             } catch {
-                Write-Warning "[!] æ ¡éªŒå’ŒéªŒè¯å¤±è´¥: $_"
-                Write-Warning "[!] è·³è¿‡æ ¡éªŒï¼Œç»§ç»­å®‰è£…"
+                Write-Warning "[!] Ğ£ÑéºÍÑéÖ¤Ê§°Ü: $_"
+                Write-Warning "[!] Ìø¹ıĞ£Ñé£¬¼ÌĞø°²×°"
             }
         } else {
-            Write-Warning "[!] æ— æ³•ä¸‹è½½æ ¡éªŒå’Œæ–‡ä»¶ï¼Œè·³è¿‡æ ¡éªŒ"
+            Write-Warning "[!] ÎŞ·¨ÏÂÔØĞ£ÑéºÍÎÄ¼ş£¬Ìø¹ıĞ£Ñé"
         }
 
-        # å®‰è£…äºŒè¿›åˆ¶
+        # °²×°¶ş½øÖÆ
         $InstallDir = Join-Path $env:USERPROFILE ".local\bin"
         if (-not (Test-Path $InstallDir)) {
             New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
         }
 
-        Write-Info "[*] æ­£åœ¨å®‰è£…åˆ° $InstallDir..."
+        Write-Info "[*] ÕıÔÚ°²×°µ½ $InstallDir..."
         $DestPath = Join-Path $InstallDir "llm-memory.exe"
         Copy-Item -Path $BinaryPath -Destination $DestPath -Force
-        Write-Success "[+] å®‰è£…æˆåŠŸï¼"
+        Write-Success "[+] °²×°³É¹¦£¡"
 
         Write-Info ""
 
-        # æ£€æŸ¥ PATH ç¯å¢ƒ
+        # ¼ì²é PATH »·¾³
         $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
         if ($UserPath -notlike "*$InstallDir*") {
-            Write-Warning "[!] æ³¨æ„ï¼š$InstallDir ä¸åœ¨ PATH ä¸­"
+            Write-Warning "[!] ×¢Òâ£º$InstallDir ²»ÔÚ PATH ÖĞ"
             Write-Info ""
-            Write-Info "ä½ å¯ä»¥é€šè¿‡ä»¥ä¸‹æ–¹å¼æ·»åŠ åˆ° PATHï¼š"
+            Write-Info "Äã¿ÉÒÔÍ¨¹ıÒÔÏÂ·½Ê½Ìí¼Óµ½ PATH£º"
             Write-Info ""
-            Write-Info "æ–¹å¼ 1ï¼šæ‰‹åŠ¨æ·»åŠ ï¼ˆæ¨èï¼‰" -ForegroundColor Cyan
-            Write-Info "  1. å³é”® 'æ­¤ç”µè„‘' -> 'å±æ€§' -> 'é«˜çº§ç³»ç»Ÿè®¾ç½®'"
-            Write-Info "  2. ç‚¹å‡» 'ç¯å¢ƒå˜é‡'"
-            Write-Info "  3. åœ¨ 'ç”¨æˆ·å˜é‡' ä¸­æ‰¾åˆ° 'Path'"
-            Write-Info "  4. ç‚¹å‡» 'ç¼–è¾‘'ï¼Œæ·»åŠ : $InstallDir"
+            Write-Info "·½Ê½ 1£ºÊÖ¶¯Ìí¼Ó£¨ÍÆ¼ö£©" -ForegroundColor Cyan
+            Write-Info "  1. ÓÒ¼ü '´ËµçÄÔ' -> 'ÊôĞÔ' -> '¸ß¼¶ÏµÍ³ÉèÖÃ'"
+            Write-Info "  2. µã»÷ '»·¾³±äÁ¿'"
+            Write-Info "  3. ÔÚ 'ÓÃ»§±äÁ¿' ÖĞÕÒµ½ 'Path'"
+            Write-Info "  4. µã»÷ '±à¼­'£¬Ìí¼Ó: $InstallDir"
             Write-Info ""
-            Write-Info "æ–¹å¼ 2ï¼šå‘½ä»¤è¡Œæ·»åŠ ï¼ˆéœ€è¦é‡å¯ PowerShell ç”Ÿæ•ˆï¼‰" -ForegroundColor Cyan
+            Write-Info "·½Ê½ 2£ºÃüÁîĞĞÌí¼Ó£¨ĞèÒªÖØÆô PowerShell ÉúĞ§£©" -ForegroundColor Cyan
             Write-Host "  " -NoNewline
             Write-Host "[Environment]::SetEnvironmentVariable('Path', `$env:Path + ';$InstallDir', 'User')" -ForegroundColor Gray
             Write-Info ""
-            Write-Info "æ–¹å¼ 3ï¼šä¸´æ—¶æ·»åŠ ï¼ˆä»…å½“å‰ä¼šè¯æœ‰æ•ˆï¼‰" -ForegroundColor Cyan
+            Write-Info "·½Ê½ 3£ºÁÙÊ±Ìí¼Ó£¨½öµ±Ç°»á»°ÓĞĞ§£©" -ForegroundColor Cyan
             Write-Host "  " -NoNewline
             Write-Host "`$env:Path += ';$InstallDir'" -ForegroundColor Gray
             Write-Info ""
         } else {
-            Write-Success "[+] å®‰è£…å®Œæˆï¼ç°åœ¨å¯ä»¥è¿è¡Œ: " -NoNewline
+            Write-Success "[+] °²×°Íê³É£¡ÏÖÔÚ¿ÉÒÔÔËĞĞ: " -NoNewline
             Write-Host "llm-memory --version" -ForegroundColor Cyan
             Write-Info ""
-            Write-Info "ä½¿ç”¨å¸®åŠ©ï¼š"
-            Write-Info "  llm-memory --help       # æŸ¥çœ‹å¸®åŠ©"
-            Write-Info "  llm-memory tui          # å¯åŠ¨ TUI ç•Œé¢"
-            Write-Info "  llm-memory mcp          # å¯åŠ¨ MCP æœåŠ¡"
+            Write-Info "Ê¹ÓÃ°ïÖú£º"
+            Write-Info "  llm-memory --help       # ²é¿´°ïÖú"
+            Write-Info "  llm-memory tui          # Æô¶¯ TUI ½çÃæ"
+            Write-Info "  llm-memory mcp          # Æô¶¯ MCP ·şÎñ"
         }
 
     } finally {
-        # æ¸…ç†ä¸´æ—¶æ–‡ä»¶
+        # ÇåÀíÁÙÊ±ÎÄ¼ş
         if (Test-Path $TmpDir) {
             Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }
 
-# æ‰§è¡Œä¸»å‡½æ•°
+# Ö´ĞĞÖ÷º¯Êı
 Main
