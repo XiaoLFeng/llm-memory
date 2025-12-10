@@ -8,7 +8,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/XiaoLFeng/llm-memory/internal/models/dto"
-	"github.com/XiaoLFeng/llm-memory/pkg/types"
 	"github.com/XiaoLFeng/llm-memory/startup"
 )
 
@@ -66,7 +65,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
   - all/省略: 全局 + 当前路径相关（默认，权限隔离）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemoryListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
-		scopeCtx := buildScopeContext(input.Scope, bs)
+		scopeCtx := getScopeContext(bs)
 
 		memories, err := bs.MemoryService.ListMemoriesByScope(ctx, input.Scope, scopeCtx)
 		if err != nil {
@@ -100,7 +99,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 
 		// 构建作用域上下文
-		scopeCtx := buildScopeContext(input.Scope, bs)
+		scopeCtx := getScopeContext(bs)
 
 		memory, err := bs.MemoryService.CreateMemory(ctx, createDTO, scopeCtx)
 		if err != nil {
@@ -127,7 +126,7 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 		Description: `搜索记忆（标题与内容模糊匹配 keyword）。scope: personal/group/global/all；默认不填=全部（全局+项目+小组）。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input MemorySearchInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
-		scopeCtx := buildScopeContext(input.Scope, bs)
+		scopeCtx := getScopeContext(bs)
 
 		memories, err := bs.MemoryService.SearchMemoriesByScope(ctx, input.Keyword, input.Scope, scopeCtx)
 		if err != nil {
@@ -215,14 +214,6 @@ func RegisterMemoryTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 		return NewTextResult(fmt.Sprintf("记忆 %s 更新成功", input.Code)), nil, nil
 	})
-}
-
-// buildScopeContext 根据 scope 构建 ScopeContext（保持简单：默认返回当前上下文）
-func buildScopeContext(_ string, bs *startup.Bootstrap) *types.ScopeContext {
-	if bs.CurrentScope == nil {
-		return types.NewScopeContext("")
-	}
-	return bs.CurrentScope
 }
 
 // tagsToStringSlice 将 MemoryTag 切片转换为字符串切片

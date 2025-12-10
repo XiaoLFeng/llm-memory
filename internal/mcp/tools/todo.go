@@ -146,7 +146,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
   - all/省略: 当前路径 + 小组数据（默认，权限隔离）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
-		scopeCtx := buildScopeContext(input.Scope, bs)
+		scopeCtx := getScopeContext(bs)
 
 		todos, err := bs.ToDoService.ListToDosByScope(ctx, input.Scope, scopeCtx)
 		if err != nil {
@@ -176,7 +176,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 
 		result := &TodoBatchOperationResult{}
-		scopeCtx := buildScopeContext(input.Scope, bs)
+		scopeCtx := getScopeContext(bs)
 
 		// 批量创建
 		for _, item := range input.Items {
@@ -414,7 +414,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
   - 已加入小组：删除小组内所有路径的待办`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoFinalInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
-		scopeCtx := buildScopeContext(input.Scope, bs)
+		scopeCtx := getScopeContext(bs)
 
 		// 删除所有待办
 		deletedCount, err := bs.ToDoService.DeleteAllByScope(ctx, input.Scope, scopeCtx)

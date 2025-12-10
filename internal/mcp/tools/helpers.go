@@ -1,9 +1,12 @@
 package tools
 
 import (
+	"context"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/XiaoLFeng/llm-memory/pkg/types"
+	"github.com/XiaoLFeng/llm-memory/startup"
 )
 
 // NewTextResult 创建文本结果
@@ -23,6 +26,23 @@ func NewErrorResult(errMsg string) *mcp.CallToolResult {
 			&mcp.TextContent{Text: errMsg},
 		},
 	}
+}
+
+// getScopeContext 动态获取当前作用域上下文
+// 每次调用时实时解析，确保 GroupPathIDs 是最新的
+func getScopeContext(bs *startup.Bootstrap) *types.ScopeContext {
+	ctx := context.Background()
+	scope, err := bs.GroupService.GetCurrentScope(ctx)
+	if err != nil {
+		// 降级到静态 CurrentScope
+		if bs.CurrentScope != nil {
+			return bs.CurrentScope
+		}
+		return types.NewScopeContext("")
+	}
+	// 更新缓存
+	bs.CurrentScope = scope
+	return scope
 }
 
 // getScopeTagWithContext 根据 PathID 和作用域上下文返回中文作用域标签

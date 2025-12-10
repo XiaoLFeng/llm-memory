@@ -51,7 +51,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
   - all/省略: 当前路径 + 小组数据（默认，权限隔离）`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input PlanListInput) (*mcp.CallToolResult, any, error) {
 		// 构建作用域上下文
-		scopeCtx := buildScopeContext(input.Scope, bs)
+		scopeCtx := getScopeContext(bs)
 
 		plans, err := bs.PlanService.ListPlansByScope(ctx, input.Scope, scopeCtx)
 		if err != nil {
@@ -83,7 +83,7 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		}
 
 		// 构建作用域上下文
-		scopeCtx := buildScopeContext(input.Scope, bs)
+		scopeCtx := getScopeContext(bs)
 
 		plan, err := bs.PlanService.CreatePlan(ctx, createDTO, scopeCtx)
 		if err != nil {
