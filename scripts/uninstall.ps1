@@ -1,15 +1,15 @@
-# llm-memory 卸载脚本 (Windows PowerShell)
-# 自动清理已安装的二进制文件和配置数据
+# llm-memory Uninstall Script (Windows PowerShell)
+# Automatically find and remove installed binary files and configuration
 #
-# 使用方法：
+# Usage:
 #   iwr -useb https://raw.githubusercontent.com/XiaoLFeng/llm-memory/master/scripts/uninstall.ps1 | iex
-#   或下载后执行：
+#   Or download and execute:
 #   .\uninstall.ps1
 
-# 设置错误处理
+# Set error handling
 $ErrorActionPreference = "Stop"
 
-# 打印函数
+# Print functions
 function Write-Info {
     param([string]$Message)
     Write-Host $Message -ForegroundColor Cyan
@@ -20,17 +20,17 @@ function Write-Success {
     Write-Host $Message -ForegroundColor Green
 }
 
-function Write-Warning {
+function Write-Warn {
     param([string]$Message)
     Write-Host $Message -ForegroundColor Yellow
 }
 
-function Write-Error {
+function Write-Err {
     param([string]$Message)
     Write-Host $Message -ForegroundColor Red
 }
 
-# 询问用户确认
+# Ask user for confirmation
 function Confirm-Action {
     param(
         [string]$Prompt,
@@ -49,7 +49,7 @@ function Confirm-Action {
     return $decision -eq 0
 }
 
-# 获取文件大小（人类可读格式）
+# Get file size in human-readable format
 function Get-HumanReadableSize {
     param([string]$Path)
 
@@ -67,145 +67,145 @@ function Get-HumanReadableSize {
             return "$size B"
         }
     } catch {
-        return "未知"
+        return "Unknown"
     }
 }
 
-# 主函数
+# Main function
 function Main {
-    Write-Info "[!] llm-memory 卸载脚本"
+    Write-Info "[!] llm-memory Uninstall Script"
     Write-Info ""
 
-    # 定义安装位置
+    # Define installation locations
     $InstallDir = Join-Path $env:USERPROFILE ".local\bin"
     $BinaryPath = Join-Path $InstallDir "llm-memory.exe"
     $ConfigDir = Join-Path $env:USERPROFILE ".llm-memory"
 
-    # 检查是否已安装
+    # Check if installed
     if (-not (Test-Path $BinaryPath)) {
-        Write-Warning "[!] 未找到已安装的 llm-memory"
-        Write-Info "    预期位置: $BinaryPath"
+        Write-Warn "[!] llm-memory installation not found"
+        Write-Info "    Expected location: $BinaryPath"
 
-        # 检查是否在其他位置
+        # Check if exists in other location
         $foundPath = Get-Command llm-memory -ErrorAction SilentlyContinue
         if ($foundPath) {
-            Write-Warning "    但在 PATH 中找到: $($foundPath.Source)"
+            Write-Warn "    Found in PATH: $($foundPath.Source)"
             Write-Info ""
 
-            if (Confirm-Action "是否删除该位置的 llm-memory？" $false) {
+            if (Confirm-Action "Do you want to remove llm-memory from this location?" $false) {
                 $BinaryPath = $foundPath.Source
             } else {
-                Write-Info "取消卸载"
+                Write-Info "Uninstall cancelled"
                 return
             }
         } else {
             Write-Info ""
-            Write-Info "llm-memory 可能已经卸载，或安装在其他位置"
+            Write-Info "llm-memory may already be uninstalled or installed in a different location"
             return
         }
     }
 
-    Write-Info "[*] 找到安装位置："
-    Write-Info "    二进制文件: $BinaryPath"
+    Write-Info "[*] Found installation:"
+    Write-Info "    Binary file: $BinaryPath"
 
-    # 检测版本
+    # Get version
     if (Test-Path $BinaryPath) {
         try {
             $version = & $BinaryPath --version 2>$null
-            Write-Info "    当前版本: $version"
+            Write-Info "    Current version: $version"
         } catch {
-            Write-Info "    当前版本: 未知"
+            Write-Info "    Current version: Unknown"
         }
     }
 
-    # 检查配置目录
+    # Check config directory
     if (Test-Path $ConfigDir) {
-        Write-Info "    配置目录: $ConfigDir"
+        Write-Info "    Config directory: $ConfigDir"
         $configSize = Get-HumanReadableSize -Path $ConfigDir
-        Write-Info "    配置大小: $configSize"
+        Write-Info "    Config size: $configSize"
     }
 
     Write-Info ""
 
-    # 询问是否继续
-    if (-not (Confirm-Action "确定要卸载 llm-memory 吗？" $false)) {
-        Write-Info "取消卸载"
+    # Ask for confirmation
+    if (-not (Confirm-Action "Are you sure you want to uninstall llm-memory?" $false)) {
+        Write-Info "Uninstall cancelled"
         return
     }
 
     Write-Info ""
 
-    # 删除二进制文件
-    Write-Info "[!] 正在删除二进制文件..."
+    # Remove binary file
+    Write-Info "[!] Removing binary file..."
     try {
         Remove-Item -Path $BinaryPath -Force -ErrorAction Stop
-        Write-Success "[+] 已删除: $BinaryPath"
+        Write-Success "[+] Removed: $BinaryPath"
     } catch {
-        Write-Error "[x] 删除失败: $BinaryPath"
-        Write-Error "    错误信息: $_"
-        Write-Error "    你可能需要手动删除该文件"
+        Write-Err "[x] Failed to remove: $BinaryPath"
+        Write-Err "    Error: $_"
+        Write-Err "    You may need to manually delete this file"
     }
 
-    # 询问是否删除配置
+    # Ask whether to remove config
     if (Test-Path $ConfigDir) {
         Write-Info ""
-        Write-Warning "[!] 注意：配置目录包含用户数据（记忆、计划、待办）"
+        Write-Warn "[!] Note: Config directory contains user data (memories, plans, todos)"
 
-        if (Confirm-Action "是否同时删除配置目录及所有数据？" $false) {
-            Write-Info "[!] 正在删除配置目录..."
+        if (Confirm-Action "Do you want to also remove the config directory and all data?" $false) {
+            Write-Info "[!] Removing config directory..."
             try {
                 Remove-Item -Path $ConfigDir -Recurse -Force -ErrorAction Stop
-                Write-Success "[+] 已删除: $ConfigDir"
+                Write-Success "[+] Removed: $ConfigDir"
             } catch {
-                Write-Error "[x] 删除失败: $ConfigDir"
-                Write-Error "    错误信息: $_"
-                Write-Error "    你可能需要手动删除该目录"
+                Write-Err "[x] Failed to remove: $ConfigDir"
+                Write-Err "    Error: $_"
+                Write-Err "    You may need to manually delete this directory"
             }
         } else {
-            Write-Info "保留配置目录: $ConfigDir"
-            Write-Info "如果以后需要删除，请运行："
+            Write-Info "Keeping config directory: $ConfigDir"
+            Write-Info "To remove it later, run:"
             Write-Host "  Remove-Item -Path '$ConfigDir' -Recurse -Force" -ForegroundColor Gray
         }
     }
 
     Write-Info ""
-    Write-Success "[+] llm-memory 卸载完成！"
+    Write-Success "[+] llm-memory uninstall complete!"
 
-    # 检查是否还在 PATH 中
+    # Check if still in PATH
     $stillInPath = Get-Command llm-memory -ErrorAction SilentlyContinue
     if ($stillInPath) {
         Write-Info ""
-        Write-Warning "[!] 注意：llm-memory 仍在 PATH 中"
-        Write-Warning "    位置: $($stillInPath.Source)"
-        Write-Warning "    这可能是另一个安装位置，请手动处理"
+        Write-Warn "[!] Note: llm-memory still found in PATH"
+        Write-Warn "    Location: $($stillInPath.Source)"
+        Write-Warn "    This may be another installation, please handle manually"
     }
 
-    # 询问是否从 PATH 中移除安装目录
+    # Ask whether to remove from PATH
     $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
     if ($UserPath -like "*$InstallDir*") {
         Write-Info ""
-        if (Confirm-Action "是否从 PATH 环境变量中移除 $InstallDir ？" $false) {
+        if (Confirm-Action "Do you want to remove $InstallDir from PATH environment variable?" $false) {
             try {
                 $NewPath = $UserPath -replace [regex]::Escape(";$InstallDir"), ""
                 $NewPath = $NewPath -replace [regex]::Escape("$InstallDir;"), ""
                 $NewPath = $NewPath -replace [regex]::Escape($InstallDir), ""
 
                 [Environment]::SetEnvironmentVariable("Path", $NewPath, "User")
-                Write-Success "[+] 已从 PATH 中移除"
-                Write-Info "    需要重启 PowerShell 或终端才能生效"
+                Write-Success "[+] Removed from PATH"
+                Write-Info "    Requires new PowerShell session to take effect"
             } catch {
-                Write-Error "[x] 移除失败: $_"
-                Write-Info "    你可以手动在 '环境变量' 中移除"
+                Write-Err "[x] Failed to remove from PATH: $_"
+                Write-Info "    You may need to manually remove it from 'Environment Variables'"
             }
         }
     }
 
     Write-Info ""
-    Write-Info "感谢使用 llm-memory！(^_^)/"
+    Write-Info "Thank you for using llm-memory! (^_^)/"
     Write-Info ""
-    Write-Info "如果你有任何问题或建议，欢迎反馈："
+    Write-Info "If you have any questions or suggestions, please visit:"
     Write-Info "  https://github.com/XiaoLFeng/llm-memory/issues"
 }
 
-# 执行主函数
+# Execute main function
 Main

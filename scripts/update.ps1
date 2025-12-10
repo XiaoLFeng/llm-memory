@@ -1,19 +1,19 @@
-# llm-memory 更新脚本 (Windows PowerShell)
-# 自动检测当前版本，下载、校验并更新 llm-memory
+# llm-memory Update Script (Windows PowerShell)
+# Automatically detect current version, download, verify and update llm-memory
 #
-# 使用方法：
+# Usage:
 #   iwr -useb https://raw.githubusercontent.com/XiaoLFeng/llm-memory/master/scripts/update.ps1 | iex
-#   或指定版本：
+#   To specify version:
 #   & ([scriptblock]::Create((iwr -useb https://raw.githubusercontent.com/XiaoLFeng/llm-memory/master/scripts/update.ps1))) -Version v0.0.3
 
 param(
     [string]$Version = "latest"
 )
 
-# 设置错误处理
+# Set error handling
 $ErrorActionPreference = "Stop"
 
-# 打印函数
+# Print functions
 function Write-Info {
     param([string]$Message)
     Write-Host $Message -ForegroundColor Cyan
@@ -34,21 +34,21 @@ function Write-Err {
     Write-Host $Message -ForegroundColor Red
 }
 
-# 检测架构
+# Detect architecture
 function Get-Architecture {
     $arch = $env:PROCESSOR_ARCHITECTURE
     switch ($arch) {
         "AMD64" { return "amd64" }
         "ARM64" { return "arm64" }
         default {
-            Write-Err "[x] 不支持的架构: $arch"
-            Write-Err "    支持的架构: AMD64, ARM64"
+            Write-Err "[x] Unsupported architecture: $arch"
+            Write-Err "    Supported architectures: AMD64, ARM64"
             exit 1
         }
     }
 }
 
-# 下载文件（带重试）
+# Download file with retry
 function Download-WithRetry {
     param(
         [string]$Url,
@@ -62,20 +62,20 @@ function Download-WithRetry {
             return $true
         } catch {
             if ($attempt -lt $MaxAttempts) {
-                Write-Warn "[!] 下载失败（尝试 $attempt/$MaxAttempts），3 秒后重试..."
+                Write-Warn "[!] Download failed, attempt $attempt/$MaxAttempts, retrying in 3 seconds..."
                 Start-Sleep -Seconds 3
             }
         }
     }
 
-    Write-Err "[x] 下载失败，已重试 $MaxAttempts 次"
+    Write-Err "[x] Download failed after $MaxAttempts attempts"
     Write-Err "    URL: $Url"
     return $false
 }
 
-# 获取最新版本
+# Get latest version
 function Get-LatestVersion {
-    Write-Info "[*] 正在获取最新版本..."
+    Write-Info "[*] Fetching latest version..."
 
     try {
         $releaseUrl = "https://api.github.com/repos/XiaoLFeng/llm-memory/releases/latest"
@@ -83,19 +83,19 @@ function Get-LatestVersion {
         $version = $release.tag_name -replace '^v', ''
 
         if ([string]::IsNullOrEmpty($version)) {
-            throw "无法解析版本号"
+            throw "Unable to parse version number"
         }
 
         return $version
     } catch {
-        Write-Err "[x] 无法获取最新版本"
+        Write-Err "[x] Unable to fetch latest version"
         Write-Err "    $_"
-        Write-Err "    请检查网络连接或手动指定版本: update.ps1 -Version v0.0.3"
+        Write-Err "    Please check your network connection or specify version manually: update.ps1 -Version v0.0.3"
         exit 1
     }
 }
 
-# 获取当前安装版本
+# Get current installed version
 function Get-CurrentVersion {
     param([string]$BinaryPath)
 
@@ -106,14 +106,14 @@ function Get-CurrentVersion {
                 return $Matches[1]
             }
         } catch {
-            # 忽略错误
+            # Ignore error
         }
     }
     return $null
 }
 
-# 比较版本号
-# 返回: 0=相等, 1=v1>v2, 2=v1<v2
+# Compare version numbers
+# Returns: 0=equal, 1=v1>v2, 2=v1<v2
 function Compare-Versions {
     param(
         [string]$v1,
@@ -143,177 +143,177 @@ function Compare-Versions {
     return 0
 }
 
-# 主函数
+# Main function
 function Main {
-    Write-Info "[*] llm-memory 更新脚本"
+    Write-Info "[*] llm-memory Update Script"
     Write-Info ""
 
-    # 检测架构
+    # Detect architecture
     $Arch = Get-Architecture
-    Write-Success "[+] 检测到系统: windows-$Arch"
+    Write-Success "[+] Detected system: windows-$Arch"
 
-    # 定义安装路径
+    # Define installation path
     $InstallDir = Join-Path $env:USERPROFILE ".local\bin"
     $BinaryPath = Join-Path $InstallDir "llm-memory.exe"
 
-    # 检查是否已安装
+    # Check if installed
     if (-not (Test-Path $BinaryPath)) {
-        # 尝试在 PATH 中查找
+        # Try to find in PATH
         $foundPath = Get-Command "llm-memory" -ErrorAction SilentlyContinue
         if ($foundPath) {
             $BinaryPath = $foundPath.Source
             $InstallDir = Split-Path $BinaryPath -Parent
         } else {
-            Write-Warn "[!] 未找到已安装的 llm-memory"
-            Write-Info "    请先使用 install.ps1 进行安装"
+            Write-Warn "[!] llm-memory installation not found"
+            Write-Info "    Please use install.ps1 to install first"
             Write-Info ""
-            Write-Info "    安装命令："
+            Write-Info "    Install command:"
             Write-Info "    iwr -useb https://raw.githubusercontent.com/XiaoLFeng/llm-memory/master/scripts/install.ps1 | iex"
             exit 1
         }
     }
 
-    # 获取当前版本
+    # Get current version
     $CurrentVersion = Get-CurrentVersion -BinaryPath $BinaryPath
     if ($CurrentVersion) {
-        Write-Success "[+] 当前版本: v$CurrentVersion"
+        Write-Success "[+] Current version: v$CurrentVersion"
     } else {
-        Write-Warn "[!] 无法获取当前版本"
+        Write-Warn "[!] Unable to get current version"
         $CurrentVersion = "0.0.0"
     }
 
-    # 获取目标版本
+    # Get target version
     $TargetVersion = $Version
     if ($TargetVersion -eq "latest") {
         $TargetVersion = Get-LatestVersion
     } else {
-        # 去掉可能的 v 前缀
+        # Remove possible v prefix
         $TargetVersion = $TargetVersion -replace '^v', ''
     }
-    Write-Success "[+] 最新版本: v$TargetVersion"
+    Write-Success "[+] Latest version: v$TargetVersion"
     Write-Info ""
 
-    # 比较版本
+    # Compare versions
     $VersionCmp = Compare-Versions -v1 $CurrentVersion -v2 $TargetVersion
 
     if ($VersionCmp -eq 0) {
-        Write-Success "[*] 已经是最新版本 v$CurrentVersion，无需更新"
+        Write-Success "[*] Already at latest version v$CurrentVersion, no update needed"
         exit 0
     } elseif ($VersionCmp -eq 1) {
-        Write-Warn "[!] 当前版本 v$CurrentVersion 比目标版本 v$TargetVersion 更新"
-        $response = Read-Host "是否要降级？[y/N]"
+        Write-Warn "[!] Current version v$CurrentVersion is newer than target version v$TargetVersion"
+        $response = Read-Host "Do you want to downgrade? [y/N]"
         if ($response -notmatch '^[yY]') {
-            Write-Info "取消更新"
+            Write-Info "Update cancelled"
             exit 0
         }
-        Write-Info "继续降级..."
+        Write-Info "Proceeding with downgrade..."
     }
 
-    # 设置下载 URL
+    # Build download URL
     $BinaryName = "llm-memory-windows-$Arch.exe"
     $DownloadUrl = "https://github.com/XiaoLFeng/llm-memory/releases/download/v$TargetVersion/$BinaryName"
     $ChecksumUrl = "https://github.com/XiaoLFeng/llm-memory/releases/download/v$TargetVersion/checksums.txt"
 
-    # 创建临时目录
+    # Create temp directory
     $TmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
     New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
 
     try {
-        # 下载二进制
-        Write-Info "[*] 正在下载 llm-memory v$TargetVersion for windows-$Arch..."
+        # Download binary
+        Write-Info "[*] Downloading llm-memory v$TargetVersion for windows-$Arch..."
         $TmpBinaryPath = Join-Path $TmpDir $BinaryName
 
         if (-not (Download-WithRetry -Url $DownloadUrl -OutputPath $TmpBinaryPath)) {
-            Write-Err "    提示：请检查版本号是否正确，或访问 GitHub Release 页面手动下载"
+            Write-Err "    Hint: Please verify the version is correct, or download manually from GitHub Releases"
             Write-Err "    https://github.com/XiaoLFeng/llm-memory/releases"
             exit 1
         }
-        Write-Success "[+] 下载完成"
+        Write-Success "[+] Download complete"
 
-        # 下载并验证校验和
-        Write-Info "[*] 验证文件完整性..."
+        # Download and verify checksum
+        Write-Info "[*] Verifying file integrity..."
         $ChecksumPath = Join-Path $TmpDir "checksums.txt"
 
         if (Download-WithRetry -Url $ChecksumUrl -OutputPath $ChecksumPath) {
             try {
-                # 读取校验和
+                # Get checksum
                 $ChecksumContent = Get-Content $ChecksumPath
                 $ExpectedLine = $ChecksumContent | Where-Object { $_ -match $BinaryName }
 
                 if ($ExpectedLine) {
                     $ExpectedChecksum = ($ExpectedLine -split '\s+')[0].ToLower()
 
-                    # 计算实际校验和
+                    # Calculate actual checksum
                     $ActualChecksum = (Get-FileHash -Path $TmpBinaryPath -Algorithm SHA256).Hash.ToLower()
 
                     if ($ExpectedChecksum -ne $ActualChecksum) {
-                        Write-Err "[x] 文件校验失败！文件可能已损坏或被篡改"
-                        Write-Err "    期望: $ExpectedChecksum"
-                        Write-Err "    实际: $ActualChecksum"
+                        Write-Err "[x] Checksum verification failed: file may be corrupted or tampered"
+                        Write-Err "    Expected: $ExpectedChecksum"
+                        Write-Err "    Actual:   $ActualChecksum"
                         exit 1
                     }
 
-                    Write-Success "[+] 文件校验通过"
+                    Write-Success "[+] Checksum verification passed"
                 } else {
-                    Write-Warn "[!] 未找到对应的校验和，跳过校验"
+                    Write-Warn "[!] Corresponding checksum not found, skipping verification"
                 }
             } catch {
-                Write-Warn "[!] 校验和验证失败: $_"
-                Write-Warn "[!] 跳过校验，继续更新"
+                Write-Warn "[!] Checksum verification failed: $_"
+                Write-Warn "[!] Skipping verification, proceeding with update"
             }
         } else {
-            Write-Warn "[!] 无法下载校验和文件，跳过校验"
+            Write-Warn "[!] Unable to download checksum file, skipping verification"
         }
 
-        # 备份旧版本
+        # Backup old version
         $BackupPath = $null
         if (Test-Path $BinaryPath) {
             $BackupPath = "$BinaryPath.backup"
-            Write-Info "[*] 备份旧版本到 $BackupPath..."
+            Write-Info "[*] Backing up old version to $BackupPath..."
             Copy-Item -Path $BinaryPath -Destination $BackupPath -Force
         }
 
-        # 安装新版本
-        Write-Info "[*] 正在更新到 $InstallDir..."
+        # Install new version
+        Write-Info "[*] Updating to $InstallDir..."
         Copy-Item -Path $TmpBinaryPath -Destination $BinaryPath -Force
 
-        # 验证安装
+        # Verify installation
         $NewVersion = Get-CurrentVersion -BinaryPath $BinaryPath
         if ($NewVersion -eq $TargetVersion) {
-            Write-Success "[+] 更新成功！"
+            Write-Success "[+] Update successful!"
 
-            # 删除备份
+            # Remove backup
             if ($BackupPath -and (Test-Path $BackupPath)) {
                 Remove-Item -Path $BackupPath -Force -ErrorAction SilentlyContinue
             }
         } else {
-            Write-Err "[x] 更新后版本验证失败"
-            Write-Err "    期望: v$TargetVersion"
-            Write-Err "    实际: v$NewVersion"
+            Write-Err "[x] Version verification failed after update"
+            Write-Err "    Expected: v$TargetVersion"
+            Write-Err "    Actual:   v$NewVersion"
 
-            # 恢复备份
+            # Restore backup
             if ($BackupPath -and (Test-Path $BackupPath)) {
-                Write-Info "[*] 正在恢复旧版本..."
+                Write-Info "[*] Restoring old version..."
                 Move-Item -Path $BackupPath -Destination $BinaryPath -Force
             }
             exit 1
         }
 
         Write-Info ""
-        Write-Success "[*] 更新完成！v$CurrentVersion -> v$TargetVersion"
+        Write-Success "[*] Update complete: v$CurrentVersion -> v$TargetVersion"
         Write-Info ""
-        Write-Info "使用帮助："
-        Write-Info "  llm-memory --help       # 查看帮助"
-        Write-Info "  llm-memory tui          # 启动 TUI 界面"
-        Write-Info "  llm-memory mcp          # 启动 MCP 服务"
+        Write-Info "Usage:"
+        Write-Info "  llm-memory --help       # View help"
+        Write-Info "  llm-memory tui          # Start TUI interface"
+        Write-Info "  llm-memory mcp          # Start MCP server"
 
     } finally {
-        # 清理临时文件
+        # Cleanup temp files
         if (Test-Path $TmpDir) {
             Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }
 
-# 执行主函数
+# Execute main function
 Main

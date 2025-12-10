@@ -144,6 +144,61 @@ func (h *TodoHandler) Get(ctx context.Context, code string) error {
 	return nil
 }
 
+// Update 更新待办
+func (h *TodoHandler) Update(ctx context.Context, code string, title, description *string, priority, status *int) error {
+	updateDTO := &dto.ToDoUpdateDTO{
+		Code:        code,
+		Title:       title,
+		Description: description,
+		Priority:    priority,
+		Status:      status,
+	}
+
+	if err := h.bs.ToDoService.UpdateToDo(ctx, updateDTO); err != nil {
+		return err
+	}
+
+	// 构建更新信息
+	var updated []string
+	if title != nil {
+		updated = append(updated, "标题")
+	}
+	if description != nil {
+		updated = append(updated, "描述")
+	}
+	if priority != nil {
+		updated = append(updated, fmt.Sprintf("优先级(%s)", getToDoStatusPriorityText(entity.ToDoPriority(*priority))))
+	}
+	if status != nil {
+		updated = append(updated, fmt.Sprintf("状态(%s)", getToDoStatusText(entity.ToDoStatus(*status))))
+	}
+
+	cli.PrintSuccess(fmt.Sprintf("待办 %s 更新成功！更新字段: %s", code, joinStringsSlice(updated, ", ")))
+	return nil
+}
+
+// Cancel 取消待办
+func (h *TodoHandler) Cancel(ctx context.Context, code string) error {
+	if err := h.bs.ToDoService.CancelToDo(ctx, code); err != nil {
+		return err
+	}
+
+	cli.PrintSuccess(fmt.Sprintf("待办 %s 已取消", code))
+	return nil
+}
+
+// joinStringsSlice 连接字符串切片
+func joinStringsSlice(strs []string, sep string) string {
+	if len(strs) == 0 {
+		return ""
+	}
+	result := strs[0]
+	for i := 1; i < len(strs); i++ {
+		result += sep + strs[i]
+	}
+	return result
+}
+
 // getToDoStatusText 获取待办状态文本
 func getToDoStatusText(status entity.ToDoStatus) string {
 	switch status {

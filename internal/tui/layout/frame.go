@@ -63,6 +63,7 @@ func renderBody(body string, width, height int) string {
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).
+		Background(theme.Base).
 		Padding(1, 1).
 		Render(body)
 }

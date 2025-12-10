@@ -138,3 +138,40 @@ func (h *MemoryHandler) Get(ctx context.Context, code string) error {
 
 	return nil
 }
+
+// Update 更新记忆
+func (h *MemoryHandler) Update(ctx context.Context, code string, title, content, category *string, tags *[]string, priority *int) error {
+	updateDTO := &dto.MemoryUpdateDTO{
+		Code:     code,
+		Title:    title,
+		Content:  content,
+		Category: category,
+		Tags:     tags,
+		Priority: priority,
+	}
+
+	if err := h.bs.MemoryService.UpdateMemory(ctx, updateDTO); err != nil {
+		return err
+	}
+
+	// 构建更新信息
+	var updated []string
+	if title != nil {
+		updated = append(updated, "标题")
+	}
+	if content != nil {
+		updated = append(updated, "内容")
+	}
+	if category != nil {
+		updated = append(updated, "分类")
+	}
+	if tags != nil {
+		updated = append(updated, "标签")
+	}
+	if priority != nil {
+		updated = append(updated, "优先级")
+	}
+
+	cli.PrintSuccess(fmt.Sprintf("记忆 %s 更新成功！更新字段: %s", code, strings.Join(updated, ", ")))
+	return nil
+}

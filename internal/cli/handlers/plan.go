@@ -132,6 +132,51 @@ func (h *PlanHandler) Get(ctx context.Context, code string) error {
 	return nil
 }
 
+// Update 更新计划
+func (h *PlanHandler) Update(ctx context.Context, code string, title, description, content *string, progress *int) error {
+	updateDTO := &dto.PlanUpdateDTO{
+		Code:        code,
+		Title:       title,
+		Description: description,
+		Content:     content,
+		Progress:    progress,
+	}
+
+	if err := h.bs.PlanService.UpdatePlan(ctx, updateDTO); err != nil {
+		return err
+	}
+
+	// 构建更新信息
+	var updated []string
+	if title != nil {
+		updated = append(updated, "标题")
+	}
+	if description != nil {
+		updated = append(updated, "描述")
+	}
+	if content != nil {
+		updated = append(updated, "内容")
+	}
+	if progress != nil {
+		updated = append(updated, fmt.Sprintf("进度(%d%%)", *progress))
+	}
+
+	cli.PrintSuccess(fmt.Sprintf("计划 %s 更新成功！更新字段: %s", code, joinStrings(updated, ", ")))
+	return nil
+}
+
+// joinStrings 连接字符串切片
+func joinStrings(strs []string, sep string) string {
+	if len(strs) == 0 {
+		return ""
+	}
+	result := strs[0]
+	for i := 1; i < len(strs); i++ {
+		result += sep + strs[i]
+	}
+	return result
+}
+
 // getPlanStatusText 获取计划状态文本
 func getPlanStatusText(status entity.PlanStatus) string {
 	switch status {

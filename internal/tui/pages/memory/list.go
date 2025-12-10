@@ -55,6 +55,7 @@ type ListPage struct {
 	confirmDelete    bool  // 是否在删除确认模式
 	deleteTarget     int64 // 要删除的 ID
 	deleteProcessing bool  // 是否正在处理删除
+	deleteYesActive  bool  // true=选中确认，false=选中取消
 }
 
 func NewListPage(bs *startup.Bootstrap, push func(core.PageID) tea.Cmd, pushWithData func(core.PageID, interface{}) tea.Cmd) *ListPage {
@@ -115,7 +116,10 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 		// 删除确认模式处理
 		if p.confirmDelete {
 			switch v.String() {
-			case "y", "Y", "enter":
+			case "left", "h", "right", "l":
+				p.deleteYesActive = !p.deleteYesActive
+				return p, nil
+			case "y", "Y":
 				p.confirmDelete = false
 				p.deleteProcessing = true
 				return p, p.doDelete()
@@ -123,6 +127,16 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 				p.confirmDelete = false
 				p.deleteTarget = 0
 				return p, nil
+			case "enter":
+				if p.deleteYesActive {
+					p.confirmDelete = false
+					p.deleteProcessing = true
+					return p, p.doDelete()
+				} else {
+					p.confirmDelete = false
+					p.deleteTarget = 0
+					return p, nil
+				}
 			}
 			return p, nil
 		}
@@ -195,6 +209,7 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 			if len(p.items) > 0 {
 				p.deleteTarget = p.items[p.cursor].ID
 				p.confirmDelete = true
+				p.deleteYesActive = false // 默认选中"取消"，更安全
 			}
 		case "?":
 			return p, p.push(core.PageHelp)
@@ -223,10 +238,10 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		// 动态调整 viewport 尺寸
 		if p.showing {
-			const headerHeight = 4 // 标题 + 空行
-			const footerHeight = 3 // 空行 + 操作提示
+			// 直接使用终端尺寸，减去详情视图自身的 header/footer
+			const detailOverhead = 4
 			p.detailViewport.Width = v.Width - 4
-			p.detailViewport.Height = v.Height - headerHeight - footerHeight
+			p.detailViewport.Height = v.Height - detailOverhead
 		}
 	}
 	return p, nil
@@ -244,7 +259,9 @@ func (p *ListPage) View() string {
 		if p.cursor < len(p.items) {
 			itemName = p.items[p.cursor].Title
 		}
-		return components.DeleteConfirmDialog(itemName, cardWidth)
+		return components.ConfirmDialogWithButtons("确认删除",
+			fmt.Sprintf("确定要删除「%s」吗？\n此操作不可撤销。", itemName),
+			cardWidth, p.deleteYesActive)
 	}
 
 	switch {
@@ -261,13 +278,12 @@ func (p *ListPage) View() string {
 	default:
 		if p.showing {
 			// === 使用 viewport 渲染详情页 ===
-			// 动态计算并设置 viewport 尺寸
-			cw, ch := p.frame.ContentSize()
-			const headerHeight = 4 // 标题 + 空行
-			const footerHeight = 3 // 空行 + 操作提示
+			// 直接使用终端尺寸，减去详情视图自身的 header/footer
+			// title(1) + 空行(1) + 空行(1) + scrollHint(1) = 4行
+			const detailOverhead = 4
 
-			viewportWidth := cw - 4
-			viewportHeight := ch - headerHeight - footerHeight
+			viewportWidth := p.width - 4
+			viewportHeight := p.height - detailOverhead
 
 			p.detailViewport.Width = viewportWidth
 			p.detailViewport.Height = viewportHeight

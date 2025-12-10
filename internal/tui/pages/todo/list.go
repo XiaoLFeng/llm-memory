@@ -42,6 +42,8 @@ type todoItem struct {
 type ListPage struct {
 	bs               *startup.Bootstrap
 	frame            *layout.Frame
+	width            int
+	height           int
 	loading          bool
 	err              error
 	items            []todoItem
@@ -68,6 +70,8 @@ func NewListPage(bs *startup.Bootstrap, push func(core.PageID) tea.Cmd, pushWith
 	return &ListPage{
 		bs:             bs,
 		frame:          layout.NewFrame(80, 24),
+		width:          80,
+		height:         24,
 		loading:        true,
 		detailViewport: vp,
 		push:           push,
@@ -102,7 +106,10 @@ func (p *ListPage) load() tea.Cmd {
 	}
 }
 
-func (p *ListPage) Resize(w, h int) { p.frame.Resize(w, h) }
+func (p *ListPage) Resize(w, h int) {
+	p.width, p.height = w, h
+	p.frame.Resize(w, h)
+}
 
 func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 	switch v := msg.(type) {
@@ -135,7 +142,10 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 		// 删除确认模式
 		if p.confirmDelete {
 			switch v.String() {
-			case "y", "Y", "enter":
+			case "left", "h", "right", "l":
+				p.deleteYesActive = !p.deleteYesActive
+				return p, nil
+			case "y", "Y":
 				p.confirmDelete = false
 				p.deleteProcessing = true
 				return p, p.doDelete()
@@ -143,6 +153,16 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 				p.confirmDelete = false
 				p.deleteTarget = 0
 				return p, nil
+			case "enter":
+				if p.deleteYesActive {
+					p.confirmDelete = false
+					p.deleteProcessing = true
+					return p, p.doDelete()
+				} else {
+					p.confirmDelete = false
+					p.deleteTarget = 0
+					return p, nil
+				}
 			}
 			return p, nil
 		}
@@ -263,10 +283,10 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		// 动态调整 viewport 尺寸
 		if p.showing {
-			const headerHeight = 4 // 标题 + 空行
-			const footerHeight = 3 // 空行 + 操作提示
+			// 直接使用终端尺寸，减去详情视图自身的 header/footer
+			const detailOverhead = 4
 			p.detailViewport.Width = v.Width - 4
-			p.detailViewport.Height = v.Height - headerHeight - footerHeight
+			p.detailViewport.Height = v.Height - detailOverhead
 		}
 	}
 	return p, nil
@@ -290,8 +310,9 @@ func (p *ListPage) View() string {
 	// 删除确认对话框
 	if p.confirmDelete && len(p.items) > 0 {
 		itemName := p.items[p.cursor].Title
-		dialog := components.DeleteConfirmDialog(itemName, cardW)
-		return dialog
+		return components.ConfirmDialogWithButtons("确认删除",
+			fmt.Sprintf("确定要删除「%s」吗？\n此操作不可撤销。", itemName),
+			cardW, p.deleteYesActive)
 	}
 
 	switch {
@@ -304,13 +325,12 @@ func (p *ListPage) View() string {
 	default:
 		if p.showing {
 			// === 使用 viewport 渲染详情页 ===
-			// 动态计算并设置 viewport 尺寸
-			cw, ch := p.frame.ContentSize()
-			const headerHeight = 4 // 标题 + 空行
-			const footerHeight = 3 // 空行 + 操作提示
+			// 直接使用终端尺寸，减去详情视图自身的 header/footer
+			// title(1) + 空行(1) + 空行(1) + scrollHint(1) = 4行
+			const detailOverhead = 4
 
-			viewportWidth := cw - 4
-			viewportHeight := ch - headerHeight - footerHeight
+			viewportWidth := p.width - 4
+			viewportHeight := p.height - detailOverhead
 
 			p.detailViewport.Width = viewportWidth
 			p.detailViewport.Height = viewportHeight
