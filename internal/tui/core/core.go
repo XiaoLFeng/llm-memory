@@ -12,7 +12,6 @@ const (
 	PageMenu   PageID = "menu"
 	PageMemory PageID = "memory"
 	PagePlan   PageID = "plan"
-	PageTodo   PageID = "todo"
 	PageGroup  PageID = "group"
 
 	// CRUD 页面

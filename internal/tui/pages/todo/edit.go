@@ -155,9 +155,9 @@ func (p *EditPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 		}
 
 	case editSuccessMsg:
-		// 更新成功，返回列表
+		// 更新成功，返回计划列表（Todo 现在是 Plan 的子项）
 		if p.pop != nil {
-			return p, p.pop(core.PageTodo)
+			return p, p.pop(core.PagePlan)
 		}
 	}
 
