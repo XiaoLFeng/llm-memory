@@ -30,10 +30,21 @@ func (m *PlanModel) Update(ctx context.Context, plan *entity.Plan) error {
 }
 
 // Delete 删除计划（硬删除）
+// 注意：关联的 Todo 会通过 GORM 的 CASCADE 约束自动删除
 func (m *PlanModel) Delete(ctx context.Context, id int64) error {
 	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 先删除关联的子任务
-		if err := tx.Where("plan_id = ?", id).Unscoped().Delete(&entity.SubTask{}).Error; err != nil {
+		// 先删除关联的 Todo 标签
+		var todoIDs []int64
+		if err := tx.Model(&entity.ToDo{}).Where("plan_id = ?", id).Pluck("id", &todoIDs).Error; err != nil {
+			return err
+		}
+		if len(todoIDs) > 0 {
+			if err := tx.Where("to_do_id IN ?", todoIDs).Delete(&entity.ToDoTag{}).Error; err != nil {
+				return err
+			}
+		}
+		// 删除关联的 Todo
+		if err := tx.Where("plan_id = ?", id).Unscoped().Delete(&entity.ToDo{}).Error; err != nil {
 			return err
 		}
 		// 硬删除计划本身
@@ -44,8 +55,8 @@ func (m *PlanModel) Delete(ctx context.Context, id int64) error {
 // FindByID 根据 ID 查找计划
 func (m *PlanModel) FindByID(ctx context.Context, id int64) (*entity.Plan, error) {
 	var plan entity.Plan
-	err := m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
-		return db.Order("sort_order ASC")
+	err := m.db.WithContext(ctx).Preload("Todos", func(db *gorm.DB) *gorm.DB {
+		return db.Preload("Tags").Order("sort_order ASC, priority DESC")
 	}).First(&plan, id).Error
 	if err != nil {
 		return nil, err
@@ -58,8 +69,8 @@ func (m *PlanModel) FindByID(ctx context.Context, id int64) (*entity.Plan, error
 func (m *PlanModel) FindByCode(ctx context.Context, code string) (*entity.Plan, error) {
 	var plan entity.Plan
 	err := m.db.WithContext(ctx).
-		Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
-			return db.Order("sort_order ASC")
+		Preload("Todos", func(db *gorm.DB) *gorm.DB {
+			return db.Preload("Tags").Order("sort_order ASC, priority DESC")
 		}).
 		Where("code = ?", code).
 		Where("status NOT IN ?", []entity.PlanStatus{entity.PlanStatusCompleted, entity.PlanStatusCancelled}).
@@ -99,8 +110,8 @@ func (m *PlanModel) FindAll(ctx context.Context, filter PathOnlyVisibilityFilter
 // FindByStatus 根据状态查找计划
 func (m *PlanModel) FindByStatus(ctx context.Context, status entity.PlanStatus, filter PathOnlyVisibilityFilter) ([]entity.Plan, error) {
 	var plans []entity.Plan
-	err := ApplyPathOnlyFilter(m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
-		return db.Order("sort_order ASC")
+	err := ApplyPathOnlyFilter(m.db.WithContext(ctx).Preload("Todos", func(db *gorm.DB) *gorm.DB {
+		return db.Preload("Tags").Order("sort_order ASC, priority DESC")
 	}), filter).Where("status = ?", status).Order("created_at DESC").Find(&plans).Error
 	return plans, err
 }
@@ -119,8 +130,8 @@ func (m *PlanModel) FindByScope(ctx context.Context, pathIDs []int64) ([]entity.
 // 默认排除已完成和已取消的计划
 func (m *PlanModel) FindByFilter(ctx context.Context, filter VisibilityFilter) ([]entity.Plan, error) {
 	var plans []entity.Plan
-	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
-		return db.Order("sort_order ASC")
+	err := applyVisibilityFilter(m.db.WithContext(ctx).Preload("Todos", func(db *gorm.DB) *gorm.DB {
+		return db.Preload("Tags").Order("sort_order ASC, priority DESC")
 	}), filter).
 		Where("status NOT IN ?", []entity.PlanStatus{entity.PlanStatusCompleted, entity.PlanStatusCancelled}).
 		Order("created_at DESC").
@@ -132,8 +143,8 @@ func (m *PlanModel) FindByFilter(ctx context.Context, filter VisibilityFilter) (
 // 默认排除已完成和已取消的计划（Plan 保持隐藏机制）
 func (m *PlanModel) FindByPathOnlyFilter(ctx context.Context, filter PathOnlyVisibilityFilter) ([]entity.Plan, error) {
 	var plans []entity.Plan
-	err := ApplyPathOnlyFilter(m.db.WithContext(ctx).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
-		return db.Order("sort_order ASC")
+	err := ApplyPathOnlyFilter(m.db.WithContext(ctx).Preload("Todos", func(db *gorm.DB) *gorm.DB {
+		return db.Preload("Tags").Order("sort_order ASC, priority DESC")
 	}), filter).
 		Where("status NOT IN ?", []entity.PlanStatus{entity.PlanStatusCompleted, entity.PlanStatusCancelled}).
 		Order("created_at DESC").
@@ -179,48 +190,6 @@ func (m *PlanModel) Cancel(ctx context.Context, id int64) error {
 	}
 	plan.Cancel()
 	return m.Update(ctx, plan)
-}
-
-// AddSubTask 添加子任务
-func (m *PlanModel) AddSubTask(ctx context.Context, planID int64, title, description string) (*entity.SubTask, error) {
-	// 获取当前最大排序值
-	var maxOrder int
-	m.db.WithContext(ctx).Model(&entity.SubTask{}).Where("plan_id = ?", planID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
-
-	subTask := &entity.SubTask{
-		ID:          database.GenerateID(),
-		PlanID:      planID,
-		Title:       title,
-		Description: description,
-		Status:      entity.PlanStatusPending,
-		Progress:    0,
-		SortOrder:   maxOrder + 1,
-	}
-
-	if err := m.db.WithContext(ctx).Create(subTask).Error; err != nil {
-		return nil, err
-	}
-	return subTask, nil
-}
-
-// UpdateSubTask 更新子任务
-func (m *PlanModel) UpdateSubTask(ctx context.Context, subTask *entity.SubTask) error {
-	return m.db.WithContext(ctx).Save(subTask).Error
-}
-
-// DeleteSubTask 删除子任务（硬删除）
-func (m *PlanModel) DeleteSubTask(ctx context.Context, subTaskID int64) error {
-	return m.db.WithContext(ctx).Unscoped().Delete(&entity.SubTask{}, subTaskID).Error
-}
-
-// GetSubTask 获取子任务
-func (m *PlanModel) GetSubTask(ctx context.Context, subTaskID int64) (*entity.SubTask, error) {
-	var subTask entity.SubTask
-	err := m.db.WithContext(ctx).First(&subTask, subTaskID).Error
-	if err != nil {
-		return nil, err
-	}
-	return &subTask, nil
 }
 
 // Count 获取计划总数

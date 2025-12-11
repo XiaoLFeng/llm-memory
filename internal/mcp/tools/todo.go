@@ -20,6 +20,7 @@ type TodoListInput struct {
 // TodoCreateItem 批量创建的待办项
 type TodoCreateItem struct {
 	Code        string `json:"code" jsonschema:"待办唯一标识码"`
+	PlanCode    string `json:"plan_code" jsonschema:"所属计划的标识码（必填）"`
 	Title       string `json:"title" jsonschema:"待办标题 简洁描述任务"`
 	Description string `json:"description,omitempty" jsonschema:"待办的详细描述"`
 	Priority    int    `json:"priority,omitempty" jsonschema:"优先级 1低2中3高4紧急 默认2"`
@@ -27,8 +28,7 @@ type TodoCreateItem struct {
 
 // TodoBatchCreateInput todo_batch_create 工具输入
 type TodoBatchCreateInput struct {
-	Items []TodoCreateItem `json:"items" jsonschema:"待办事项列表最多100个"`
-	Scope string           `json:"scope,omitempty" jsonschema:"查询筛选仍可用的作用域 personal/group/all"`
+	Items []TodoCreateItem `json:"items" jsonschema:"待办事项列表最多100个，每个待办必须指定plan_code"`
 }
 
 // TodoBatchOperationInput 批量操作输入（完成/取消/删除）
@@ -140,7 +140,8 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 	// todo_list - 列出所有待办
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "todo_list",
-		Description: `列出所有待办及状态。scope参数说明（安全隔离）：
+		Description: `列出所有待办及状态。每个 Todo 都归属于一个 Plan。
+scope参数说明（安全隔离）：
   - personal: 仅当前路径的项目数据
   - group: 仅当前小组的数据（需已加入小组）
   - all/省略: 当前路径 + 小组数据（默认，权限隔离）`,
@@ -160,15 +161,28 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 			status := getToDoStatusText(t.Status)
 			priority := getToDoPriorityText(t.Priority)
 			scopeTag := getScopeTagWithContext(t.PathID, bs.CurrentScope)
-			result += fmt.Sprintf("- [%s] %s (%s, %s) %s\n", t.Code, t.Title, status, priority, scopeTag)
+			// 获取 Plan Code
+			planCode, _ := bs.ToDoService.GetPlanCodeByTodoID(ctx, t.ID)
+			// 格式: title - description (如果有描述)
+			titlePart := t.Title
+			if t.Description != "" {
+				desc := t.Description
+				if len(desc) > 60 {
+					desc = desc[:57] + "..."
+				}
+				titlePart = t.Title + " - " + desc
+			}
+			result += fmt.Sprintf("- [%s] %s (计划:%s, %s, %s) %s\n", t.Code, titlePart, planCode, status, priority, scopeTag)
 		}
 		return NewTextResult(result), nil, nil
 	})
 
 	// todo_batch_create - 批量创建待办
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "todo_batch_create",
-		Description: `批量创建待办事项，提高AI处理效率。支持最多100个待办项的批量创建。返回混合模式结果：成功显示统计，失败显示详情。`,
+		Name: "todo_batch_create",
+		Description: `批量创建待办事项，提高AI处理效率。支持最多100个待办项的批量创建。
+重要：每个待办必须指定 plan_code（所属计划的标识码），Todo 必须归属于一个 Plan。
+返回混合模式结果：成功显示统计，失败显示详情。`,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input TodoBatchCreateInput) (*mcp.CallToolResult, any, error) {
 		// 验证批量大小
 		if err := validateBatchSize(len(input.Items)); err != nil {
@@ -180,6 +194,16 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 		// 批量创建
 		for _, item := range input.Items {
+			// 验证 plan_code 必填
+			if strings.TrimSpace(item.PlanCode) == "" {
+				result.FailCount++
+				result.Failures = append(result.Failures, TodoBatchFailure{
+					Code:  item.Code,
+					Error: "plan_code 是必填项，Todo 必须归属于一个 Plan",
+				})
+				continue
+			}
+
 			// 默认优先级
 			priority := item.Priority
 			if priority == 0 {
@@ -188,6 +212,7 @@ func RegisterTodoTools(server *mcp.Server, bs *startup.Bootstrap) {
 
 			createDTO := &dto.ToDoCreateDTO{
 				Code:        item.Code,
+				PlanCode:    item.PlanCode,
 				Title:       item.Title,
 				Description: item.Description,
 				Priority:    priority,

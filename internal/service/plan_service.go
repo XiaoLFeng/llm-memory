@@ -460,67 +460,6 @@ func (s *PlanService) UpdateProgressByID(ctx context.Context, id int64, progress
 	return s.planModel.Update(ctx, plan)
 }
 
-// AddSubTask 添加子任务
-func (s *PlanService) AddSubTask(ctx context.Context, planID int64, title, description string) (*entity.SubTask, error) {
-	if planID == 0 {
-		return nil, errors.New("无效的计划ID")
-	}
-	if strings.TrimSpace(title) == "" {
-		return nil, errors.New("子任务标题不能为空")
-	}
-
-	// 验证计划存在
-	_, err := s.planModel.FindByID(ctx, planID)
-	if err != nil {
-		return nil, errors.New("计划不存在")
-	}
-
-	return s.planModel.AddSubTask(ctx, planID, strings.TrimSpace(title), strings.TrimSpace(description))
-}
-
-// UpdateSubTask 更新子任务
-func (s *PlanService) UpdateSubTask(ctx context.Context, input *dto.SubTaskUpdateDTO) error {
-	if input.ID == 0 {
-		return errors.New("无效的子任务ID")
-	}
-
-	subTask, err := s.planModel.GetSubTask(ctx, input.ID)
-	if err != nil {
-		return errors.New("子任务不存在")
-	}
-
-	if input.Title != nil {
-		title := strings.TrimSpace(*input.Title)
-		if title == "" {
-			return errors.New("子任务标题不能为空")
-		}
-		subTask.Title = title
-	}
-	if input.Description != nil {
-		subTask.Description = strings.TrimSpace(*input.Description)
-	}
-	if input.Status != nil {
-		subTask.Status = entity.PlanStatus(*input.Status)
-	}
-	if input.Progress != nil {
-		progress := *input.Progress
-		if progress < 0 || progress > 100 {
-			return errors.New("进度值必须在0-100之间")
-		}
-		subTask.Progress = progress
-	}
-
-	return s.planModel.UpdateSubTask(ctx, subTask)
-}
-
-// DeleteSubTask 删除子任务
-func (s *PlanService) DeleteSubTask(ctx context.Context, subTaskID int64) error {
-	if subTaskID == 0 {
-		return errors.New("无效的子任务ID")
-	}
-	return s.planModel.DeleteSubTask(ctx, subTaskID)
-}
-
 // isValidPlanStatus 验证计划状态是否有效
 func isValidPlanStatus(status entity.PlanStatus) bool {
 	validStatuses := []entity.PlanStatus{
@@ -548,19 +487,36 @@ func ToPlanResponseDTO(plan *entity.Plan, scopeCtx *types.ScopeContext) *dto.Pla
 
 	scope := types.GetScopeForDisplayNoGlobal(plan.PathID, scopeCtx)
 
-	// 转换子任务
-	subTasks := make([]dto.SubTaskDTO, 0, len(plan.SubTasks))
-	for _, st := range plan.SubTasks {
-		subTasks = append(subTasks, dto.SubTaskDTO{
-			ID:          st.ID,
-			Title:       st.Title,
-			Description: st.Description,
-			Status:      string(st.Status),
-			Progress:    st.Progress,
-			SortOrder:   st.SortOrder,
-			CreatedAt:   st.CreatedAt,
-			UpdatedAt:   st.UpdatedAt,
+	// 转换关联的 Todos
+	todos := make([]dto.ToDoListDTO, 0, len(plan.Todos))
+	for _, t := range plan.Todos {
+		todos = append(todos, dto.ToDoListDTO{
+			ID:          t.ID,
+			Code:        t.Code,
+			PlanCode:    plan.Code,
+			Title:       t.Title,
+			Priority:    int(t.Priority),
+			PriorityStr: t.Priority.String(),
+			Status:      int(t.Status),
+			StatusStr:   t.Status.String(),
+			DueDate:     t.DueDate,
+			IsOverdue:   t.IsOverdue(),
 		})
+	}
+
+	// 计算状态显示文本
+	var statusStr string
+	switch plan.Status {
+	case entity.PlanStatusPending:
+		statusStr = "待开始"
+	case entity.PlanStatusInProgress:
+		statusStr = "进行中"
+	case entity.PlanStatusCompleted:
+		statusStr = "已完成"
+	case entity.PlanStatusCancelled:
+		statusStr = "已取消"
+	default:
+		statusStr = "未知"
 	}
 
 	return &dto.PlanResponseDTO{
@@ -570,8 +526,9 @@ func ToPlanResponseDTO(plan *entity.Plan, scopeCtx *types.ScopeContext) *dto.Pla
 		Description: plan.Description,
 		Content:     plan.Content,
 		Status:      string(plan.Status),
+		StatusStr:   statusStr,
 		Progress:    plan.Progress,
-		SubTasks:    subTasks,
+		Todos:       todos,
 		Scope:       string(scope),
 		CreatedAt:   plan.CreatedAt,
 		UpdatedAt:   plan.UpdatedAt,
@@ -591,5 +548,6 @@ func ToPlanListDTO(plan *entity.Plan) *dto.PlanListDTO {
 		Description: plan.Description,
 		Status:      string(plan.Status),
 		Progress:    plan.Progress,
+		TodoCount:   len(plan.Todos),
 	}
 }

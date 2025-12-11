@@ -16,18 +16,31 @@ import (
 // 注意：类型名使用 ToDo，MCP 工具名保持 todo_*
 type ToDoService struct {
 	todoModel *models.ToDoModel
+	planModel *models.PlanModel
 }
 
 // NewToDoService 创建新的待办事项服务实例
-func NewToDoService(model *models.ToDoModel) *ToDoService {
+func NewToDoService(todoModel *models.ToDoModel, planModel *models.PlanModel) *ToDoService {
 	return &ToDoService{
-		todoModel: model,
+		todoModel: todoModel,
+		planModel: planModel,
 	}
 }
 
 // CreateToDo 创建新的待办事项
-// PathID 关联个人或小组路径
+// 必须关联到一个 Plan，PathID 继承自 Plan
 func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, scopeCtx *types.ScopeContext) (*entity.ToDo, error) {
+	// 验证 PlanCode 必填
+	if strings.TrimSpace(input.PlanCode) == "" {
+		return nil, errors.New("计划标识码不能为空")
+	}
+
+	// 验证 Plan 存在
+	plan, err := s.planModel.FindByCode(ctx, input.PlanCode)
+	if err != nil {
+		return nil, errors.New("指定的计划不存在或已完成/取消")
+	}
+
 	// 验证标题不能为空
 	if strings.TrimSpace(input.Title) == "" {
 		return nil, errors.New("标题不能为空")
@@ -53,20 +66,26 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 		priority = entity.ToDoPriorityMedium
 	}
 
-	// 解析作用域 -> PathID（必须指定路径）
-	pathID := resolveDefaultPathID(scopeCtx)
-	if pathID == 0 {
-		return nil, errors.New("无法确定作用域，请先初始化 paths")
+	// 获取当前最大排序值
+	todos, _ := s.todoModel.FindByPlanID(ctx, plan.ID)
+	maxOrder := 0
+	for _, t := range todos {
+		if t.SortOrder > maxOrder {
+			maxOrder = t.SortOrder
+		}
 	}
 
 	// 创建待办事项实例
+	// PathID 继承自 Plan
 	todo := &entity.ToDo{
-		PathID:      pathID,
+		PlanID:      plan.ID,
+		PathID:      plan.PathID,
 		Code:        input.Code,
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
 		Priority:    priority,
 		Status:      entity.ToDoStatusPending,
+		SortOrder:   maxOrder + 1,
 		DueDate:     input.DueDate,
 	}
 
@@ -83,6 +102,9 @@ func (s *ToDoService) CreateToDo(ctx context.Context, input *dto.ToDoCreateDTO, 
 		// 重新获取以包含标签
 		todo, _ = s.todoModel.FindByID(ctx, todo.ID)
 	}
+
+	// 更新 Plan 进度
+	go s.updatePlanProgress(ctx, plan.ID)
 
 	return todo, nil
 }
@@ -157,7 +179,16 @@ func (s *ToDoService) DeleteToDo(ctx context.Context, code string) error {
 		return errors.New("待办事项不存在")
 	}
 
-	return s.todoModel.Delete(ctx, todo.ID)
+	planID := todo.PlanID
+
+	if err := s.todoModel.Delete(ctx, todo.ID); err != nil {
+		return err
+	}
+
+	// 更新 Plan 进度
+	go s.updatePlanProgress(ctx, planID)
+
+	return nil
 }
 
 // DeleteToDoByID 根据 ID 删除待办（TUI 内部使用）
@@ -167,12 +198,21 @@ func (s *ToDoService) DeleteToDoByID(ctx context.Context, id int64) error {
 	}
 
 	// 检查是否存在
-	_, err := s.todoModel.FindByID(ctx, id)
+	todo, err := s.todoModel.FindByID(ctx, id)
 	if err != nil {
 		return errors.New("待办事项不存在")
 	}
 
-	return s.todoModel.Delete(ctx, id)
+	planID := todo.PlanID
+
+	if err := s.todoModel.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	// 更新 Plan 进度
+	go s.updatePlanProgress(ctx, planID)
+
+	return nil
 }
 
 // GetToDo 获取指定 Code 的待办事项
@@ -231,7 +271,14 @@ func (s *ToDoService) CompleteToDo(ctx context.Context, code string) error {
 		return errors.New("已取消的待办事项无法完成")
 	}
 
-	return s.todoModel.Complete(ctx, todo.ID)
+	if err := s.todoModel.Complete(ctx, todo.ID); err != nil {
+		return err
+	}
+
+	// 更新 Plan 进度
+	go s.updatePlanProgress(ctx, todo.PlanID)
+
+	return nil
 }
 
 // CompleteToDoByID 根据 ID 完成待办（TUI 内部使用）
@@ -252,7 +299,14 @@ func (s *ToDoService) CompleteToDoByID(ctx context.Context, id int64) error {
 		return errors.New("已取消的待办事项无法完成")
 	}
 
-	return s.todoModel.Complete(ctx, id)
+	if err := s.todoModel.Complete(ctx, id); err != nil {
+		return err
+	}
+
+	// 更新 Plan 进度
+	go s.updatePlanProgress(ctx, todo.PlanID)
+
+	return nil
 }
 
 // StartToDo 标记待办事项为进行中
@@ -312,7 +366,14 @@ func (s *ToDoService) CancelToDo(ctx context.Context, code string) error {
 		return errors.New("已完成的待办事项无法取消")
 	}
 
-	return s.todoModel.Cancel(ctx, todo.ID)
+	if err := s.todoModel.Cancel(ctx, todo.ID); err != nil {
+		return err
+	}
+
+	// 更新 Plan 进度
+	go s.updatePlanProgress(ctx, todo.PlanID)
+
+	return nil
 }
 
 // CancelToDoByID 根据 ID 取消待办（TUI 内部使用）
@@ -330,7 +391,14 @@ func (s *ToDoService) CancelToDoByID(ctx context.Context, id int64) error {
 		return errors.New("已完成的待办事项无法取消")
 	}
 
-	return s.todoModel.Cancel(ctx, id)
+	if err := s.todoModel.Cancel(ctx, id); err != nil {
+		return err
+	}
+
+	// 更新 Plan 进度
+	go s.updatePlanProgress(ctx, todo.PlanID)
+
+	return nil
 }
 
 // BatchCreateToDos 批量创建待办事项
@@ -534,17 +602,35 @@ func ToToDoResponseDTO(todo *entity.ToDo, scopeCtx *types.ScopeContext) *dto.ToD
 
 	return &dto.ToDoResponseDTO{
 		ID:          todo.ID,
+		Code:        todo.Code,
+		PlanID:      todo.PlanID,
 		Title:       todo.Title,
 		Description: todo.Description,
 		Priority:    int(todo.Priority),
+		PriorityStr: todo.Priority.String(),
 		Status:      int(todo.Status),
+		StatusStr:   todo.Status.String(),
 		DueDate:     todo.DueDate,
 		CompletedAt: todo.CompletedAt,
 		Tags:        tags,
 		Scope:       string(scope),
+		IsOverdue:   todo.IsOverdue(),
 		CreatedAt:   todo.CreatedAt,
 		UpdatedAt:   todo.UpdatedAt,
 	}
+}
+
+// ToToDoResponseDTOWithPlan 将 ToDo entity 转换为 ResponseDTO（含 Plan 信息）
+func ToToDoResponseDTOWithPlan(todo *entity.ToDo, plan *entity.Plan, scopeCtx *types.ScopeContext) *dto.ToDoResponseDTO {
+	resp := ToToDoResponseDTO(todo, scopeCtx)
+	if resp == nil {
+		return nil
+	}
+	if plan != nil {
+		resp.PlanCode = plan.Code
+		resp.PlanTitle = plan.Title
+	}
+	return resp
 }
 
 // ToToDoListDTO 将 ToDo entity 转换为 ListDTO
@@ -555,9 +641,64 @@ func ToToDoListDTO(todo *entity.ToDo) *dto.ToDoListDTO {
 
 	return &dto.ToDoListDTO{
 		ID:       todo.ID,
+		Code:     todo.Code,
 		Title:    todo.Title,
 		Priority: int(todo.Priority),
 		Status:   int(todo.Status),
 		DueDate:  todo.DueDate,
 	}
+}
+
+// updatePlanProgress 更新关联 Plan 的进度
+// 进度 = 已完成 Todo 数量 / 总 Todo 数量 × 100
+func (s *ToDoService) updatePlanProgress(ctx context.Context, planID int64) {
+	total, completed, err := s.todoModel.CountByPlanID(ctx, planID)
+	if err != nil || total == 0 {
+		return
+	}
+
+	progress := int((completed * 100) / total)
+	_ = s.planModel.UpdateProgress(ctx, planID, progress)
+}
+
+// GetPlanCodeByTodoID 根据 Todo ID 获取所属 Plan 的 Code
+func (s *ToDoService) GetPlanCodeByTodoID(ctx context.Context, todoID int64) (string, error) {
+	todo, err := s.todoModel.FindByID(ctx, todoID)
+	if err != nil {
+		return "", err
+	}
+	plan, err := s.planModel.FindByID(ctx, todo.PlanID)
+	if err != nil {
+		return "", err
+	}
+	return plan.Code, nil
+}
+
+// ListToDosByPlanCode 根据 Plan Code 列出待办事项
+func (s *ToDoService) ListToDosByPlanCode(ctx context.Context, planCode string) ([]entity.ToDo, error) {
+	plan, err := s.planModel.FindByCode(ctx, planCode)
+	if err != nil {
+		return nil, errors.New("计划不存在或已完成/取消")
+	}
+	return s.todoModel.FindByPlanID(ctx, plan.ID)
+}
+
+// SwapTodoOrder 交换两个 Todo 的排序位置
+func (s *ToDoService) SwapTodoOrder(ctx context.Context, todoID1, todoID2 int64) error {
+	todo1, err := s.todoModel.FindByID(ctx, todoID1)
+	if err != nil {
+		return err
+	}
+	todo2, err := s.todoModel.FindByID(ctx, todoID2)
+	if err != nil {
+		return err
+	}
+
+	// 交换 SortOrder
+	todo1.SortOrder, todo2.SortOrder = todo2.SortOrder, todo1.SortOrder
+
+	if err := s.todoModel.Update(ctx, todo1); err != nil {
+		return err
+	}
+	return s.todoModel.Update(ctx, todo2)
 }

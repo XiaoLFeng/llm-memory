@@ -116,6 +116,10 @@ func (m *AppModel) makePageWithData(id core.PageID, data interface{}) core.Page 
 	case core.PageTodo:
 		return todo.NewListPage(m.bs, m.navigate, m.navigateWithData)
 	case core.PageTodoCreate:
+		// 支持从 Plan 详情页创建 Todo（传递 TodoCreateContext）
+		if ctx, ok := data.(*plan.TodoCreateContext); ok && ctx != nil {
+			return todo.NewCreatePageWithPlan(m.bs, m.navigate, ctx.PlanCode, ctx.PlanTitle)
+		}
 		return todo.NewCreatePage(m.bs, m.navigate)
 	case core.PageTodoEdit:
 		if todoID, ok := data.(int64); ok {

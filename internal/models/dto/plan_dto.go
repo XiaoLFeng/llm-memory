@@ -27,18 +27,18 @@ type PlanProgressDTO struct {
 
 // PlanResponseDTO 计划响应
 type PlanResponseDTO struct {
-	ID          int64        `json:"id"`
-	Code        string       `json:"code"` // 人类可读的唯一标识码
-	Title       string       `json:"title"`
-	Description string       `json:"description"` // 摘要
-	Content     string       `json:"content"`     // 详细内容
-	Status      string       `json:"status"`
-	StatusStr   string       `json:"status_str"` // 状态显示文本
-	Progress    int          `json:"progress"`
-	SubTasks    []SubTaskDTO `json:"sub_tasks"`
-	Scope       string       `json:"scope"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
+	ID          int64         `json:"id"`
+	Code        string        `json:"code"` // 人类可读的唯一标识码
+	Title       string        `json:"title"`
+	Description string        `json:"description"` // 摘要
+	Content     string        `json:"content"`     // 详细内容
+	Status      string        `json:"status"`
+	StatusStr   string        `json:"status_str"` // 状态显示文本
+	Progress    int           `json:"progress"`
+	Todos       []ToDoListDTO `json:"todos"` // 关联的待办事项列表
+	Scope       string        `json:"scope"`
+	CreatedAt   time.Time     `json:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
 }
 
 // PlanListDTO 计划列表项
@@ -49,33 +49,6 @@ type PlanListDTO struct {
 	Description string `json:"description"` // 摘要用于列表展示
 	Status      string `json:"status"`
 	Progress    int    `json:"progress"`
+	TodoCount   int    `json:"todo_count"` // 待办数量
 	Scope       string `json:"scope"`
-}
-
-// SubTaskDTO 子任务 DTO
-type SubTaskDTO struct {
-	ID          int64     `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Status      string    `json:"status"`
-	Progress    int       `json:"progress"`
-	SortOrder   int       `json:"sort_order"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-// SubTaskCreateDTO 创建子任务请求
-type SubTaskCreateDTO struct {
-	PlanID      int64  `json:"plan_id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-}
-
-// SubTaskUpdateDTO 更新子任务请求
-type SubTaskUpdateDTO struct {
-	ID          int64   `json:"id"`
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Status      *string `json:"status,omitempty"`
-	Progress    *int    `json:"progress,omitempty"`
 }

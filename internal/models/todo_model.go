@@ -354,6 +354,37 @@ func (m *ToDoModel) Count(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+// FindByPlanID 根据 PlanID 查找待办
+func (m *ToDoModel) FindByPlanID(ctx context.Context, planID int64) ([]entity.ToDo, error) {
+	var todos []entity.ToDo
+	err := m.db.WithContext(ctx).
+		Preload("Tags").
+		Where("plan_id = ?", planID).
+		Order("sort_order ASC, priority DESC, created_at DESC").
+		Find(&todos).Error
+	return todos, err
+}
+
+// CountByPlanID 统计计划下的待办数量
+// 返回：总数、已完成数
+func (m *ToDoModel) CountByPlanID(ctx context.Context, planID int64) (total int64, completed int64, err error) {
+	err = m.db.WithContext(ctx).Model(&entity.ToDo{}).
+		Where("plan_id = ?", planID).
+		Count(&total).Error
+	if err != nil {
+		return 0, 0, err
+	}
+
+	err = m.db.WithContext(ctx).Model(&entity.ToDo{}).
+		Where("plan_id = ? AND status = ?", planID, entity.ToDoStatusCompleted).
+		Count(&completed).Error
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return total, completed, nil
+}
+
 // BatchDeleteByPathIDs 批量删除指定路径下的所有待办（用于 todo_final）
 // 返回删除的记录数量
 func (m *ToDoModel) BatchDeleteByPathIDs(ctx context.Context, pathIDs []int64) (int64, error) {

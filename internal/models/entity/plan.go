@@ -32,8 +32,8 @@ type Plan struct {
 	CreatedAt   time.Time  `gorm:"index;autoCreateTime"`
 	UpdatedAt   time.Time  `gorm:"autoUpdateTime"`
 
-	// 关联：子任务（独立存储，不再 inline）
-	SubTasks []SubTask `gorm:"foreignKey:PlanID;constraint:OnDelete:CASCADE"`
+	// 关联：待办事项（替代原 SubTasks）
+	Todos []ToDo `gorm:"foreignKey:PlanID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName 指定表名
@@ -107,18 +107,20 @@ func (p *Plan) Cancel() {
 	p.Status = PlanStatusCancelled
 }
 
-// CalculateProgress 根据子任务计算总进度
-// 智能计算整体进度，让计划管理更准确
+// CalculateProgress 根据关联 Todo 计算总进度
+// 进度 = 已完成 Todo 数量 / 总 Todo 数量 × 100
 func (p *Plan) CalculateProgress() {
-	if len(p.SubTasks) == 0 {
+	if len(p.Todos) == 0 {
 		return
 	}
 
-	totalProgress := 0
-	for _, subTask := range p.SubTasks {
-		totalProgress += subTask.Progress
+	completedCount := 0
+	for _, todo := range p.Todos {
+		if todo.Status == ToDoStatusCompleted {
+			completedCount++
+		}
 	}
 
-	averageProgress := totalProgress / len(p.SubTasks)
-	p.UpdateProgress(averageProgress)
+	progress := (completedCount * 100) / len(p.Todos)
+	p.UpdateProgress(progress)
 }

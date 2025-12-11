@@ -34,8 +34,7 @@ func NewPage(push func(core.PageID) tea.Cmd) *Page {
 		push:   push,
 		items: []item{
 			{title: "记忆管理", desc: "管理和搜索你的记忆", id: core.PageMemory, icon: theme.IconMemory},
-			{title: "计划管理", desc: "规划与跟踪计划", id: core.PagePlan, icon: theme.IconPlan},
-			{title: "待办管理", desc: "日常待办与执行", id: core.PageTodo, icon: theme.IconTodo},
+			{title: "计划管理", desc: "规划与跟踪计划及待办", id: core.PagePlan, icon: theme.IconPlan},
 			{title: "组管理", desc: "路径组与共享", id: core.PageGroup, icon: theme.IconGroup},
 		},
 	}

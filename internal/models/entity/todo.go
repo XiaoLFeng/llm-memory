@@ -95,15 +95,17 @@ func ToDoPriorityFromString(s string) ToDoPriority {
 // ToDo 待办事项实体（数据表结构）
 // 注意：类型名使用 ToDo（不是 Todo），避免 IDE 命名规范问题
 // 用于管理短期任务的待办实体
-// PathID 关联 PersonalPath 或 Group 中的路径
+// 必须归属于某个 Plan，通过 PlanID 关联
 type ToDo struct {
 	ID          int64        `gorm:"primaryKey"`                                 // 雪花算法生成
 	Code        string       `gorm:"index;size:100;not null;comment:人类可读的唯一标识码"` // 外部查询标识，活跃状态唯一
-	PathID      int64        `gorm:"index;not null;comment:路径ID（关联个人或小组路径）"`     // 关联 Path.ID
+	PlanID      int64        `gorm:"index;not null;comment:所属计划ID"`              // 关联 Plan.ID（必填）
+	PathID      int64        `gorm:"index;not null;comment:路径ID（关联个人或小组路径）"`     // 关联 Path.ID（继承自 Plan）
 	Title       string       `gorm:"index;size:255;not null;comment:标题"`
 	Description string       `gorm:"type:text;comment:描述"`
 	Priority    ToDoPriority `gorm:"index;default:2;comment:优先级 1-4"`
 	Status      ToDoStatus   `gorm:"index;default:0;comment:状态"`
+	SortOrder   int          `gorm:"default:0;comment:排序顺序"`
 	DueDate     *time.Time   `gorm:"index;comment:截止日期"`
 	CompletedAt *time.Time   `gorm:"comment:完成时间"`
 	CreatedAt   time.Time    `gorm:"index;autoCreateTime"`

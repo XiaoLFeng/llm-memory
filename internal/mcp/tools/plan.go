@@ -117,12 +117,13 @@ func RegisterPlanTools(server *mcp.Server, bs *startup.Bootstrap) {
 		sb.WriteString(fmt.Sprintf("\n描述:\n%s\n", plan.Description))
 		sb.WriteString(fmt.Sprintf("\n内容:\n%s", plan.Content))
 
-		// 如果有子任务，也显示出来
-		if len(plan.SubTasks) > 0 {
-			sb.WriteString("\n\n子任务:\n")
-			for _, st := range plan.SubTasks {
-				stStatus := getPlanStatusText(st.Status)
-				sb.WriteString(fmt.Sprintf("  - [%d] %s (%s, %d%%)\n", st.ID, st.Title, stStatus, st.Progress))
+		// 如果有待办事项，也显示出来
+		if len(plan.Todos) > 0 {
+			sb.WriteString("\n\n待办事项:\n")
+			for _, t := range plan.Todos {
+				status := getToDoStatusText(t.Status)
+				priority := getToDoPriorityText(t.Priority)
+				sb.WriteString(fmt.Sprintf("  - [%s] %s (%s, %s)\n", t.Code, t.Title, status, priority))
 			}
 		}
 

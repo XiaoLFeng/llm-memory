@@ -24,6 +24,7 @@ type loadMsg struct {
 
 type planItem struct {
 	ID          int64
+	Code        string
 	Title       string
 	Description string // 计划摘要
 	Content     string // 详细内容
@@ -31,6 +32,17 @@ type planItem struct {
 	Progress    int
 	PathID      int64
 	CreatedAt   time.Time
+	TodoCount   int        // 待办数量
+	Todos       []todoItem // 关联的待办列表
+}
+
+// todoItem 计划详情中的待办项
+type todoItem struct {
+	ID       int64
+	Code     string
+	Title    string
+	Status   entity.ToDoStatus
+	Priority entity.ToDoPriority
 }
 
 type ListPage struct {
@@ -50,6 +62,13 @@ type ListPage struct {
 	confirmDelete   bool
 	deleteTarget    int64
 	deleteYesActive bool // true=选中确认，false=选中取消
+
+	// Todo 交互相关
+	todoMode          bool  // 是否处于 Todo 操作模式
+	todoCursor        int   // Todo 列表游标
+	todoConfirmDelete bool  // Todo 删除确认模式
+	todoDeleteTarget  int64 // 要删除的 Todo ID
+	todoYesActive     bool  // Todo 删除确认按钮状态
 }
 
 func NewListPage(bs *startup.Bootstrap, push func(core.PageID) tea.Cmd, pushWithData func(core.PageID, interface{}) tea.Cmd) *ListPage {
@@ -84,8 +103,22 @@ func (p *ListPage) load() tea.Cmd {
 		}
 		items := make([]planItem, 0, len(plans))
 		for _, pl := range plans {
+			// 获取关联的 Todos
+			todos, _ := p.bs.ToDoService.ListToDosByPlanCode(ctx, pl.Code)
+			todoItems := make([]todoItem, 0, len(todos))
+			for _, t := range todos {
+				todoItems = append(todoItems, todoItem{
+					ID:       t.ID,
+					Code:     t.Code,
+					Title:    t.Title,
+					Status:   t.Status,
+					Priority: t.Priority,
+				})
+			}
+
 			items = append(items, planItem{
 				ID:          pl.ID,
+				Code:        pl.Code,
 				Title:       pl.Title,
 				Description: pl.Description,
 				Content:     pl.Content,
@@ -93,6 +126,8 @@ func (p *ListPage) load() tea.Cmd {
 				Progress:    pl.Progress,
 				PathID:      pl.PathID,
 				CreatedAt:   pl.CreatedAt,
+				TodoCount:   len(todos),
+				Todos:       todoItems,
 			})
 		}
 		return loadMsg{items: items}
@@ -128,11 +163,108 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 			return p, nil
 		}
 
+		// Todo 删除确认模式
+		if p.todoConfirmDelete {
+			switch v.String() {
+			case "left", "h", "right", "l":
+				p.todoYesActive = !p.todoYesActive
+			case "y", "Y":
+				return p, p.doDeleteTodo()
+			case "n", "N", "esc":
+				p.todoConfirmDelete = false
+				p.todoDeleteTarget = 0
+			case "enter":
+				if p.todoYesActive {
+					return p, p.doDeleteTodo()
+				} else {
+					p.todoConfirmDelete = false
+					p.todoDeleteTarget = 0
+				}
+			}
+			return p, nil
+		}
+
 		// 详情页模式
 		if p.showing {
+			// Todo 操作模式
+			if p.todoMode {
+				switch v.String() {
+				case "tab":
+					// 退出 Todo 模式
+					p.todoMode = false
+					return p, nil
+				case "esc":
+					// 退出 Todo 模式
+					p.todoMode = false
+					return p, nil
+				case "up", "k":
+					// 移动 Todo 游标
+					if p.todoCursor > 0 {
+						p.todoCursor--
+					}
+					return p, nil
+				case "down", "j":
+					// 移动 Todo 游标
+					if len(p.items) > 0 && len(p.items[p.cursor].Todos) > 0 && p.todoCursor < len(p.items[p.cursor].Todos)-1 {
+						p.todoCursor++
+					}
+					return p, nil
+				case "n":
+					// 创建新 Todo
+					if p.pushWithData != nil && len(p.items) > 0 {
+						return p, p.pushWithData(core.PageTodoCreate, &TodoCreateContext{
+							PlanCode:  p.items[p.cursor].Code,
+							PlanTitle: p.items[p.cursor].Title,
+						})
+					}
+					return p, nil
+				case "e":
+					// 编辑选中的 Todo
+					if p.pushWithData != nil && len(p.items) > 0 && len(p.items[p.cursor].Todos) > 0 {
+						todoID := p.items[p.cursor].Todos[p.todoCursor].ID
+						return p, p.pushWithData(core.PageTodoEdit, todoID)
+					}
+					return p, nil
+				case "d":
+					// 删除选中的 Todo
+					if len(p.items) > 0 && len(p.items[p.cursor].Todos) > 0 {
+						p.todoConfirmDelete = true
+						p.todoDeleteTarget = p.items[p.cursor].Todos[p.todoCursor].ID
+						p.todoYesActive = true
+					}
+					return p, nil
+				case "s":
+					// 开始 Todo
+					return p, p.startTodo()
+				case "c":
+					// 完成 Todo
+					return p, p.completeTodo()
+				case "x":
+					// 取消 Todo
+					return p, p.cancelTodo()
+				case "K":
+					// 上移排序
+					return p, p.moveTodoUp()
+				case "J":
+					// 下移排序
+					return p, p.moveTodoDown()
+				}
+				return p, nil
+			}
+
+			// 详情页只读模式
 			switch v.String() {
 			case "esc", "q":
 				p.showing = false
+				p.todoMode = false
+				p.todoCursor = 0
+				return p, nil
+			case "tab":
+				// 进入 Todo 模式（如果有 Todo）
+				if len(p.items) > 0 && len(p.items[p.cursor].Todos) > 0 {
+					p.todoMode = true
+					p.todoCursor = 0
+				}
 				return p, nil
 			case "up", "k":
 				p.detailViewport.LineUp(1)
@@ -151,6 +283,15 @@ func (p *ListPage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
 				return p, nil
 			case "end":
 				p.detailViewport.GotoBottom()
+				return p, nil
+			case "n":
+				// 在只读模式下也支持创建 Todo
+				if p.pushWithData != nil && len(p.items) > 0 {
+					return p, p.pushWithData(core.PageTodoCreate, &TodoCreateContext{
+						PlanCode:  p.items[p.cursor].Code,
+						PlanTitle: p.items[p.cursor].Title,
+					})
+				}
 				return p, nil
 			}
 			return p, nil
@@ -248,6 +389,22 @@ func (p *ListPage) View() string {
 			cardW, p.deleteYesActive)
 	}
 
+	// Todo 删除确认模式
+	if p.todoConfirmDelete {
+		var todoTitle string
+		if len(p.items) > 0 && len(p.items[p.cursor].Todos) > 0 {
+			for _, todo := range p.items[p.cursor].Todos {
+				if todo.ID == p.todoDeleteTarget {
+					todoTitle = todo.Title
+					break
+				}
+			}
+		}
+		return components.ConfirmDialogWithButtons("确认删除待办",
+			fmt.Sprintf("确定要删除待办「%s」吗？\n此操作不可撤销。", todoTitle),
+			cardW, p.todoYesActive)
+	}
+
 	switch {
 	case p.loading:
 		return components.LoadingState(titleWithScope, "加载计划中...", cardW)
@@ -272,14 +429,24 @@ func (p *ListPage) View() string {
 			detailContent := p.renderDetail(p.detailViewport.Width)
 			p.detailViewport.SetContent(detailContent)
 
-			// 滚动进度指示器
+			// 滚动进度指示器和模式提示
 			scrollPercent := p.detailViewport.ScrollPercent() * 100
 			scrollInfo := fmt.Sprintf("%.0f%%", scrollPercent)
-			scrollHint := theme.TextDim.Render(fmt.Sprintf(
-				"滚动: %s | ↑/↓ j/k PgUp/PgDn Home/End | Esc 返回", scrollInfo))
+			var scrollHint string
+			if p.todoMode {
+				scrollHint = theme.TextDim.Render(fmt.Sprintf(
+					"[Todo 模式] %s | n新建 e编辑 d删除 s开始 c完成 x取消 J/K排序 | Tab/Esc 退出", scrollInfo))
+			} else {
+				scrollHint = theme.TextDim.Render(fmt.Sprintf(
+					"滚动: %s | ↑/↓ j/k PgUp/PgDn Home/End | n新建Todo | Tab Todo模式 | Esc 返回", scrollInfo))
+			}
 
 			// 组合视图
-			title := theme.Title.Render(theme.IconPlan + " 计划详情")
+			titleText := theme.IconPlan + " 计划详情"
+			if p.todoMode {
+				titleText = theme.IconTodo + " 计划详情 - Todo 模式"
+			}
+			title := theme.Title.Render(titleText)
 			viewportView := p.detailViewport.View()
 
 			return lipgloss.JoinVertical(lipgloss.Left,
@@ -305,8 +472,9 @@ func (p *ListPage) renderList(width int) string {
 		pl := p.items[i]
 		scope := utils.ScopeTag(pl.PathID, p.bs)
 		status := statusText(pl.Status, pl.Progress)
-		line := fmt.Sprintf("%s %s · %s · %d%% · %s",
-			scope, pl.Title, status, pl.Progress, pl.CreatedAt.Format("01-02 15:04"))
+		todoCountStr := fmt.Sprintf("(%d)", pl.TodoCount)
+		line := fmt.Sprintf("%s [%s] %s%s · %s · %d%%",
+			scope, pl.Code, pl.Title, todoCountStr, status, pl.Progress)
 		if utils.LipWidth(line) > width {
 			line = utils.Truncate(line, width)
 		}
@@ -341,10 +509,10 @@ func (p *ListPage) renderDetail(width int) string {
 	// === 区块 2：元数据 ===
 	metaStyle := theme.TextDim
 	lines = append(lines, metaStyle.Render(fmt.Sprintf(
-		"状态: %s | 进度: %d%% | 作用域: %s",
-		statusText(pl.Status, pl.Progress), pl.Progress, scope)))
+		"标识码: %s | 状态: %s | 进度: %d%% | 作用域: %s",
+		pl.Code, statusText(pl.Status, pl.Progress), pl.Progress, scope)))
 	lines = append(lines, metaStyle.Render(fmt.Sprintf(
-		"创建时间: %s", pl.CreatedAt.Format("2006-01-02 15:04:05"))))
+		"待办数量: %d | 创建时间: %s", pl.TodoCount, pl.CreatedAt.Format("2006-01-02 15:04:05"))))
 
 	// === 分隔线 ===
 	lines = append(lines, "")
@@ -368,11 +536,74 @@ func (p *ListPage) renderDetail(width int) string {
 		lines = append(lines, contentLines...)
 	}
 
+	// === 区块 5：待办列表 ===
+	if len(pl.Todos) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, "")
+		lines = append(lines, separatorLine)
+		lines = append(lines, "")
+		todoModeHint := ""
+		if p.todoMode {
+			todoModeHint = " (Tab 退出选择模式)"
+		} else {
+			todoModeHint = " (Tab 进入选择模式)"
+		}
+		todoHeader := theme.FormLabel.Bold(true).Render("📋 待办事项列表" + todoModeHint)
+		lines = append(lines, todoHeader)
+		lines = append(lines, "")
+		for i, t := range pl.Todos {
+			// 状态图标
+			statusIcon := getStatusIcon(t.Status)
+			// 优先级图标
+			priorityIcon := getPriorityIcon(t.Priority)
+			// 格式化行
+			todoLine := fmt.Sprintf("  %s %s [%s] %s (%s, %s)",
+				statusIcon, priorityIcon, t.Code, t.Title,
+				todoStatusText(t.Status), todoPriorityText(t.Priority))
+
+			// Todo 模式下高亮选中项
+			if p.todoMode && i == p.todoCursor {
+				todoLine = lipgloss.NewStyle().
+					Foreground(theme.Primary).
+					Bold(true).
+					Render("▶" + todoLine[1:])
+			}
+			lines = append(lines, todoLine)
+		}
+	} else {
+		// 无待办时显示提示
+		lines = append(lines, "")
+		lines = append(lines, "")
+		lines = append(lines, separatorLine)
+		lines = append(lines, "")
+		todoHeader := theme.FormLabel.Bold(true).Render("📋 待办事项列表")
+		lines = append(lines, todoHeader)
+		lines = append(lines, "")
+		lines = append(lines, theme.TextDim.Render("  暂无待办事项，按 n 创建新待办"))
+	}
+
 	return strings.Join(lines, "\n")
 }
 
 func (p *ListPage) Meta() core.Meta {
-	// 详情页模式
+	// 详情页 + Todo 模式
+	if p.showing && p.todoMode {
+		return core.Meta{
+			Title:      "计划详情 - Todo 模式",
+			Breadcrumb: "计划管理 > 详情 > Todo",
+			Keys: []components.KeyHint{
+				{Key: "n", Desc: "新建 Todo"},
+				{Key: "e", Desc: "编辑"},
+				{Key: "d", Desc: "删除"},
+				{Key: "s/c/x", Desc: "开始/完成/取消"},
+				{Key: "J/K", Desc: "调整排序"},
+				{Key: "↑/↓", Desc: "选择"},
+				{Key: "Tab/Esc", Desc: "退出 Todo 模式"},
+			},
+		}
+	}
+
+	// 详情页只读模式
 	if p.showing {
 		return core.Meta{
 			Title:      "计划详情",
@@ -380,7 +611,8 @@ func (p *ListPage) Meta() core.Meta {
 			Keys: []components.KeyHint{
 				{Key: "↑/↓ j/k", Desc: "滚动"},
 				{Key: "PgUp/PgDn", Desc: "翻页"},
-				{Key: "Home/End", Desc: "首/尾"},
+				{Key: "n", Desc: "新建 Todo"},
+				{Key: "Tab", Desc: "Todo 模式"},
 				{Key: "Esc", Desc: "返回列表"},
 			},
 		}
@@ -422,6 +654,34 @@ func statusText(status string, progress int) string {
 	}
 }
 
+// todoStatusText 将待办状态转换为中文显示
+func todoStatusText(status entity.ToDoStatus) string {
+	switch status {
+	case entity.ToDoStatusCompleted:
+		return "已完成"
+	case entity.ToDoStatusInProgress:
+		return "进行中"
+	case entity.ToDoStatusCancelled:
+		return "已取消"
+	default:
+		return "待处理"
+	}
+}
+
+// todoPriorityText 将待办优先级转换为中文显示
+func todoPriorityText(priority entity.ToDoPriority) string {
+	switch priority {
+	case entity.ToDoPriorityUrgent:
+		return "紧急"
+	case entity.ToDoPriorityHigh:
+		return "高"
+	case entity.ToDoPriorityMedium:
+		return "中"
+	default:
+		return "低"
+	}
+}
+
 // doDelete 执行删除操作
 func (p *ListPage) doDelete() tea.Cmd {
 	return func() tea.Msg {
@@ -440,8 +700,22 @@ func (p *ListPage) doDelete() tea.Cmd {
 		}
 		items := make([]planItem, 0, len(plans))
 		for _, pl := range plans {
+			// 获取关联的 Todos
+			todos, _ := p.bs.ToDoService.ListToDosByPlanCode(ctx, pl.Code)
+			todoItems := make([]todoItem, 0, len(todos))
+			for _, t := range todos {
+				todoItems = append(todoItems, todoItem{
+					ID:       t.ID,
+					Code:     t.Code,
+					Title:    t.Title,
+					Status:   t.Status,
+					Priority: t.Priority,
+				})
+			}
+
 			items = append(items, planItem{
 				ID:          pl.ID,
+				Code:        pl.Code,
 				Title:       pl.Title,
 				Description: pl.Description,
 				Content:     pl.Content,
@@ -449,8 +723,144 @@ func (p *ListPage) doDelete() tea.Cmd {
 				Progress:    pl.Progress,
 				PathID:      pl.PathID,
 				CreatedAt:   pl.CreatedAt,
+				TodoCount:   len(todos),
+				Todos:       todoItems,
 			})
 		}
 		return loadMsg{items: items}
+	}
+}
+
+// TodoCreateContext 从 Plan 详情页传递到 Todo 创建页的上下文
+type TodoCreateContext struct {
+	PlanCode  string
+	PlanTitle string
+}
+
+// getStatusIcon 获取状态图标
+func getStatusIcon(status entity.ToDoStatus) string {
+	switch status {
+	case entity.ToDoStatusCompleted:
+		return "✅"
+	case entity.ToDoStatusInProgress:
+		return "🔄"
+	case entity.ToDoStatusCancelled:
+		return "❌"
+	default:
+		return "⬜"
+	}
+}
+
+// getPriorityIcon 获取优先级图标
+func getPriorityIcon(priority entity.ToDoPriority) string {
+	switch priority {
+	case entity.ToDoPriorityUrgent:
+		return "🔴"
+	case entity.ToDoPriorityHigh:
+		return "🟠"
+	case entity.ToDoPriorityMedium:
+		return "🟡"
+	default:
+		return "🟢"
+	}
+}
+
+// doDeleteTodo 执行删除 Todo 操作
+func (p *ListPage) doDeleteTodo() tea.Cmd {
+	return func() tea.Msg {
+		ctx := p.bs.Context()
+		err := p.bs.ToDoService.DeleteToDoByID(ctx, p.todoDeleteTarget)
+		p.todoConfirmDelete = false
+		p.todoDeleteTarget = 0
+		if err != nil {
+			return loadMsg{err: err}
+		}
+		// 重新加载
+		return p.load()()
+	}
+}
+
+// startTodo 开始选中的 Todo
+func (p *ListPage) startTodo() tea.Cmd {
+	return func() tea.Msg {
+		if len(p.items) == 0 || len(p.items[p.cursor].Todos) == 0 {
+			return nil
+		}
+		code := p.items[p.cursor].Todos[p.todoCursor].Code
+		ctx := p.bs.Context()
+		if err := p.bs.ToDoService.StartToDo(ctx, code); err != nil {
+			return loadMsg{err: err}
+		}
+		return p.load()()
+	}
+}
+
+// completeTodo 完成选中的 Todo
+func (p *ListPage) completeTodo() tea.Cmd {
+	return func() tea.Msg {
+		if len(p.items) == 0 || len(p.items[p.cursor].Todos) == 0 {
+			return nil
+		}
+		code := p.items[p.cursor].Todos[p.todoCursor].Code
+		ctx := p.bs.Context()
+		if err := p.bs.ToDoService.CompleteToDo(ctx, code); err != nil {
+			return loadMsg{err: err}
+		}
+		return p.load()()
+	}
+}
+
+// cancelTodo 取消选中的 Todo
+func (p *ListPage) cancelTodo() tea.Cmd {
+	return func() tea.Msg {
+		if len(p.items) == 0 || len(p.items[p.cursor].Todos) == 0 {
+			return nil
+		}
+		code := p.items[p.cursor].Todos[p.todoCursor].Code
+		ctx := p.bs.Context()
+		if err := p.bs.ToDoService.CancelToDo(ctx, code); err != nil {
+			return loadMsg{err: err}
+		}
+		return p.load()()
+	}
+}
+
+// moveTodoUp 上移 Todo 排序
+func (p *ListPage) moveTodoUp() tea.Cmd {
+	return func() tea.Msg {
+		if len(p.items) == 0 || len(p.items[p.cursor].Todos) < 2 {
+			return nil
+		}
+		if p.todoCursor <= 0 {
+			return nil
+		}
+		ctx := p.bs.Context()
+		currentTodo := p.items[p.cursor].Todos[p.todoCursor]
+		prevTodo := p.items[p.cursor].Todos[p.todoCursor-1]
+		if err := p.bs.ToDoService.SwapTodoOrder(ctx, currentTodo.ID, prevTodo.ID); err != nil {
+			return loadMsg{err: err}
+		}
+		p.todoCursor--
+		return p.load()()
+	}
+}
+
+// moveTodoDown 下移 Todo 排序
+func (p *ListPage) moveTodoDown() tea.Cmd {
+	return func() tea.Msg {
+		if len(p.items) == 0 || len(p.items[p.cursor].Todos) < 2 {
+			return nil
+		}
+		if p.todoCursor >= len(p.items[p.cursor].Todos)-1 {
+			return nil
+		}
+		ctx := p.bs.Context()
+		currentTodo := p.items[p.cursor].Todos[p.todoCursor]
+		nextTodo := p.items[p.cursor].Todos[p.todoCursor+1]
+		if err := p.bs.ToDoService.SwapTodoOrder(ctx, currentTodo.ID, nextTodo.ID); err != nil {
+			return loadMsg{err: err}
+		}
+		p.todoCursor++
+		return p.load()()
 	}
 }

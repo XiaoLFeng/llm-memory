@@ -35,10 +35,13 @@ func (h *TodoHandler) List(ctx context.Context) error {
 	}
 
 	cli.PrintTitle(cli.IconTodo + " 待办事项列表")
-	table := output.NewTable("标识码", "标题", "状态", "优先级")
+	table := output.NewTable("标识码", "计划", "标题", "状态", "优先级")
 	for _, t := range todos {
+		// 获取 Plan Code
+		planCode, _ := h.bs.ToDoService.GetPlanCodeByTodoID(ctx, t.ID)
 		table.AddRow(
 			t.Code,
+			planCode,
 			t.Title,
 			getToDoStatusText(t.Status),
 			getToDoStatusPriorityText(t.Priority),
@@ -50,13 +53,14 @@ func (h *TodoHandler) List(ctx context.Context) error {
 }
 
 // Create 创建待办
-func (h *TodoHandler) Create(ctx context.Context, code, title, description string, priority int, global bool) error {
+func (h *TodoHandler) Create(ctx context.Context, code, planCode, title, description string, priority int) error {
 	if priority == 0 {
 		priority = int(entity.ToDoPriorityMedium)
 	}
 
 	createDTO := &dto.ToDoCreateDTO{
 		Code:        code,
+		PlanCode:    planCode,
 		Title:       title,
 		Description: description,
 		Priority:    priority,
@@ -67,7 +71,7 @@ func (h *TodoHandler) Create(ctx context.Context, code, title, description strin
 		return err
 	}
 
-	cli.PrintSuccess(fmt.Sprintf("待办创建成功！标识码: %s, 标题: %s", todo.Code, todo.Title))
+	cli.PrintSuccess(fmt.Sprintf("待办创建成功！计划: %s, 标识码: %s, 标题: %s", planCode, todo.Code, todo.Title))
 	return nil
 }
 

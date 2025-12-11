@@ -12,10 +12,10 @@ import (
 
 var (
 	todoCode        string
+	todoPlanCode    string
 	todoTitle       string
 	todoDescription string
 	todoPriority    int
-	todoGlobal      bool
 )
 
 // todoCreateCmd 创建待办
@@ -23,8 +23,12 @@ var (
 var todoCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "创建新待办事项",
-	Long:  `创建一个新的待办事项~ ✨`,
+	Long:  `创建一个新的待办事项，必须关联到一个计划~ ✨`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if todoPlanCode == "" {
+			cli.PrintError("计划标识码不能为空，请使用 --plan 参数")
+			os.Exit(1)
+		}
 		if todoCode == "" {
 			cli.PrintError("标识码不能为空，请使用 --code 参数")
 			os.Exit(1)
@@ -40,7 +44,7 @@ var todoCreateCmd = &cobra.Command{
 		defer bs.Shutdown()
 
 		handler := handlers.NewTodoHandler(bs)
-		if err := handler.Create(bs.Context(), todoCode, todoTitle, todoDescription, todoPriority, todoGlobal); err != nil {
+		if err := handler.Create(bs.Context(), todoCode, todoPlanCode, todoTitle, todoDescription, todoPriority); err != nil {
 			cli.PrintError(err.Error())
 			os.Exit(1)
 		}
@@ -48,12 +52,13 @@ var todoCreateCmd = &cobra.Command{
 }
 
 func init() {
+	todoCreateCmd.Flags().StringVarP(&todoPlanCode, "plan", "P", "", "所属计划标识码（必填）")
 	todoCreateCmd.Flags().StringVarP(&todoCode, "code", "c", "", "待办标识码（必填）")
 	todoCreateCmd.Flags().StringVarP(&todoTitle, "title", "t", "", "待办标题（必填）")
 	todoCreateCmd.Flags().StringVarP(&todoDescription, "description", "d", "", "待办描述")
 	todoCreateCmd.Flags().IntVarP(&todoPriority, "priority", "p", 2, "优先级：1低/2中/3高/4紧急")
-	todoCreateCmd.Flags().BoolVar(&todoGlobal, "global", false, "将待办保存为全局（默认当前路径/组内可见）")
 
+	_ = todoCreateCmd.MarkFlagRequired("plan")
 	_ = todoCreateCmd.MarkFlagRequired("code")
 	_ = todoCreateCmd.MarkFlagRequired("title")
 

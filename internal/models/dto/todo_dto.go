@@ -4,7 +4,8 @@ import "time"
 
 // ToDoCreateDTO 创建待办请求
 type ToDoCreateDTO struct {
-	Code        string     `json:"code"` // 人类可读的唯一标识码（必填）
+	Code        string     `json:"code"`      // 人类可读的唯一标识码（必填）
+	PlanCode    string     `json:"plan_code"` // 所属计划标识码（必填）
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Priority    int        `json:"priority"` // 1-4，默认 2
@@ -26,7 +27,10 @@ type ToDoUpdateDTO struct {
 // ToDoResponseDTO 待办响应
 type ToDoResponseDTO struct {
 	ID          int64      `json:"id"`
-	Code        string     `json:"code"` // 人类可读的唯一标识码
+	Code        string     `json:"code"`       // 人类可读的唯一标识码
+	PlanID      int64      `json:"plan_id"`    // 所属计划ID
+	PlanCode    string     `json:"plan_code"`  // 所属计划标识码
+	PlanTitle   string     `json:"plan_title"` // 所属计划标题
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Priority    int        `json:"priority"`
@@ -45,7 +49,8 @@ type ToDoResponseDTO struct {
 // ToDoListDTO 待办列表项
 type ToDoListDTO struct {
 	ID          int64      `json:"id"`
-	Code        string     `json:"code"` // 人类可读的唯一标识码
+	Code        string     `json:"code"`      // 人类可读的唯一标识码
+	PlanCode    string     `json:"plan_code"` // 所属计划标识码
 	Title       string     `json:"title"`
 	Priority    int        `json:"priority"`
 	PriorityStr string     `json:"priority_str"`

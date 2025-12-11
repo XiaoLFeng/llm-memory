@@ -27,12 +27,19 @@ type CreatePage struct {
 
 	// 表单字段
 	codeInput        *components.Input // Code 输入框
+	planSelect       *components.Select
 	titleInput       *components.Input
 	descriptionInput *components.TextArea
 	prioritySelect   *components.Select
 	dueDateInput     *components.Input
 	tagsInput        *components.Input
-	globalSelect     *components.Select
+
+	// Plan 列表缓存
+	planCodes []string
+
+	// 预设 Plan（从 Plan 详情页创建时使用）
+	presetPlanCode  string
+	presetPlanTitle string
 
 	focusIndex int
 	maxFocus   int
@@ -42,8 +49,52 @@ type CreatePage struct {
 }
 
 func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *CreatePage {
+	return newCreatePageInternal(bs, pop, "", "")
+}
+
+// NewCreatePageWithPlan 创建带预设 Plan 的 Todo 创建页
+func NewCreatePageWithPlan(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd, planCode, planTitle string) *CreatePage {
+	return newCreatePageInternal(bs, pop, planCode, planTitle)
+}
+
+// newCreatePageInternal 内部构造函数
+func newCreatePageInternal(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd, presetPlanCode, presetPlanTitle string) *CreatePage {
 	// 初始化表单组件
 	codeInput := components.NewInput("标识码", "小写字母+连字符，如: my-todo", true)
+
+	// 获取可用的 Plan 列表
+	ctx := bs.Context()
+	plans, _ := bs.PlanService.ListPlans(ctx, bs.CurrentScope)
+	planOptions := make([]components.SelectOption, 0, len(plans))
+	planCodes := make([]string, 0, len(plans))
+	selectedPlanIndex := 0
+	for _, plan := range plans {
+		// 只显示活跃的计划（非已完成/已取消）
+		if plan.Status != entity.PlanStatusCompleted && plan.Status != entity.PlanStatusCancelled {
+			// 如果有预设 PlanCode，记录索引
+			if presetPlanCode != "" && plan.Code == presetPlanCode {
+				selectedPlanIndex = len(planOptions)
+			}
+			planOptions = append(planOptions, components.SelectOption{
+				Label: fmt.Sprintf("[%s] %s", plan.Code, plan.Title),
+				Value: plan.Code,
+			})
+			planCodes = append(planCodes, plan.Code)
+		}
+	}
+	// 如果没有可用计划，添加一个提示选项
+	if len(planOptions) == 0 {
+		planOptions = append(planOptions, components.SelectOption{
+			Label: "（暂无可用计划，请先创建计划）",
+			Value: "",
+		})
+	}
+	planSelect := components.NewSelect("所属计划", planOptions)
+	// 如果有预设 PlanCode，设置选中索引
+	if presetPlanCode != "" && selectedPlanIndex < len(planOptions) {
+		planSelect.SetSelectedIndex(selectedPlanIndex)
+	}
+
 	titleInput := components.NewInput("标题", "待办事项标题", true)
 	descriptionInput := components.NewTextArea("描述", "详细描述（可选）", false)
 	descriptionInput.SetHeight(4)
@@ -59,22 +110,20 @@ func NewCreatePage(bs *startup.Bootstrap, pop func(core.PageID) tea.Cmd) *Create
 	dueDateInput := components.NewInput("截止日期", "YYYY-MM-DD（可选）", false)
 	tagsInput := components.NewInput("标签", "逗号分隔（可选）", false)
 
-	globalSelect := components.NewSelect("作用域", []components.SelectOption{
-		{Label: "项目", Value: false},
-		{Label: "全局", Value: true},
-	})
-
 	return &CreatePage{
 		bs:               bs,
 		frame:            layout.NewFrame(80, 24),
 		pop:              pop,
 		codeInput:        codeInput,
+		planSelect:       planSelect,
 		titleInput:       titleInput,
 		descriptionInput: descriptionInput,
 		prioritySelect:   prioritySelect,
 		dueDateInput:     dueDateInput,
 		tagsInput:        tagsInput,
-		globalSelect:     globalSelect,
+		planCodes:        planCodes,
+		presetPlanCode:   presetPlanCode,
+		presetPlanTitle:  presetPlanTitle,
 		maxFocus:         6, // 7个字段，索引0-6
 	}
 }
@@ -93,12 +142,12 @@ func (p *CreatePage) Resize(w, h int) {
 		formWidth = w - 10
 	}
 	p.codeInput.SetWidth(formWidth)
+	p.planSelect.SetWidth(formWidth)
 	p.titleInput.SetWidth(formWidth)
 	p.descriptionInput.SetWidth(formWidth)
 	p.prioritySelect.SetWidth(formWidth)
 	p.dueDateInput.SetWidth(formWidth)
 	p.tagsInput.SetWidth(formWidth)
-	p.globalSelect.SetWidth(formWidth)
 }
 
 func (p *CreatePage) Update(msg tea.Msg) (core.Page, tea.Cmd) {
@@ -157,12 +206,12 @@ func (p *CreatePage) View() string {
 func (p *CreatePage) renderForm(width int) string {
 	parts := []string{
 		p.codeInput.View(),
+		p.planSelect.View(),
 		p.titleInput.View(),
 		p.descriptionInput.View(),
 		p.prioritySelect.View(),
 		p.dueDateInput.View(),
 		p.tagsInput.View(),
-		p.globalSelect.View(),
 		"",
 		theme.FormHint.Render("提示: Tab切换字段 · Ctrl+S保存 · Esc返回"),
 	}
@@ -206,17 +255,17 @@ func (p *CreatePage) focusCurrent() tea.Cmd {
 	case 0:
 		return p.codeInput.Focus()
 	case 1:
-		return p.titleInput.Focus()
+		return p.planSelect.Focus()
 	case 2:
-		return p.descriptionInput.Focus()
+		return p.titleInput.Focus()
 	case 3:
-		return p.prioritySelect.Focus()
+		return p.descriptionInput.Focus()
 	case 4:
-		return p.dueDateInput.Focus()
+		return p.prioritySelect.Focus()
 	case 5:
-		return p.tagsInput.Focus()
+		return p.dueDateInput.Focus()
 	case 6:
-		return p.globalSelect.Focus()
+		return p.tagsInput.Focus()
 	}
 	return nil
 }
@@ -227,17 +276,17 @@ func (p *CreatePage) blurCurrent() {
 	case 0:
 		p.codeInput.Blur()
 	case 1:
-		p.titleInput.Blur()
+		p.planSelect.Blur()
 	case 2:
-		p.descriptionInput.Blur()
+		p.titleInput.Blur()
 	case 3:
-		p.prioritySelect.Blur()
+		p.descriptionInput.Blur()
 	case 4:
-		p.dueDateInput.Blur()
+		p.prioritySelect.Blur()
 	case 5:
-		p.tagsInput.Blur()
+		p.dueDateInput.Blur()
 	case 6:
-		p.globalSelect.Blur()
+		p.tagsInput.Blur()
 	}
 }
 
@@ -248,17 +297,17 @@ func (p *CreatePage) updateFocused(msg tea.Msg) tea.Cmd {
 	case 0:
 		p.codeInput, cmd = p.codeInput.Update(msg)
 	case 1:
-		p.titleInput, cmd = p.titleInput.Update(msg)
+		p.planSelect, cmd = p.planSelect.Update(msg)
 	case 2:
-		p.descriptionInput, cmd = p.descriptionInput.Update(msg)
+		p.titleInput, cmd = p.titleInput.Update(msg)
 	case 3:
-		p.prioritySelect, cmd = p.prioritySelect.Update(msg)
+		p.descriptionInput, cmd = p.descriptionInput.Update(msg)
 	case 4:
-		p.dueDateInput, cmd = p.dueDateInput.Update(msg)
+		p.prioritySelect, cmd = p.prioritySelect.Update(msg)
 	case 5:
-		p.tagsInput, cmd = p.tagsInput.Update(msg)
+		p.dueDateInput, cmd = p.dueDateInput.Update(msg)
 	case 6:
-		p.globalSelect, cmd = p.globalSelect.Update(msg)
+		p.tagsInput, cmd = p.tagsInput.Update(msg)
 	}
 	return cmd
 }
@@ -275,6 +324,15 @@ func (p *CreatePage) submit() tea.Cmd {
 			p.submitting = false
 			return nil
 		}
+
+		// 验证所属计划
+		planCode, ok := p.planSelect.Value().(string)
+		if !ok || planCode == "" {
+			p.err = fmt.Errorf("请选择所属计划（如没有可用计划，请先创建计划）")
+			p.submitting = false
+			return nil
+		}
+
 		if err := p.titleInput.Validate(); err != nil {
 			p.err = fmt.Errorf("标题不能为空")
 			p.submitting = false
@@ -310,6 +368,7 @@ func (p *CreatePage) submit() tea.Cmd {
 		// 构建创建请求
 		createDTO := &dto.ToDoCreateDTO{
 			Code:        p.codeInput.Value(),
+			PlanCode:    planCode,
 			Title:       p.titleInput.Value(),
 			Description: p.descriptionInput.Value(),
 			Priority:    p.prioritySelect.Value().(int),

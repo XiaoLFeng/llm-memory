@@ -30,6 +30,8 @@ type (
 
 type todoItem struct {
 	ID          int64 // 添加ID字段用于编辑和删除
+	Code        string
+	PlanCode    string // 所属计划 Code
 	Title       string
 	Description string // 待办描述
 	Priority    entity.ToDoPriority
@@ -91,8 +93,12 @@ func (p *ListPage) load() tea.Cmd {
 		}
 		items := make([]todoItem, 0, len(todos))
 		for _, t := range todos {
+			// 获取 Plan Code
+			planCode, _ := p.bs.ToDoService.GetPlanCodeByTodoID(ctx, t.ID)
 			items = append(items, todoItem{
 				ID:          t.ID, // 添加ID
+				Code:        t.Code,
+				PlanCode:    planCode,
 				Title:       t.Title,
 				Description: t.Description, // 添加描述字段
 				Priority:    t.Priority,
@@ -377,8 +383,12 @@ func (p *ListPage) renderList(width int) string {
 		if t.DueDate != nil {
 			due = " · 截止 " + t.DueDate.Format("01-02")
 		}
-		line := fmt.Sprintf("%s %s · %s · %s%s",
-			scope, t.Title, priority, status, due)
+		planTag := ""
+		if t.PlanCode != "" {
+			planTag = fmt.Sprintf(" [%s]", t.PlanCode)
+		}
+		line := fmt.Sprintf("%s%s %s · %s · %s%s",
+			scope, planTag, t.Title, priority, status, due)
 		if utils.LipWidth(line) > width {
 			line = utils.Truncate(line, width)
 		}
@@ -420,11 +430,16 @@ func (p *ListPage) renderDetail(width int) string {
 	if t.CompletedAt != nil {
 		comp = t.CompletedAt.Format("2006-01-02 15:04")
 	}
+	// 添加计划信息
+	planInfo := "无"
+	if t.PlanCode != "" {
+		planInfo = t.PlanCode
+	}
 	lines = append(lines, metaStyle.Render(fmt.Sprintf(
-		"优先级: %s | 状态: %s | 作用域: %s",
-		priorityText(t.Priority), statusText(t.Status), scope)))
+		"所属计划: %s | 优先级: %s | 状态: %s",
+		planInfo, priorityText(t.Priority), statusText(t.Status))))
 	lines = append(lines, metaStyle.Render(fmt.Sprintf(
-		"截止时间: %s | 完成时间: %s", due, comp)))
+		"作用域: %s | 截止时间: %s | 完成时间: %s", scope, due, comp)))
 
 	// === 分隔线 ===
 	lines = append(lines, "")

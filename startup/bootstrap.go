@@ -106,7 +106,6 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 		&entity.Memory{},
 		&entity.MemoryTag{},
 		&entity.Plan{},
-		&entity.SubTask{},
 		&entity.ToDo{},
 		&entity.ToDoTag{},
 		&entity.Group{},
@@ -133,7 +132,7 @@ func (b *Bootstrap) Initialize(ctx context.Context) error {
 	// 8. 创建 Service 实例
 	b.MemoryService = service.NewMemoryService(memoryModel)
 	b.PlanService = service.NewPlanService(planModel)
-	b.ToDoService = service.NewToDoService(todoModel)
+	b.ToDoService = service.NewToDoService(todoModel, planModel)
 	b.GroupService = service.NewGroupService(groupModel)
 
 	// 9. 解析当前作用域
